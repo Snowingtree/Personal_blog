@@ -265,8 +265,8 @@
               <p class="section-tag">Chat</p>
               <div class="note-ai-view__chat-title-row">
                 <span class="note-ai-view__chat-title">{{ chatPanelTitle }}</span>
-                <span v-if="chatModelBadge" class="note-ai-view__chat-model-badge">
-                  {{ chatModelBadge }}
+                <span v-if="appliedModelBadge" class="note-ai-view__chat-model-badge">
+                  {{ appliedModelBadge }}
                 </span>
               </div>
               <h4>和 AI 对话</h4>
@@ -324,9 +324,10 @@
             <div class="note-ai-view__chat-form">
               <div class="note-ai-view__chat-input-wrap">
                 <textarea
+                  ref="chatInputRef"
                   v-model.trim="chatDraft"
                   class="note-ai-view__chat-input"
-                  :disabled="isChatLoading || isLoadingConfigs"
+                  :disabled="isLoadingConfigs"
                   :placeholder="chatInputPlaceholder"
                   @keydown="handleChatInputKeydown"
                 />
@@ -590,6 +591,7 @@ const questionHistory = ref([])
 const chatDraft = ref('')
 const chatMessages = ref([])
 const chatBodyRef = ref(null)
+const chatInputRef = ref(null)
 const aiConfigOptions = ref([])
 const appliedProvider = ref(initialStoredProvider)
 const appliedVersion = ref(initialStoredModel)
@@ -752,6 +754,16 @@ function notify(message, type = 'danger') {
 
 function handleModelSelectionInput() {
   shouldAnnouncePendingModelSelection.value = true
+}
+
+async function focusChatInput() {
+  await nextTick()
+
+  if (!chatInputRef.value || isLoadingConfigs.value) {
+    return
+  }
+
+  chatInputRef.value.focus()
 }
 
 async function scrollChatToBottom() {
@@ -1048,6 +1060,10 @@ function handleChatInputKeydown(event) {
 async function sendChatMessage() {
   const userMessage = String(chatDraft.value || '').trim()
 
+  if (isChatLoading.value) {
+    return
+  }
+
   if (!userMessage) {
     notify('请输入想问 AI 的内容。')
     return
@@ -1065,6 +1081,7 @@ async function sendChatMessage() {
   chatDraft.value = ''
   chatError.value = ''
   isChatLoading.value = true
+  void focusChatInput()
   await scrollChatToBottom()
 
   try {
@@ -1103,6 +1120,7 @@ async function sendChatMessage() {
   } finally {
     if (requestId === latestChatRequestId) {
       isChatLoading.value = false
+      void focusChatInput()
     }
   }
 }
@@ -1595,7 +1613,7 @@ onMounted(() => {
 
 .note-ai-view__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.96fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   gap: 16px;
   min-height: 0;
   flex: 1;
@@ -1754,6 +1772,7 @@ onMounted(() => {
 
 .note-ai-view__question-stage {
   display: flex;
+  justify-content: center;
   min-height: 184px;
 }
 
@@ -1764,6 +1783,7 @@ onMounted(() => {
   width: 100%;
   min-height: 184px;
   height: 184px;
+  max-width: 620px;
   padding: 18px;
   text-align: center;
   overflow: auto;
@@ -1777,6 +1797,7 @@ onMounted(() => {
   width: 100%;
   min-height: 184px;
   height: 184px;
+  max-width: 620px;
   padding: 16px 18px;
   overflow: auto;
 }
@@ -1854,6 +1875,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  height: 100%;
 }
 
 .note-ai-view__chat-list {
@@ -1958,6 +1980,8 @@ onMounted(() => {
 .note-ai-view__chat-form {
   display: grid;
   gap: 10px;
+  margin-top: auto;
+  padding-top: 6px;
 }
 
 .note-ai-view__chat-input-wrap {

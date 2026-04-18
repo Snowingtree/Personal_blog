@@ -98,6 +98,29 @@ function formatDateKey(value, timeZone) {
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
+function getCurrentAiChatTemporalContext(timeZone = defaultQuizHistoryTimeZone) {
+  const date = new Date()
+  const dateText = new Intl.DateTimeFormat('zh-CN', {
+    timeZone,
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(date)
+  const weekday = new Intl.DateTimeFormat('zh-CN', {
+    timeZone,
+    weekday: 'long'
+  }).format(date)
+  const timeText = new Intl.DateTimeFormat('zh-CN', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(date)
+
+  return `${dateText} ${weekday} ${timeText}（时区：${timeZone}）`
+}
+
 function getQuizHistoryPromptLimit(env) {
   return parsePositiveInteger(env.OPENAI_QUIZ_HISTORY_PROMPT_LIMIT, defaultQuizHistoryPromptLimit)
 }
@@ -1742,6 +1765,7 @@ async function buildPrompt({
 
   return renderPromptTemplate(template, {
     currentFilePath: currentFile.path,
+    currentModel: config.model || '',
     memoryFilePath: auxiliaryMemoryFile?.path || '未提供独立背过.md（与当前文件相同或未找到）',
     recentQuestionLines,
     currentFileContent: currentFileContent || '（空）',
@@ -1778,6 +1802,7 @@ async function buildChatSystemPrompt({ currentFile, memoryFile, currentQuestion,
   return renderPromptTemplate(template, {
     currentFilePath: currentFile.path,
     memoryFilePath: auxiliaryMemoryFile?.path || '未提供独立背过.md（与当前文件相同或未找到）',
+    currentModel: config.model || '',
     questionBlock,
     currentFileContent: currentFileContent || '（空）',
     memoryFileContent: memoryFileContent || '（未提供）'
