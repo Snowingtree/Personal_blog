@@ -1,0 +1,8 @@
+node_modules
+dist
+.DS_Store
+.tmp_xiao_tu_xian_build
+.env
+.env.local
+.env.*.local
+!.env.example

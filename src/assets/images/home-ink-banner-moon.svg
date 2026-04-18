@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 240" fill="none">
+  <defs>
+    <linearGradient id="paperNight" x1="84" y1="24" x2="1118" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E7E0D6" />
+      <stop offset=".52" stop-color="#D6CEC2" />
+      <stop offset="1" stop-color="#C5BCAE" />
+    </linearGradient>
+    <radialGradient id="moonGlow" cx="0" cy="0" r="1" gradientTransform="translate(872 84) rotate(90) scale(82 94)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D7D4CE" stop-opacity=".32" />
+      <stop offset="1" stop-color="#D7D4CE" stop-opacity="0" />
+    </radialGradient>
+    <filter id="blurLarge" x="-10%" y="-30%" width="120%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="12" />
+    </filter>
+    <filter id="blurSoft" x="-8%" y="-26%" width="116%" height="152%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="6" />
+    </filter>
+  </defs>
+
+  <rect width="1200" height="240" fill="url(#paperNight)" />
+
+  <ellipse cx="872" cy="84" rx="92" ry="80" fill="url(#moonGlow)" />
+  <circle cx="872" cy="84" r="32" fill="#E5E1DA" fill-opacity=".74" />
+  <circle cx="886" cy="76" r="31" fill="#D2CABD" fill-opacity=".82" />
+
+  <path
+    d="M-32 176C126 144 270 142 408 166C540 188 670 182 810 150C932 122 1060 124 1232 164V240H-32V176Z"
+    fill="#6B7670"
+    fill-opacity=".16"
+    filter="url(#blurLarge)"
+  />
+
+  <path
+    d="M-28 202C56 192 126 172 188 116C232 148 256 184 304 202C386 194 444 156 506 78C554 142 584 188 636 206C708 198 752 164 810 102C860 146 888 186 940 206C1016 198 1080 166 1144 122C1178 152 1202 182 1228 202V240H-28V202Z"
+    fill="#353C39"
+    fill-opacity=".42"
+  />
+
+  <path
+    d="M-14 210C66 202 136 182 194 136C226 160 248 190 292 208C372 206 430 172 492 112C540 156 568 190 614 210C682 208 730 182 786 136C828 166 854 194 896 210C972 206 1040 178 1122 136C1160 164 1188 190 1214 208"
+    stroke="#202523"
+    stroke-opacity=".42"
+    stroke-width="8"
+    stroke-linecap="round"
+    filter="url(#blurSoft)"
+  />
+
+  <path
+    d="M0 206C106 214 210 208 314 198C432 186 526 198 624 210C742 224 852 220 954 204C1042 190 1124 178 1200 184"
+    stroke="#888078"
+    stroke-opacity=".34"
+    stroke-width="11"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M0 194C128 188 244 174 352 160C482 144 588 146 694 158C800 170 894 168 992 154"
+    stroke="#434C48"
+    stroke-opacity=".18"
+    stroke-width="7"
+    stroke-linecap="round"
+  />
+</svg>
