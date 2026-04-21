@@ -1,11 +1,6 @@
 <template>
   <main class="auth-layout">
-    <PrivateAccessLoadingOverlay
-      v-if="!privateAppAvailable"
-      :state="privateAppChecking ? 'checking' : 'denied'"
-    />
     <LoginForm
-      v-else
       :submitting="submitting"
       :server-error="serverError"
       brand-tag=""
@@ -20,16 +15,13 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import LoginForm from '../../components/LoginForm/LoginForm.vue'
-import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import { AUTH_TOKEN_KEY, NOTE_AUTH_KEY, NOTE_USERNAME_KEY } from '../../constants/storage'
-import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import http from '../../utils/http'
 
 const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
 const notesTitle = '\u7B14\u8BB0'
-const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 
 async function handleLogin(payload) {
   serverError.value = ''

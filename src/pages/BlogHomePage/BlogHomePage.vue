@@ -96,6 +96,7 @@ import BlogTopbar from '../../components/blog/BlogTopbar/BlogTopbar.vue'
 import { homepageAiShareCards, homepageAiShareSection } from '../../data/aiShares'
 import { homepageArticleCards, homepageArticleSection } from '../../data/blogArticles'
 import { useSiteTheme } from '../../hooks/useSiteTheme'
+import { resolvePrivateAppUrl } from '../../utils/privateAccess'
 const TASSLE_MAX_PULL = 72
 const TASSLE_TRIGGER_DISTANCE = 46
 
@@ -108,9 +109,9 @@ const tasselStyle = computed(() => ({
 let tasselStartY = 0
 
 const topbarToolLabel = computed(() => '工具')
-const topbarToolHref = computed(() => '/notes-login')
+const topbarToolHref = computed(() => resolvePrivateAppUrl('/notes-login'))
 const topbarFeatureLabel = computed(() => '动漫')
-const topbarFeatureHref = computed(() => '/login')
+const topbarFeatureHref = computed(() => resolvePrivateAppUrl('/login'))
 
 function toggleTheme() {
   toggleSiteTheme()
