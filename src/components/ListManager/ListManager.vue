@@ -5,7 +5,9 @@
         <p class="section-tag">列表操作</p>
         <h2>展示并管理动漫名称</h2>
       </div>
-      <span class="item-count">{{ countLabel }}</span>
+      <div v-if="$slots['source-actions']" class="panel-head-actions">
+        <slot name="source-actions" />
+      </div>
     </div>
 
     <form class="action-form" @submit.prevent="handleSearch">
@@ -27,7 +29,6 @@
         {{ undoLabel }}
       </button>
     </form>
-
     <p v-if="activeKeyword" class="search-status">
       当前查询：{{ activeKeyword }}。清空输入框后再次点击“查询”可恢复完整列表。
     </p>
@@ -82,7 +83,7 @@ const props = defineProps({
 const emit = defineEmits(['add', 'remove', 'undo'])
 const draftValue = ref('')
 
-const { activeKeyword, countLabel, visibleItems, visibleRows, queryAnime } = useAnimeSearch(
+const { activeKeyword, visibleItems, visibleRows, queryAnime } = useAnimeSearch(
   toRef(props, 'items')
 )
 

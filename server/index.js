@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { createAnimeApiMiddleware } from './animeApi.js'
 import { createAiApiMiddleware } from './aiApi.js'
 import { createAiSettingsApiMiddleware } from './aiSettingsApi.js'
+import { createAgentApiMiddleware } from './agentApi.js'
 import { createAuthApiMiddleware } from './authApi.js'
 import { createBlogCheckinApiMiddleware } from './blogCheckinApi.js'
 import { createProtectedApiMiddleware } from './authToken.js'
@@ -96,6 +97,7 @@ const protectedApiMiddleware = createProtectedApiMiddleware(process.env)
 const animeMiddleware = createAnimeApiMiddleware(process.env)
 const aiSettingsMiddleware = createAiSettingsApiMiddleware(process.env)
 const aiMiddleware = createAiApiMiddleware(process.env)
+const agentMiddleware = createAgentApiMiddleware(process.env)
 const notesMiddleware = createNotesApiMiddleware(process.env)
 
 const server = createServer(async (req, res) => {
@@ -118,8 +120,10 @@ const server = createServer(async (req, res) => {
         await animeMiddleware(req, res, async () => {
           await aiSettingsMiddleware(req, res, async () => {
             await aiMiddleware(req, res, async () => {
-              await notesMiddleware(req, res, () => {
-                writeJson(res, 404, { message: 'Not found' })
+              await agentMiddleware(req, res, async () => {
+                await notesMiddleware(req, res, () => {
+                  writeJson(res, 404, { message: 'Not found' })
+                })
               })
             })
           })

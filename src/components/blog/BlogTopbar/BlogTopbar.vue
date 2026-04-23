@@ -30,9 +30,21 @@
     </nav>
 
     <div
-      v-if="toolLabel || featureLabel || githubHref || showThemeToggle"
+      v-if="agentLabel || toolLabel || featureLabel || githubHref || showThemeToggle"
       class="blog-topbar__actions"
     >
+      <a
+        v-if="agentLabel && agentHref"
+        class="blog-topbar__link"
+        :href="agentHref"
+      >
+        {{ agentLabel }}
+      </a>
+
+      <RouterLink v-else-if="agentLabel && agentTo" class="blog-topbar__link" :to="agentTo">
+        {{ agentLabel }}
+      </RouterLink>
+
       <a
         v-if="toolLabel && toolHref"
         class="blog-topbar__link"
@@ -133,6 +145,18 @@ defineProps({
   links: {
     type: Array,
     default: () => []
+  },
+  agentLabel: {
+    type: String,
+    default: ''
+  },
+  agentTo: {
+    type: String,
+    default: ''
+  },
+  agentHref: {
+    type: String,
+    default: ''
   },
   toolLabel: {
     type: String,

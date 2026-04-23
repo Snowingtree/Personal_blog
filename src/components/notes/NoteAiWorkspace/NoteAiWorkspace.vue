@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="note-ai-view">
     <header class="note-ai-view__toolbar">
       <div class="note-ai-view__toolbar-head">
@@ -283,17 +283,6 @@
 
           <div class="note-ai-view__chat-shell">
             <div ref="chatBodyRef" class="note-ai-view__chat-list">
-              <div
-                v-if="!chatMessages.length && !isChatLoading"
-                class="note-ai-view__chat-empty"
-              >
-                <strong>{{ chatEmptyTitle }}</strong>
-                <p>{{ chatEmptyDescription }}</p>
-                <span v-if="chatContextSummary" class="note-ai-view__chat-empty-hint">
-                  {{ chatContextSummary }}
-                </span>
-              </div>
-
               <article
                 v-for="item in chatMessages"
                 :key="item.id"
@@ -328,7 +317,7 @@
                   v-model.trim="chatDraft"
                   class="note-ai-view__chat-input"
                   :disabled="isLoadingConfigs"
-                  :placeholder="chatInputPlaceholder"
+                  placeholder="Enter to send. Shift + Enter for newline."
                   @keydown="handleChatInputKeydown"
                 />
                 <button
@@ -711,34 +700,6 @@ const chatInputPlaceholder = computed(() =>
     ? `直接向 ${assistantRoleLabel.value} 提问当前笔记、题目或答案细节`
     : '先选择并应用模型，再开始对话'
 )
-
-const chatEmptyTitle = computed(() =>
-  appliedModelBadge.value ? `和 ${assistantRoleLabel.value} 开始对话` : '先选择并应用模型'
-)
-const chatEmptyDescription = computed(() => {
-  if (!props.activePath) {
-    return '先在左侧选择一篇 Markdown 笔记，右侧对话会自动结合当前笔记内容。'
-  }
-
-  if (!appliedModelBadge.value) {
-    return '模型应用后，就可以在这里围绕当前笔记和题目继续追问。'
-  }
-
-  return '可以直接追问当前笔记、刚抽到的题目，或者让 AI 继续展开答案细节。'
-})
-const chatContextSummary = computed(() => {
-  const parts = []
-
-  if (props.activeFileTitle) {
-    parts.push(`当前笔记：${props.activeFileTitle}`)
-  }
-
-  if (currentQuestion.value?.prompt) {
-    parts.push(`当前题目：${String(currentQuestion.value.prompt).trim()}`)
-  }
-
-  return parts.join(' ｜ ')
-})
 
 let latestRequestId = 0
 let latestChatRequestId = 0
@@ -1887,44 +1848,6 @@ onMounted(() => {
   max-height: 420px;
   overflow-y: auto;
   padding-right: 4px;
-}
-
-.note-ai-view__chat-empty {
-  display: grid;
-  gap: 8px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px dashed rgba(28, 175, 145, 0.22);
-  background: linear-gradient(180deg, rgba(247, 253, 251, 0.96), rgba(255, 255, 255, 0.92));
-}
-
-.note-ai-view__chat-empty strong {
-  color: #12344e;
-  font-size: 1rem;
-  line-height: 1.4;
-}
-
-.note-ai-view__chat-empty p {
-  margin: 0;
-  color: #527087;
-  line-height: 1.7;
-}
-
-.note-ai-view__chat-empty-hint {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-  padding: 7px 10px;
-  border-radius: 999px;
-  background: rgba(28, 175, 145, 0.1);
-  color: #176f63;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .note-ai-view__chat-item {

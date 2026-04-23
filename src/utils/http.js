@@ -1,5 +1,7 @@
 import axios from 'axios'
 import {
+  AGENT_AUTH_KEY,
+  AGENT_USERNAME_KEY,
   AUTH_KEY,
   AUTH_TOKEN_KEY,
   NOTE_AUTH_KEY,
@@ -7,7 +9,46 @@ import {
   USERNAME_KEY
 } from '../constants/storage'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const EXPLICIT_API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+const EXPLICIT_PRIVATE_APP_BASE_URL = String(import.meta.env.VITE_PRIVATE_APP_BASE_URL || '')
+  .trim()
+  .replace(/\/$/, '')
+const PRIVATE_ROUTE_PREFIXES = [
+  '/login',
+  '/display',
+  '/notes',
+  '/notes-login',
+  '/ai-settings',
+  '/ai-quiz-history'
+]
+
+function isPrivateRoutePath(pathname) {
+  const normalizedPath = String(pathname || '').trim()
+
+  if (!normalizedPath) {
+    return false
+  }
+
+  return PRIVATE_ROUTE_PREFIXES.some((prefix) => (
+    normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)
+  ))
+}
+
+function resolveApiBaseUrl() {
+  if (EXPLICIT_API_BASE_URL) {
+    return EXPLICIT_API_BASE_URL
+  }
+
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  if (EXPLICIT_PRIVATE_APP_BASE_URL && isPrivateRoutePath(window.location.pathname)) {
+    return EXPLICIT_PRIVATE_APP_BASE_URL
+  }
+
+  return ''
+}
 
 function clearStoredAuth() {
   if (typeof localStorage === 'undefined') {
@@ -19,6 +60,8 @@ function clearStoredAuth() {
   localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(NOTE_AUTH_KEY)
   localStorage.removeItem(NOTE_USERNAME_KEY)
+  localStorage.removeItem(AGENT_AUTH_KEY)
+  localStorage.removeItem(AGENT_USERNAME_KEY)
 }
 
 function createHttpError(error) {
@@ -31,6 +74,9 @@ function createHttpError(error) {
       : responseData?.message
   const message =
     responseMessage ||
+    (error.response?.status === 403
+      ? 'Request was blocked with 403. Check whether the deployed site is forwarding /api to the Node service, or set VITE_API_BASE_URL to the real backend origin.'
+      : '') ||
     (error.response?.status === 500
       ? 'Server returned 500. Check the Node service logs for the exact auth error.'
       : error.message || 'Request failed')
@@ -44,12 +90,15 @@ function createHttpError(error) {
 }
 
 const http = axios.create({
-  baseURL: API_BASE_URL,
   timeout: 10000
 })
 
 http.interceptors.request.use(
   (config) => {
+    if (!config.baseURL) {
+      config.baseURL = resolveApiBaseUrl()
+    }
+
     const headers = axios.AxiosHeaders.from(config.headers)
 
     headers.set('Accept', 'application/json')
@@ -83,7 +132,12 @@ http.interceptors.response.use(
         clearStoredAuth()
 
         if (typeof window !== 'undefined') {
-          const nextLocation = window.location.pathname.startsWith('/notes') ? '/notes-login' : '/login'
+          let nextLocation = '/login'
+
+          if (window.location.pathname.startsWith('/notes')) {
+            nextLocation = '/notes-login'
+          }
+
           const nextUrl = new URL(nextLocation, window.location.origin).toString()
 
           if (window.location.href !== nextUrl) {

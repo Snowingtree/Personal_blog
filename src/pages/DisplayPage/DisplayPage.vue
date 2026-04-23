@@ -4,11 +4,10 @@
       :username="username"
       tag="展示页"
       title="动漫名称列表"
-      description="已按名称首字母的拼音顺序进行 A-Z 排序"
       @logout="handleLogout"
     />
 
-    <div class="content-grid">
+    <div class="content-grid content-grid--single">
       <ListManager
         :items="items"
         :undo-label="undoLabel"
@@ -16,35 +15,16 @@
         @add="handleAddItem"
         @remove="handleRemoveItem"
         @undo="handleUndo"
-      />
-
-      <aside class="panel-card info-panel">
-        <div class="panel-head">
-          <div>
-            <p class="section-tag">数据来源</p>
-            <h2>服务端数据说明</h2>
-          </div>
-        </div>
-
-        <p class="info-copy">
-          页面会通过 <code>/api/anime</code> 从服务端读取列表。服务端可以连接 MySQL，也可以继续使用项目根目录下的
-          <code>anime.txt</code>。
-        </p>
-        <p class="info-copy">
-          列表会先按动漫名称首字母的拼音顺序进行 A-Z 排序，再在每个分组开始位置插入对应的字母标题。
-        </p>
-        <p class="info-copy">
-          当服务端配置 MySQL 时，保存会覆盖数据表中的当前列表；未配置 MySQL 时，会回退到
-          <code>anime.txt</code>。
-        </p>
-
-        <button type="button" class="primary-btn save-btn" @click="resetFromSource">
-          重新读取数据源
-        </button>
-        <button type="button" class="primary-btn save-btn" @click="handleSave">
-          保存到数据源
-        </button>
-      </aside>
+      >
+        <template #source-actions>
+          <button type="button" class="secondary-btn" @click="resetFromSource">
+            重新读取
+          </button>
+          <button type="button" class="primary-btn" @click="handleSave">
+            保存
+          </button>
+        </template>
+      </ListManager>
     </div>
   </main>
 

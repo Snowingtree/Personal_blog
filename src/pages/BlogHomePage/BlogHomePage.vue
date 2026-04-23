@@ -32,6 +32,8 @@
         title="Liu An Journal"
         :avatar-src="profileAvatar"
         avatar-alt="Homepage avatar"
+        agent-label="Agent"
+        :agent-href="resolvePrivateAppUrl('/agent/')"
         :tool-label="topbarToolLabel"
         :tool-href="topbarToolHref"
         :feature-label="topbarFeatureLabel"

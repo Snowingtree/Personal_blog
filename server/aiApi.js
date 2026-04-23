@@ -2532,6 +2532,20 @@ async function requestOpenAiNoteChatWithFallbackKeys({
   throw lastError || new Error('OpenAI chat request failed.')
 }
 
+export {
+  buildChatCompletionsConversationRequestBody,
+  buildResponsesChatRequestBody,
+  createOpenAiApiKeyStore,
+  extractChatCompletionsText,
+  extractResponseText,
+  extractUsageMetrics,
+  getOpenAiConfig,
+  normalizeRequestedAiId,
+  normalizeRequestedGenerationConfig,
+  normalizeRequestedModel,
+  postAiProviderJson
+}
+
 export function createAiApiMiddleware(env = process.env) {
   const repoRoot = getNotesRepoRoot(env)
   const repoName = basename(repoRoot)

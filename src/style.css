@@ -333,6 +333,10 @@ code {
   align-items: start;
 }
 
+.content-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .panel-card {
   padding: 24px;
   border-radius: 28px;
@@ -458,11 +462,12 @@ code {
   font-size: 1.35rem;
 }
 
-.item-count {
-  padding: 8px 12px;
-  border-radius: 999px;
-  color: #1f7cc1;
-  background: rgba(77, 182, 255, 0.16);
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
 }
 
 .action-form {
@@ -2343,6 +2348,12 @@ body.is-note-resizing * {
     grid-template-columns: 1fr;
   }
 
+  .panel-head-actions {
+    width: 100%;
+    justify-content: stretch;
+    margin-left: 0;
+  }
+
   .list-scroll {
     max-height: 520px;
   }
@@ -2458,10 +2469,6 @@ body.is-note-resizing * {
 
   .panel-head h2 {
     font-size: 1.2rem;
-  }
-
-  .item-count {
-    align-self: start;
   }
 
   .list-index {

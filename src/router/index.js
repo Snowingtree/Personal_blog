@@ -124,6 +124,22 @@ const router = createRouter({
   ]
 })
 
+function getAuthKeyByScope(scope) {
+  if (scope === 'notes') {
+    return NOTE_AUTH_KEY
+  }
+
+  return AUTH_KEY
+}
+
+function getLoginRouteByScope(scope) {
+  if (scope === 'notes') {
+    return 'notes-login'
+  }
+
+  return 'login'
+}
+
 router.beforeEach((to) => {
   const authToken = localStorage.getItem(AUTH_TOKEN_KEY)
   const hasToken = typeof authToken === 'string' && authToken.trim().length > 0
@@ -146,11 +162,11 @@ router.beforeEach((to) => {
     return { name: 'notes' }
   }
 
-  const authKey = to.meta.authScope === 'notes' ? NOTE_AUTH_KEY : AUTH_KEY
+  const authKey = getAuthKeyByScope(to.meta.authScope)
   const isAuthenticated = hasToken && localStorage.getItem(authKey) === 'true'
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    return { name: to.meta.authScope === 'notes' ? 'notes-login' : 'login' }
+    return { name: getLoginRouteByScope(to.meta.authScope) }
   }
 
   return true

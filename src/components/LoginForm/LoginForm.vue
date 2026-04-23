@@ -42,7 +42,7 @@
           {{ submitting ? '登录中...' : '登录' }}
         </button>
         <a class="secondary-btn login-home-link" :href="homeHref">
-          返回主页
+          返回首页
         </a>
       </div>
     </form>

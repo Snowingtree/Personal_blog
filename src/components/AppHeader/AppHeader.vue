@@ -26,7 +26,7 @@ defineProps({
   },
   description: {
     type: String,
-    default: '已按名称首字的拼音顺序进行 A-Z 排序'
+    default: ''
   },
   username: {
     type: String,
