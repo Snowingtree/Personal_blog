@@ -4366,6 +4366,12 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
   background: linear-gradient(135deg, #1e7d6d 0%, #2c9d89 100%);
 }
 
+.blog-calendar-day.is-outside.is-checked {
+  border-color: rgba(44, 157, 137, 0.18);
+  color: #2d6b60;
+  background: linear-gradient(135deg, rgba(30, 125, 109, 0.14) 0%, rgba(44, 157, 137, 0.3) 100%);
+}
+
 .blog-calendar-grid--compact {
   gap: 6px;
 }
@@ -4852,6 +4858,12 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
   border-color: transparent;
   color: #fff8f1;
   background: linear-gradient(135deg, #1f6f61 0%, #2c9180 100%);
+}
+
+.blog-page.blog-page--dark .blog-calendar-day.is-outside.is-checked {
+  border-color: rgba(111, 184, 171, 0.14);
+  color: rgba(221, 244, 236, 0.82);
+  background: linear-gradient(135deg, rgba(31, 111, 97, 0.24) 0%, rgba(44, 145, 128, 0.38) 100%);
 }
 
 .blog-page.blog-page--dark .blog-calendar-day--button:hover:not(:disabled) {
