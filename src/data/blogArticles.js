@@ -303,7 +303,7 @@ const articleSlugs = Array.from(
 )
 
 export const homepageArticleSection = {
-  title: '最近文章',
+  title: '文章',
   description: ''
 }
 

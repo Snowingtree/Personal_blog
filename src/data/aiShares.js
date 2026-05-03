@@ -246,7 +246,7 @@ function compareAiShares(left, right) {
 const aiShareSlugs = aiShareMarkdownEntries.map(({ slug }) => slug)
 
 export const homepageAiShareSection = {
-  title: '最近 AI 分享',
+  title: 'AI 分享',
   description: '把最近在用的 AI 工作流、提示词结构和协作方法整理成和文章分享同级的内容区。'
 }
 
