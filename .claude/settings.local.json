@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "WebFetch(domain:static.tree.moe)",
+      "Bash(curl -s -L --max-time 10 \"https://static.tree.moe/dragon/\")",
+      "Bash(curl -s -L --max-time 10 \"https://static.tree.moe/dragon/src/settings.js\")",
+      "Bash(curl -s -L --max-time 10 \"https://static.tree.moe/dragon/res/\")"
     ]
   }
 }

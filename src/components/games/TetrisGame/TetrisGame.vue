@@ -918,6 +918,7 @@ onUnmounted(() => {
 .tetris-game {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 18px;
   width: 100%;
 }
