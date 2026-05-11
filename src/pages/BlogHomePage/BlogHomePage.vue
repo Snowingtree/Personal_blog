@@ -83,20 +83,6 @@
         </div>
       </div>
 
-      <RouterLink class="blog-surface blog-games-entrance" to="/games">
-        <svg class="blog-games-entrance__icon" viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="2" width="24" height="16" rx="4" stroke="currentColor" stroke-width="1.6"/>
-          <circle cx="11" cy="10" r="2" fill="currentColor"/>
-          <line x1="11" y1="7" x2="11" y2="13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          <line x1="8" y1="10" x2="14" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          <circle cx="21" cy="8.5" r="1.2" fill="currentColor"/>
-          <circle cx="24" cy="11.5" r="1.2" fill="currentColor"/>
-        </svg>
-        <span class="blog-games-entrance__label">进入小游戏</span>
-        <svg class="blog-games-entrance__arrow" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </RouterLink>
     </div>
   </main>
 </template>
@@ -233,48 +219,3 @@ const profile = {
 }
 </script>
 
-<style scoped>
-.blog-games-entrance {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 24px;
-  padding: 20px 28px;
-  color: var(--text-secondary, #666);
-  text-decoration: none;
-  cursor: pointer;
-  transition: color 0.2s, box-shadow 0.2s, transform 0.15s;
-}
-
-.blog-games-entrance:hover {
-  color: var(--text-primary, #222);
-  box-shadow: 0 24px 70px var(--blog-shadow), 0 0 0 1px var(--blog-line);
-  transform: translateY(-2px);
-}
-
-.blog-games-entrance__icon {
-  width: 36px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.blog-games-entrance__label {
-  font-size: 15px;
-  letter-spacing: 0.04em;
-}
-
-.blog-games-entrance__arrow {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.blog-games-entrance:hover .blog-games-entrance__arrow {
-  opacity: 1;
-  transform: translateX(0);
-}
-</style>

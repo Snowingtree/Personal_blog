@@ -8,7 +8,6 @@ const AiQuizHistoryPage = () => import('../pages/AiQuizHistoryPage/AiQuizHistory
 const BlogArticlePage = () => import('../pages/BlogArticlePage/BlogArticlePage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
-const GamesPage = () => import('../pages/GamesPage/GamesPage.vue')
 import {
   AUTH_KEY,
   AUTH_TOKEN_KEY,
@@ -110,11 +109,6 @@ const router = createRouter({
         requiresAuth: true,
         authScope: 'notes'
       }
-    },
-    {
-      path: '/games',
-      name: 'games',
-      component: GamesPage
     },
     {
       path: '/notes',
