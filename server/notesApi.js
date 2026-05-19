@@ -9,6 +9,46 @@ function normalizeEnvValue(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function quoteShellArg(value) {
+  return `"${String(value).replace(/(["\\$`])/g, '\\$1')}"`
+}
+
+function createGitCommandEnv(env = process.env) {
+  const explicitSshCommand =
+    normalizeEnvValue(env.NOTE_REPO_GIT_SSH_COMMAND) || normalizeEnvValue(env.GIT_SSH_COMMAND)
+
+  if (explicitSshCommand) {
+    return {
+      GIT_SSH_COMMAND: explicitSshCommand
+    }
+  }
+
+  const sshKeyPath = normalizeEnvValue(env.NOTE_REPO_SSH_KEY_PATH)
+
+  if (!sshKeyPath) {
+    return {}
+  }
+
+  const sshArgs = [
+    'ssh',
+    '-i',
+    quoteShellArg(resolve(sshKeyPath)),
+    '-o',
+    'IdentitiesOnly=yes',
+    '-o',
+    'StrictHostKeyChecking=accept-new'
+  ]
+  const knownHostsPath = normalizeEnvValue(env.NOTE_REPO_SSH_KNOWN_HOSTS_PATH)
+
+  if (knownHostsPath) {
+    sshArgs.push('-o', `UserKnownHostsFile=${quoteShellArg(resolve(knownHostsPath))}`)
+  }
+
+  return {
+    GIT_SSH_COMMAND: sshArgs.join(' ')
+  }
+}
+
 function toPosixPath(value) {
   return value.replace(/\\/g, '/')
 }
@@ -98,6 +138,10 @@ function runCommand(command, args, options = {}) {
       args,
       {
         cwd: options.cwd,
+        env: {
+          ...process.env,
+          ...(options.env || {})
+        },
         timeout: options.timeout ?? 30000,
         maxBuffer: 1024 * 1024
       },
@@ -206,7 +250,9 @@ function createGitError(message, error) {
   }
 
   if (/Permission denied \(publickey\)/i.test(combinedMessage)) {
-    return new Error(`${message}\nThe server could not authenticate to the Git remote. Check the configured SSH key.`)
+    return new Error(
+      `${message}\nThe server could not authenticate to the Git remote. Check NOTE_REPO_SSH_KEY_PATH, SSH key permissions, and repository access.`
+    )
   }
 
   if (/Repository not found/i.test(combinedMessage)) {
@@ -224,6 +270,7 @@ async function runGitCommand(repoRoot, args, errorMessage) {
   try {
     return await runCommand('git', args, {
       cwd: repoRoot,
+      env: createGitCommandEnv(),
       timeout: GIT_COMMAND_TIMEOUT
     })
   } catch (error) {

@@ -4047,12 +4047,15 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
 .photo-wall-slide__visual {
   position: relative;
   width: min(100%, var(--wall-card-width));
-  min-height: var(--wall-card-height);
+  height: var(--wall-card-height);
   overflow: hidden;
   border-radius: 32px;
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.34), transparent 28%),
     linear-gradient(var(--wall-angle, 145deg), var(--wall-a), var(--wall-b) 56%, var(--wall-c));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   box-shadow:
     0 30px 60px var(--wall-glow),
     0 22px 48px rgba(66, 44, 18, 0.12),
@@ -4064,10 +4067,26 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
   pointer-events: none;
 }
 
+.photo-wall-slide__visual--image {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.photo-wall-slide__image {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
 .photo-wall-slide__visual::before,
 .photo-wall-slide__visual::after {
   content: '';
   position: absolute;
+  z-index: 2;
   pointer-events: none;
 }
 
@@ -4079,6 +4098,7 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
 
 .photo-wall-slide__visual::after {
   inset: -22% auto -18% -18%;
+  z-index: 3;
   width: 40%;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
   transform: skewX(-20deg) translateX(-180%);
@@ -5048,7 +5068,7 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
   }
 
   .photo-wall-slide__visual {
-    min-height: var(--wall-card-height);
+    height: var(--wall-card-height);
   }
 
   .blog-hero__stats,
@@ -5127,7 +5147,7 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
   }
 
   .photo-wall-slide__visual {
-    min-height: var(--wall-card-height);
+    height: var(--wall-card-height);
   }
 
   .photo-wall-slide__visual::before {

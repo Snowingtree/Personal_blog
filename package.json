@@ -6,6 +6,7 @@
   "scripts": {
     "server": "node server/index.js",
     "dev": "vite",
+    "images:photo-wall": "node scripts/generate-photo-wall-images.mjs",
     "encrypt:openai-key": "node scripts/encrypt-openai-key.mjs",
     "sync:xiao-tu-xian": "node scripts/sync-xiao-tu-xian.mjs",
     "build": "vite build",

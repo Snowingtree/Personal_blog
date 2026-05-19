@@ -36,7 +36,26 @@
               :class="`is-${item.position}`"
               :style="item.layerStyle"
             >
-              <div class="photo-wall-slide__visual" :style="item.style" />
+              <div
+                class="photo-wall-slide__visual"
+                :class="{ 'photo-wall-slide__visual--image': item.image }"
+                :style="item.style"
+              >
+                <img
+                  v-if="item.image && item.shouldLoadImage"
+                  class="photo-wall-slide__image"
+                  :src="item.image.src"
+                  :srcset="item.image.srcset"
+                  :sizes="PHOTO_WALL_IMAGE_SIZES"
+                  :alt="item.image.alt"
+                  :width="item.image.width"
+                  :height="item.image.height"
+                  :loading="item.imageLoading"
+                  :fetchpriority="item.imageFetchPriority"
+                  decoding="async"
+                  draggable="false"
+                />
+              </div>
             </article>
           </div>
         </div>
@@ -50,11 +69,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import BlogTopbar from '../../components/blog/BlogTopbar/BlogTopbar.vue'
 import profileAvatar from '../../assets/images/headerPH.png'
 import { useSiteTheme } from '../../hooks/useSiteTheme'
-
-const photoWallImages = import.meta.glob('../../assets/images/photo-wall/*.{png,jpg,jpeg,webp,avif,gif}', {
-  eager: true,
-  import: 'default'
-})
+import photoWallImages from '../../data/photoWallImages.generated'
 
 const imageGlowPalette = [
   'rgba(255, 138, 93, 0.28)',
@@ -63,6 +78,9 @@ const imageGlowPalette = [
   'rgba(255, 132, 192, 0.24)',
   'rgba(131, 152, 190, 0.22)'
 ]
+const PHOTO_WALL_IMAGE_SIZES =
+  '(max-width: 620px) calc(100vw - 64px), (max-width: 860px) 72vw, min(56vw, 640px)'
+const activeImagePositions = new Set(['center', 'left', 'right'])
 
 function createGradientSlideStyle(colors, glow, angle = '145deg') {
   return {
@@ -74,16 +92,11 @@ function createGradientSlideStyle(colors, glow, angle = '145deg') {
   }
 }
 
-function createImageSlideStyle(src, glow) {
+function createImageSlideStyle(image, glow) {
   return {
     '--wall-glow': glow,
-    background: `url("${src}") center/contain no-repeat`,
-    backgroundColor: 'transparent'
+    backgroundImage: image.placeholder ? `url("${image.placeholder}")` : undefined
   }
-}
-
-function extractPhotoName(path) {
-  return path.split('/').pop()?.replace(/\.[^.]+$/, '') ?? path
 }
 
 function buildFallbackSlides() {
@@ -112,14 +125,11 @@ function buildFallbackSlides() {
 }
 
 function buildSlides() {
-  const imageEntries = Object.entries(photoWallImages).sort(([a], [b]) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-  )
-
-  if (imageEntries.length > 0) {
-    return imageEntries.map(([path, src], index) => ({
-      id: extractPhotoName(path),
-      style: createImageSlideStyle(src, imageGlowPalette[index % imageGlowPalette.length])
+  if (photoWallImages.length > 0) {
+    return photoWallImages.map((image, index) => ({
+      id: image.id || `photo-${index + 1}`,
+      image,
+      style: createImageSlideStyle(image, imageGlowPalette[index % imageGlowPalette.length])
     }))
   }
 
@@ -180,6 +190,18 @@ function resolveSlideLayer(position) {
   return 1
 }
 
+function shouldLoadSlideImage(position) {
+  return activeImagePositions.has(position)
+}
+
+function resolveImageLoading(position) {
+  return position === 'center' ? 'eager' : 'lazy'
+}
+
+function resolveImageFetchPriority(position) {
+  return position === 'center' ? 'high' : 'auto'
+}
+
 const slides = buildSlides()
 const { isDarkTheme, shouldUseDarkTheme, toggleTheme } = useSiteTheme()
 const currentIndex = ref(0)
@@ -202,6 +224,9 @@ const decoratedSlides = computed(() =>
     return {
       ...item,
       position,
+      shouldLoadImage: Boolean(item.image) && shouldLoadSlideImage(position),
+      imageLoading: resolveImageLoading(position),
+      imageFetchPriority: resolveImageFetchPriority(position),
       layerStyle: {
         '--slide-layer': resolveSlideLayer(position)
       }
