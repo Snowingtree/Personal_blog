@@ -144,17 +144,19 @@ import { useRouter } from 'vue-router'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import {
+  AUTH_KEY,
   AUTH_TOKEN_KEY,
   NOTE_AUTH_KEY,
   NOTE_DESKTOP_WORKSPACE_KEY,
-  NOTE_USERNAME_KEY
+  NOTE_USERNAME_KEY,
+  USERNAME_KEY
 } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import http from '../../utils/http'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
-const username = ref(localStorage.getItem(NOTE_USERNAME_KEY) || '访客')
+const username = ref(localStorage.getItem(NOTE_USERNAME_KEY) || localStorage.getItem(USERNAME_KEY) || '访客')
 const loading = ref(false)
 const submitting = ref(false)
 const editingConfigId = ref(null)
@@ -296,8 +298,10 @@ function handleBackToDisplay() {
 }
 
 function handleLogout() {
+  localStorage.removeItem(AUTH_KEY)
   localStorage.removeItem(AUTH_TOKEN_KEY)
   localStorage.removeItem(NOTE_AUTH_KEY)
+  localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(NOTE_USERNAME_KEY)
   localStorage.removeItem(NOTE_DESKTOP_WORKSPACE_KEY)
   router.push('/notes-login')

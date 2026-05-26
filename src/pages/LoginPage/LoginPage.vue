@@ -15,13 +15,13 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import LoginForm from '../../components/LoginForm/LoginForm.vue'
-import { AUTH_KEY, AUTH_TOKEN_KEY, USERNAME_KEY } from '../../constants/storage'
+import { AUTH_KEY, AUTH_TOKEN_KEY, NOTE_AUTH_KEY, NOTE_USERNAME_KEY, USERNAME_KEY } from '../../constants/storage'
 import http from '../../utils/http'
 
 const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
-const loginTitle = '\u52A8\u6F2B\u5DE5\u5177'
+const loginTitle = '\u5DE5\u5177\u767B\u5F55'
 
 async function handleLogin(payload) {
   serverError.value = ''
@@ -37,14 +37,18 @@ async function handleLogin(payload) {
     }
 
     localStorage.setItem(AUTH_KEY, 'true')
+    localStorage.setItem(NOTE_AUTH_KEY, 'true')
     localStorage.setItem(USERNAME_KEY, username)
+    localStorage.setItem(NOTE_USERNAME_KEY, username)
     localStorage.setItem(AUTH_TOKEN_KEY, token)
 
-    router.push('/display')
+    router.push('/tools')
   } catch (error) {
     localStorage.removeItem(AUTH_KEY)
+    localStorage.removeItem(NOTE_AUTH_KEY)
     localStorage.removeItem(AUTH_TOKEN_KEY)
     localStorage.removeItem(USERNAME_KEY)
+    localStorage.removeItem(NOTE_USERNAME_KEY)
     serverError.value = error instanceof Error ? error.message : 'Login failed. Please try again.'
   } finally {
     submitting.value = false

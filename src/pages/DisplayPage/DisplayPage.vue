@@ -40,14 +40,14 @@ import { useRouter } from 'vue-router'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import ListManager from '../../components/ListManager/ListManager.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
-import { AUTH_KEY, AUTH_TOKEN_KEY, LIST_KEY, USERNAME_KEY } from '../../constants/storage'
+import { AUTH_KEY, AUTH_TOKEN_KEY, LIST_KEY, NOTE_AUTH_KEY, NOTE_USERNAME_KEY, USERNAME_KEY } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import http from '../../utils/http'
 import { parseAnimeContent, serializeAnimeItems, sortItemsByPinyin } from '../../utils/animePinyin'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
-const username = ref(localStorage.getItem(USERNAME_KEY) || '访客')
+const username = ref(localStorage.getItem(USERNAME_KEY) || localStorage.getItem(NOTE_USERNAME_KEY) || '访客')
 const lastAction = ref(null)
 
 function notify(message, type = 'success') {
@@ -161,9 +161,11 @@ async function handleSave() {
 
 function handleLogout() {
   localStorage.removeItem(AUTH_KEY)
+  localStorage.removeItem(NOTE_AUTH_KEY)
   localStorage.removeItem(AUTH_TOKEN_KEY)
   localStorage.removeItem(USERNAME_KEY)
-  router.push('/login')
+  localStorage.removeItem(NOTE_USERNAME_KEY)
+  router.push('/notes-login')
 }
 
 onMounted(async () => {

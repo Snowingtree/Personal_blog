@@ -8,6 +8,8 @@ const AiQuizHistoryPage = () => import('../pages/AiQuizHistoryPage/AiQuizHistory
 const BlogArticlePage = () => import('../pages/BlogArticlePage/BlogArticlePage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
+const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
+const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 import {
   AUTH_KEY,
   AUTH_TOKEN_KEY,
@@ -78,6 +80,17 @@ const router = createRouter({
       }
     },
     {
+      path: '/tools',
+      name: 'tool-selector',
+      component: ToolSelectorPage,
+      meta: {
+        followSiteTheme: false,
+        privateNetworkOnly: true,
+        requiresAuth: true,
+        authScope: 'tools'
+      }
+    },
+    {
       path: '/display',
       name: 'display',
       component: DisplayPage,
@@ -86,6 +99,17 @@ const router = createRouter({
         privateNetworkOnly: true,
         requiresAuth: true,
         authScope: 'anime'
+      }
+    },
+    {
+      path: '/internship',
+      name: 'internship',
+      component: InternshipPage,
+      meta: {
+        followSiteTheme: false,
+        privateNetworkOnly: true,
+        requiresAuth: true,
+        authScope: 'tools'
       }
     },
     {
@@ -125,6 +149,10 @@ const router = createRouter({
 })
 
 function getAuthKeyByScope(scope) {
+  if (scope === 'tools') {
+    return ''
+  }
+
   if (scope === 'notes') {
     return NOTE_AUTH_KEY
   }
@@ -133,11 +161,15 @@ function getAuthKeyByScope(scope) {
 }
 
 function getLoginRouteByScope(scope) {
-  if (scope === 'notes') {
+  if (isUnifiedPrivateAuthScope(scope)) {
     return 'notes-login'
   }
 
   return 'login'
+}
+
+function isUnifiedPrivateAuthScope(scope) {
+  return scope === 'anime' || scope === 'notes' || scope === 'tools'
 }
 
 router.beforeEach((to) => {
@@ -153,17 +185,20 @@ router.beforeEach((to) => {
 
   const animeAuthenticated = hasToken && localStorage.getItem(AUTH_KEY) === 'true'
   const notesAuthenticated = hasToken && localStorage.getItem(NOTE_AUTH_KEY) === 'true'
+  const hasAnyPrivateAppAuth = animeAuthenticated || notesAuthenticated
 
-  if (to.name === 'login' && animeAuthenticated) {
-    return { name: 'display' }
+  if (to.name === 'login' && hasAnyPrivateAppAuth) {
+    return { name: 'tool-selector' }
   }
 
-  if (to.name === 'notes-login' && notesAuthenticated) {
-    return { name: 'notes' }
+  if (to.name === 'notes-login' && hasAnyPrivateAppAuth) {
+    return { name: 'tool-selector' }
   }
 
-  const authKey = getAuthKeyByScope(to.meta.authScope)
-  const isAuthenticated = hasToken && localStorage.getItem(authKey) === 'true'
+  const isAuthenticated =
+    isUnifiedPrivateAuthScope(to.meta.authScope)
+      ? hasAnyPrivateAppAuth
+      : hasToken && localStorage.getItem(getAuthKeyByScope(to.meta.authScope)) === 'true'
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     return { name: getLoginRouteByScope(to.meta.authScope) }

@@ -36,8 +36,6 @@
         :agent-href="resolvePrivateAppUrl('/agent/')"
         :tool-label="topbarToolLabel"
         :tool-href="topbarToolHref"
-        :feature-label="topbarFeatureLabel"
-        :feature-href="topbarFeatureHref"
         :show-theme-toggle="true"
         :is-dark-theme="isDarkTheme"
         github-href="https://github.com/Snowingtree?tab=repositories"
@@ -113,8 +111,6 @@ let tasselStartY = 0
 
 const topbarToolLabel = computed(() => '工具')
 const topbarToolHref = computed(() => resolvePrivateAppUrl('/notes-login'))
-const topbarFeatureLabel = computed(() => '动漫')
-const topbarFeatureHref = computed(() => resolvePrivateAppUrl('/login'))
 
 function toggleTheme() {
   toggleSiteTheme()

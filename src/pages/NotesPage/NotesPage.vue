@@ -484,6 +484,7 @@ import NoteAiWorkspace from '../../components/notes/NoteAiWorkspace/NoteAiWorksp
 import NoteTreeNode from '../../components/notes/NoteTreeNode/NoteTreeNode.vue'
 import NoteWorkspaceTassel from '../../components/notes/NoteWorkspaceTassel/NoteWorkspaceTassel.vue'
 import {
+  AUTH_KEY,
   AUTH_TOKEN_KEY,
   NOTE_ACTIVE_PATH_KEY,
   NOTE_AUTH_KEY,
@@ -491,7 +492,8 @@ import {
   NOTE_OPEN_FOLDERS_KEY,
   NOTE_SIDEBAR_MODE_KEY,
   NOTE_SIDEBAR_WIDTH_KEY,
-  NOTE_USERNAME_KEY
+  NOTE_USERNAME_KEY,
+  USERNAME_KEY
 } from '../../constants/storage'
 import {
   buildMarkdownHeadingId,
@@ -570,7 +572,7 @@ function normalizeDesktopWorkspaceView(value) {
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
-const username = ref(readStorageValue(NOTE_USERNAME_KEY, '访客'))
+const username = ref(readStorageValue(NOTE_USERNAME_KEY) || readStorageValue(USERNAME_KEY, '访客'))
 const files = ref([])
 const activePath = ref(readStorageValue(NOTE_ACTIVE_PATH_KEY))
 const activeContent = ref('')
@@ -1392,8 +1394,10 @@ async function publishRepository() {
 }
 
 function handleLogout() {
+  localStorage.removeItem(AUTH_KEY)
   localStorage.removeItem(AUTH_TOKEN_KEY)
   localStorage.removeItem(NOTE_AUTH_KEY)
+  localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(NOTE_USERNAME_KEY)
   localStorage.removeItem(NOTE_DESKTOP_WORKSPACE_KEY)
   router.push('/notes-login')

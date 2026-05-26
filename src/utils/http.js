@@ -16,6 +16,8 @@ const EXPLICIT_PRIVATE_APP_BASE_URL = String(import.meta.env.VITE_PRIVATE_APP_BA
 const PRIVATE_ROUTE_PREFIXES = [
   '/login',
   '/display',
+  '/internship',
+  '/tools',
   '/notes',
   '/notes-login',
   '/ai-settings',
@@ -132,12 +134,7 @@ http.interceptors.response.use(
         clearStoredAuth()
 
         if (typeof window !== 'undefined') {
-          let nextLocation = '/login'
-
-          if (window.location.pathname.startsWith('/notes')) {
-            nextLocation = '/notes-login'
-          }
-
+          const nextLocation = '/notes-login'
           const nextUrl = new URL(nextLocation, window.location.origin).toString()
 
           if (window.location.href !== nextUrl) {

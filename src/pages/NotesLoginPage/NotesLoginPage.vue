@@ -15,13 +15,13 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import LoginForm from '../../components/LoginForm/LoginForm.vue'
-import { AUTH_TOKEN_KEY, NOTE_AUTH_KEY, NOTE_USERNAME_KEY } from '../../constants/storage'
+import { AUTH_KEY, AUTH_TOKEN_KEY, NOTE_AUTH_KEY, NOTE_USERNAME_KEY, USERNAME_KEY } from '../../constants/storage'
 import http from '../../utils/http'
 
 const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
-const notesTitle = '\u7B14\u8BB0'
+const notesTitle = '\u5DE5\u5177\u767B\u5F55'
 
 async function handleLogin(payload) {
   serverError.value = ''
@@ -36,13 +36,17 @@ async function handleLogin(payload) {
       throw new Error('Login succeeded but the server did not return an auth token.')
     }
 
+    localStorage.setItem(AUTH_KEY, 'true')
     localStorage.setItem(NOTE_AUTH_KEY, 'true')
+    localStorage.setItem(USERNAME_KEY, username)
     localStorage.setItem(NOTE_USERNAME_KEY, username)
     localStorage.setItem(AUTH_TOKEN_KEY, token)
 
-    router.push('/notes')
+    router.push('/tools')
   } catch (error) {
+    localStorage.removeItem(AUTH_KEY)
     localStorage.removeItem(NOTE_AUTH_KEY)
+    localStorage.removeItem(USERNAME_KEY)
     localStorage.removeItem(NOTE_USERNAME_KEY)
     localStorage.removeItem(AUTH_TOKEN_KEY)
     serverError.value = error instanceof Error ? error.message : 'Login failed. Please try again.'
