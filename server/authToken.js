@@ -148,6 +148,7 @@ export function createProtectedApiMiddleware(env = process.env) {
       && !requestPath.startsWith('/api/notes')
       && !requestPath.startsWith('/api/ai')
       && !requestPath.startsWith('/api/agent')
+      && !requestPath.startsWith('/api/internship')
     ) {
       next()
       return

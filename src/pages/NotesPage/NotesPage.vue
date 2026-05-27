@@ -1,5 +1,5 @@
 <template>
-  <main v-if="privateAppAvailable" class="display-layout display-layout--wide note-display-layout">
+  <main v-if="privateAppAvailable" class="display-layout display-layout--wide note-display-layout notes-agent-theme">
     <NoteWorkspaceTassel
       v-if="showDesktopWorkspaceSwitch"
       :active-view="desktopWorkspaceView"
@@ -7,11 +7,12 @@
     />
 
     <AppHeader
-      :username="username"
       tag="笔记页"
       title="仓库笔记浏览"
       description=""
-      @logout="handleLogout"
+      :show-user="false"
+      logout-label="返回选择"
+      @logout="handleBackToTools"
     />
 
     <button
@@ -484,16 +485,11 @@ import NoteAiWorkspace from '../../components/notes/NoteAiWorkspace/NoteAiWorksp
 import NoteTreeNode from '../../components/notes/NoteTreeNode/NoteTreeNode.vue'
 import NoteWorkspaceTassel from '../../components/notes/NoteWorkspaceTassel/NoteWorkspaceTassel.vue'
 import {
-  AUTH_KEY,
-  AUTH_TOKEN_KEY,
   NOTE_ACTIVE_PATH_KEY,
-  NOTE_AUTH_KEY,
   NOTE_DESKTOP_WORKSPACE_KEY,
   NOTE_OPEN_FOLDERS_KEY,
   NOTE_SIDEBAR_MODE_KEY,
-  NOTE_SIDEBAR_WIDTH_KEY,
-  NOTE_USERNAME_KEY,
-  USERNAME_KEY
+  NOTE_SIDEBAR_WIDTH_KEY
 } from '../../constants/storage'
 import {
   buildMarkdownHeadingId,
@@ -572,7 +568,6 @@ function normalizeDesktopWorkspaceView(value) {
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
-const username = ref(readStorageValue(NOTE_USERNAME_KEY) || readStorageValue(USERNAME_KEY, '访客'))
 const files = ref([])
 const activePath = ref(readStorageValue(NOTE_ACTIVE_PATH_KEY))
 const activeContent = ref('')
@@ -1393,14 +1388,8 @@ async function publishRepository() {
   }
 }
 
-function handleLogout() {
-  localStorage.removeItem(AUTH_KEY)
-  localStorage.removeItem(AUTH_TOKEN_KEY)
-  localStorage.removeItem(NOTE_AUTH_KEY)
-  localStorage.removeItem(USERNAME_KEY)
-  localStorage.removeItem(NOTE_USERNAME_KEY)
-  localStorage.removeItem(NOTE_DESKTOP_WORKSPACE_KEY)
-  router.push('/notes-login')
+function handleBackToTools() {
+  router.push('/tools')
 }
 
 watch(
@@ -1448,3 +1437,329 @@ onBeforeUnmount(() => {
   document.body.classList.remove('is-note-resizing')
 })
 </script>
+
+<style scoped>
+.notes-agent-theme {
+  --mono-ink: #111827;
+  --mono-copy: #374151;
+  --mono-muted: #6b7280;
+  --mono-line: rgba(17, 24, 39, 0.08);
+  --mono-line-strong: rgba(17, 24, 39, 0.14);
+  --mono-soft: #f6f7f9;
+  --mono-soft-strong: #eceff3;
+  --mono-surface: #ffffff;
+  position: relative;
+  isolation: isolate;
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #f7f8fa;
+}
+
+.notes-agent-theme :deep(.app-header),
+.notes-agent-theme :deep(.panel-card),
+.notes-agent-theme :deep(.note-tree-pane),
+.notes-agent-theme :deep(.note-view-pane),
+.notes-agent-theme :deep(.note-ai-view__panel),
+.notes-agent-theme :deep(.note-ai-view__toolbar),
+.notes-agent-theme :deep(.note-ai-view__chat-form),
+.notes-agent-theme :deep(.note-dialog__panel),
+.notes-agent-theme :deep(.note-mobile-directory-dialog__panel) {
+  border-color: var(--mono-line);
+  background: var(--mono-surface);
+  box-shadow:
+    0 18px 40px rgba(17, 24, 39, 0.07),
+    0 3px 10px rgba(17, 24, 39, 0.04);
+  backdrop-filter: none;
+}
+
+.notes-agent-theme :deep(.app-header h1),
+.notes-agent-theme :deep(.panel-head h2),
+.notes-agent-theme :deep(.note-view-toolbar h3),
+.notes-agent-theme :deep(.note-ai-view__panel h4),
+.notes-agent-theme :deep(.note-ai-view__chat-title),
+.notes-agent-theme :deep(.note-dialog__head h3) {
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme :deep(.page-tag),
+.notes-agent-theme :deep(.section-tag),
+.notes-agent-theme :deep(.note-ai-view__toolbar-tag) {
+  color: var(--mono-muted);
+}
+
+.notes-agent-theme :deep(.welcome-text),
+.notes-agent-theme :deep(.header-note),
+.notes-agent-theme :deep(.empty-state),
+.notes-agent-theme :deep(.note-view-status),
+.notes-agent-theme :deep(.note-view-updated),
+.notes-agent-theme :deep(.note-ai-view__status),
+.notes-agent-theme :deep(.note-ai-view__toolbar-feedback),
+.notes-agent-theme :deep(.note-dialog__copy),
+.notes-agent-theme :deep(.note-dialog__preview) {
+  color: var(--mono-muted);
+}
+
+.notes-agent-theme :deep(.primary-btn),
+.notes-agent-theme :deep(.secondary-btn),
+.notes-agent-theme :deep(.ghost-btn),
+.notes-agent-theme :deep(.note-mobile-directory-trigger),
+.notes-agent-theme :deep(.note-ai-view__history-button),
+.notes-agent-theme :deep(.note-ai-view__chat-clear) {
+  border-radius: 14px;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.notes-agent-theme :deep(.primary-btn) {
+  color: #ffffff;
+  background: linear-gradient(135deg, #111827 0%, #374151 100%);
+  box-shadow: 0 14px 26px rgba(17, 24, 39, 0.16);
+}
+
+.notes-agent-theme :deep(.primary-btn:hover) {
+  box-shadow: 0 18px 34px rgba(17, 24, 39, 0.2);
+}
+
+.notes-agent-theme :deep(.secondary-btn),
+.notes-agent-theme :deep(.ghost-btn),
+.notes-agent-theme :deep(.note-mobile-directory-trigger),
+.notes-agent-theme :deep(.note-ai-view__history-button),
+.notes-agent-theme :deep(.note-ai-view__chat-clear) {
+  color: var(--mono-copy);
+  border: 1px solid var(--mono-line);
+  background: var(--mono-soft);
+}
+
+.notes-agent-theme :deep(.secondary-btn:hover),
+.notes-agent-theme :deep(.ghost-btn:hover),
+.notes-agent-theme :deep(.note-mobile-directory-trigger:hover),
+.notes-agent-theme :deep(.note-ai-view__history-button:hover),
+.notes-agent-theme :deep(.note-ai-view__chat-clear:hover) {
+  border-color: var(--mono-line-strong);
+  background: var(--mono-soft-strong);
+}
+
+.notes-agent-theme :deep(.note-browser-panel) {
+  background: var(--mono-surface);
+}
+
+.notes-agent-theme :deep(.note-browser-layout) {
+  background: var(--mono-soft);
+}
+
+.notes-agent-theme :deep(.note-tree-wrap),
+.notes-agent-theme :deep(.note-tree-meta),
+.notes-agent-theme :deep(.note-view-toolbar),
+.notes-agent-theme :deep(.note-view-body),
+.notes-agent-theme :deep(.note-ai-view__question-stage),
+.notes-agent-theme :deep(.note-ai-view__chat-shell),
+.notes-agent-theme :deep(.note-ai-view__parameter-panel) {
+  border-color: var(--mono-line);
+  background: var(--mono-soft);
+}
+
+.notes-agent-theme :deep(.note-tree-content::-webkit-scrollbar-thumb),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-previewOnly::-webkit-scrollbar-thumb) {
+  background: rgba(17, 24, 39, 0.18);
+}
+
+.notes-agent-theme :deep(.note-tree-button),
+.notes-agent-theme :deep(.note-outline-button) {
+  color: var(--mono-copy);
+}
+
+.notes-agent-theme :deep(.note-tree-button:hover),
+.notes-agent-theme :deep(.note-outline-button:hover) {
+  background: var(--mono-soft-strong);
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme :deep(.note-tree-button--file.is-active) {
+  color: var(--mono-ink);
+  background: #e5e7eb;
+  box-shadow: inset 3px 0 0 #111827;
+}
+
+.notes-agent-theme :deep(.note-tree-button__caret) {
+  color: var(--mono-copy);
+}
+
+.notes-agent-theme :deep(.note-tree-button__icon--folder) {
+  background: linear-gradient(180deg, #6b7280 0%, #374151 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.notes-agent-theme :deep(.note-tree-button__icon--folder::before) {
+  background: #9ca3af;
+}
+
+.notes-agent-theme :deep(.note-tree-button__icon--file) {
+  border-color: rgba(17, 24, 39, 0.24);
+  background: var(--mono-soft-strong);
+}
+
+.notes-agent-theme :deep(.note-tree-button__icon--file::before) {
+  background: rgba(17, 24, 39, 0.22);
+}
+
+.notes-agent-theme :deep(.note-workspace-switch),
+.notes-agent-theme :deep(.note-mode-switch),
+.notes-agent-theme :deep(.note-sidebar-switch) {
+  background: var(--mono-soft-strong);
+}
+
+.notes-agent-theme :deep(.note-workspace-switch__button),
+.notes-agent-theme :deep(.note-mode-switch__button),
+.notes-agent-theme :deep(.note-sidebar-switch__button) {
+  color: var(--mono-copy);
+}
+
+.notes-agent-theme :deep(.note-workspace-switch__button.is-active),
+.notes-agent-theme :deep(.note-mode-switch__button.is-active),
+.notes-agent-theme :deep(.note-sidebar-switch__button.is-active),
+.notes-agent-theme :deep(.note-ai-view__parameter-toggle.is-active) {
+  color: #ffffff;
+  background: linear-gradient(135deg, #111827 0%, #374151 100%);
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.16);
+}
+
+.notes-agent-theme :deep(.note-layout-resizer) {
+  background: rgba(17, 24, 39, 0.08);
+}
+
+.notes-agent-theme :deep(.note-editor-shell .md-editor),
+.notes-agent-theme :deep(.note-preview-shell .md-editor) {
+  --md-color: #374151;
+  --md-hover-color: #111827;
+  --md-bk-color: #ffffff;
+  --md-bk-color-outstand: #f6f7f9;
+  --md-bk-hover-color: #eceff3;
+  --md-border-color: rgba(17, 24, 39, 0.08);
+  --md-border-hover-color: rgba(17, 24, 39, 0.18);
+  --md-border-active-color: rgba(17, 24, 39, 0.38);
+  border-color: var(--mono-line);
+  background: var(--mono-surface);
+}
+
+.notes-agent-theme :deep(.note-editor-shell .md-editor-toolbar-wrapper),
+.notes-agent-theme :deep(.note-editor-shell .md-editor-footer) {
+  background: var(--mono-soft);
+  border-color: var(--mono-line);
+}
+
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview),
+.notes-agent-theme :deep(.note-markdown) {
+  color: var(--mono-copy);
+}
+
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview strong),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview b),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview h1),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview h2),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview h3),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview h4),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview h5),
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview h6),
+.notes-agent-theme :deep(.note-markdown strong),
+.notes-agent-theme :deep(.note-markdown b),
+.notes-agent-theme :deep(.note-markdown h1),
+.notes-agent-theme :deep(.note-markdown h2),
+.notes-agent-theme :deep(.note-markdown h3),
+.notes-agent-theme :deep(.note-markdown h4),
+.notes-agent-theme :deep(.note-markdown h5),
+.notes-agent-theme :deep(.note-markdown h6) {
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview a),
+.notes-agent-theme :deep(.note-markdown a) {
+  color: var(--mono-ink);
+  text-decoration-color: rgba(17, 24, 39, 0.3);
+}
+
+.notes-agent-theme :deep(.note-preview-shell .md-editor-preview blockquote),
+.notes-agent-theme :deep(.note-markdown blockquote),
+.notes-agent-theme :deep(.note-markdown thead th) {
+  border-color: rgba(17, 24, 39, 0.2);
+  background: var(--mono-soft);
+}
+
+.notes-agent-theme :deep(.note-markdown__task-checkbox) {
+  accent-color: #111827;
+}
+
+.notes-agent-theme :deep(.note-ai-view__model-input),
+.notes-agent-theme :deep(.note-ai-view__chat-input),
+.notes-agent-theme :deep(.note-commit-field__input) {
+  border-color: var(--mono-line);
+  background: var(--mono-surface);
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme :deep(.note-ai-view__model-input:focus),
+.notes-agent-theme :deep(.note-ai-view__chat-input:focus),
+.notes-agent-theme :deep(.note-commit-field__input:focus) {
+  border-color: rgba(17, 24, 39, 0.38);
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.08);
+}
+
+.notes-agent-theme :deep(.note-ai-view__context-card),
+.notes-agent-theme :deep(.note-ai-view__question-card),
+.notes-agent-theme :deep(.note-ai-view__answer-card),
+.notes-agent-theme :deep(.note-ai-view__chat-bubble),
+.notes-agent-theme :deep(.note-ai-view__chat-loading),
+.notes-agent-theme :deep(.note-ai-view__chat-model-badge) {
+  border-color: var(--mono-line);
+  background: var(--mono-surface);
+  color: var(--mono-copy);
+}
+
+.notes-agent-theme :deep(.note-ai-view__chat-item--user .note-ai-view__chat-bubble) {
+  background: var(--mono-soft-strong);
+}
+
+.notes-agent-theme :deep(.note-ai-view__parameter-field) {
+  border-color: var(--mono-line);
+  background: var(--mono-surface);
+  --parameter-accent: #111827;
+  --parameter-accent-soft: rgba(17, 24, 39, 0.14);
+  --parameter-accent-glow: rgba(17, 24, 39, 0.18);
+}
+
+.notes-agent-theme :deep(.note-workspace-tassel) {
+  color: var(--mono-ink);
+  filter: drop-shadow(0 14px 20px rgba(17, 24, 39, 0.12));
+}
+
+.notes-agent-theme :deep(.note-workspace-tassel__cord),
+.notes-agent-theme :deep(.note-workspace-tassel__head),
+.notes-agent-theme :deep(.note-workspace-tassel.is-ai .note-workspace-tassel__head),
+.notes-agent-theme :deep(.note-workspace-tassel__fringe),
+.notes-agent-theme :deep(.note-workspace-tassel.is-ai .note-workspace-tassel__fringe) {
+  border-color: var(--mono-line);
+  background: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -5px 0 rgba(17, 24, 39, 0.08),
+    0 12px 18px rgba(17, 24, 39, 0.12);
+}
+
+.notes-agent-theme :deep(.note-workspace-tassel__label) {
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme :deep(.note-mobile-directory-dialog),
+.notes-agent-theme :deep(.note-dialog),
+.notes-agent-theme :deep(.note-repo-update-dialog) {
+  background: rgba(17, 24, 39, 0.32);
+}
+</style>

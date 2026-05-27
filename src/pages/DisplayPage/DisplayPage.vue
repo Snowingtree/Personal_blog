@@ -1,10 +1,11 @@
 <template>
-  <main v-if="privateAppAvailable" class="display-layout">
+  <main v-if="privateAppAvailable" class="display-layout anime-agent-theme">
     <AppHeader
-      :username="username"
       tag="展示页"
       title="动漫名称列表"
-      @logout="handleLogout"
+      :show-user="false"
+      logout-label="返回选择"
+      @logout="handleBackToTools"
     />
 
     <div class="content-grid content-grid--single">
@@ -40,14 +41,13 @@ import { useRouter } from 'vue-router'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import ListManager from '../../components/ListManager/ListManager.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
-import { AUTH_KEY, AUTH_TOKEN_KEY, LIST_KEY, NOTE_AUTH_KEY, NOTE_USERNAME_KEY, USERNAME_KEY } from '../../constants/storage'
+import { LIST_KEY } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import http from '../../utils/http'
 import { parseAnimeContent, serializeAnimeItems, sortItemsByPinyin } from '../../utils/animePinyin'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
-const username = ref(localStorage.getItem(USERNAME_KEY) || localStorage.getItem(NOTE_USERNAME_KEY) || '访客')
 const lastAction = ref(null)
 
 function notify(message, type = 'success') {
@@ -159,13 +159,8 @@ async function handleSave() {
   }
 }
 
-function handleLogout() {
-  localStorage.removeItem(AUTH_KEY)
-  localStorage.removeItem(NOTE_AUTH_KEY)
-  localStorage.removeItem(AUTH_TOKEN_KEY)
-  localStorage.removeItem(USERNAME_KEY)
-  localStorage.removeItem(NOTE_USERNAME_KEY)
-  router.push('/notes-login')
+function handleBackToTools() {
+  router.push('/tools')
 }
 
 onMounted(async () => {
@@ -178,3 +173,124 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.anime-agent-theme {
+  --mono-ink: #111827;
+  --mono-copy: #374151;
+  --mono-muted: #6b7280;
+  --mono-line: rgba(17, 24, 39, 0.08);
+  --mono-line-strong: rgba(17, 24, 39, 0.14);
+  --mono-soft: #f6f7f9;
+  --mono-surface: #ffffff;
+  position: relative;
+  isolation: isolate;
+  color: var(--mono-ink);
+}
+
+.anime-agent-theme::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #f7f8fa;
+}
+
+.anime-agent-theme :deep(.app-header),
+.anime-agent-theme :deep(.panel-card) {
+  border: 1px solid var(--mono-line);
+  background: var(--mono-surface);
+  box-shadow:
+    0 18px 40px rgba(17, 24, 39, 0.07),
+    0 3px 10px rgba(17, 24, 39, 0.04);
+  backdrop-filter: none;
+}
+
+.anime-agent-theme :deep(.page-tag),
+.anime-agent-theme :deep(.section-tag) {
+  color: var(--mono-muted);
+}
+
+.anime-agent-theme :deep(.app-header h1),
+.anime-agent-theme :deep(.panel-head h2),
+.anime-agent-theme :deep(.list-text) {
+  color: var(--mono-ink);
+}
+
+.anime-agent-theme :deep(.welcome-text),
+.anime-agent-theme :deep(.search-status),
+.anime-agent-theme :deep(.empty-state) {
+  color: var(--mono-muted);
+}
+
+.anime-agent-theme :deep(.primary-btn),
+.anime-agent-theme :deep(.secondary-btn),
+.anime-agent-theme :deep(.ghost-btn),
+.anime-agent-theme :deep(.danger-btn) {
+  border-radius: 14px;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.anime-agent-theme :deep(.primary-btn) {
+  color: #ffffff;
+  background: linear-gradient(135deg, #111827 0%, #374151 100%);
+  box-shadow: 0 14px 26px rgba(17, 24, 39, 0.16);
+}
+
+.anime-agent-theme :deep(.primary-btn:hover) {
+  box-shadow: 0 18px 34px rgba(17, 24, 39, 0.2);
+}
+
+.anime-agent-theme :deep(.secondary-btn),
+.anime-agent-theme :deep(.ghost-btn),
+.anime-agent-theme :deep(.danger-btn) {
+  color: var(--mono-copy);
+  border: 1px solid var(--mono-line);
+  background: var(--mono-soft);
+}
+
+.anime-agent-theme :deep(.secondary-btn:hover),
+.anime-agent-theme :deep(.ghost-btn:hover),
+.anime-agent-theme :deep(.danger-btn:hover) {
+  border-color: var(--mono-line-strong);
+  background: #eceff3;
+}
+
+.anime-agent-theme :deep(.list-input) {
+  border-color: var(--mono-line);
+  background: var(--mono-soft);
+  color: var(--mono-ink);
+}
+
+.anime-agent-theme :deep(.list-input:focus) {
+  border-color: rgba(17, 24, 39, 0.38);
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.08);
+}
+
+.anime-agent-theme :deep(.list-scroll::-webkit-scrollbar-thumb) {
+  background: rgba(17, 24, 39, 0.18);
+}
+
+.anime-agent-theme :deep(.group-row) {
+  border: 1px solid var(--mono-line);
+  background: rgba(246, 247, 249, 0.94);
+}
+
+.anime-agent-theme :deep(.group-letter),
+.anime-agent-theme :deep(.list-index) {
+  color: var(--mono-ink);
+}
+
+.anime-agent-theme :deep(.list-index) {
+  background: #eceff3;
+}
+
+.anime-agent-theme :deep(.list-item) {
+  border: 1px solid var(--mono-line);
+  background: var(--mono-surface);
+}
+</style>

@@ -81,6 +81,14 @@ const toolOptions = [
     title: '\u5B9E\u4E60',
     actionLabel: '\u8BB0\u5F55\u5B9E\u4E60',
     to: '/internship'
+  },
+  {
+    key: 'mock-exam',
+    rank: 'J',
+    suit: '\u2663',
+    title: '\u8003\u516C',
+    actionLabel: '\u5373\u5C06\u5F00\u653E',
+    to: '/tools'
   }
 ]
 
@@ -97,7 +105,7 @@ function handleLogout() {
 <style scoped>
 .tool-selector-page {
   min-height: 100vh;
-  padding: 28px max(16px, calc((100vw - 1080px) / 2)) 52px;
+  padding: 28px max(16px, calc((100vw - 1280px) / 2)) 52px;
   color: #1f2933;
   background: #ffffff;
 }
@@ -183,8 +191,8 @@ function handleLogout() {
 
 .tool-selector-table {
   display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: clamp(22px, 5vw, 58px);
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  gap: clamp(18px, 3vw, 38px);
   align-items: center;
   justify-items: center;
   min-height: 100vh;
@@ -197,7 +205,7 @@ function handleLogout() {
   --card-hover-rotate: 0deg;
   position: relative;
   display: grid;
-  width: min(100%, 320px);
+  width: min(100%, 280px);
   aspect-ratio: 5 / 7;
   padding: 22px;
   border: 1px solid rgba(31, 41, 51, 0.12);
@@ -235,6 +243,12 @@ function handleLogout() {
   --card-accent: #b4232f;
   --card-rotate: -1deg;
   --card-hover-rotate: 0.5deg;
+}
+
+.poker-card--mock-exam {
+  --card-accent: #1f2933;
+  --card-rotate: 2.5deg;
+  --card-hover-rotate: 0.75deg;
 }
 
 .poker-card:hover,
@@ -330,6 +344,12 @@ function handleLogout() {
 @media (min-width: 761px) and (max-width: 980px) {
   .tool-selector-table {
     grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1160px) {
+  .tool-selector-table {
+    grid-template-columns: repeat(2, minmax(260px, 1fr));
   }
 }
 </style>

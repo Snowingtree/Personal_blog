@@ -7,6 +7,7 @@ import { createAiSettingsApiMiddleware } from './aiSettingsApi.js'
 import { createAgentApiMiddleware } from './agentApi.js'
 import { createAuthApiMiddleware } from './authApi.js'
 import { createBlogCheckinApiMiddleware } from './blogCheckinApi.js'
+import { createInternshipApiMiddleware } from './internshipApi.js'
 import { createProtectedApiMiddleware } from './authToken.js'
 import { createNotesApiMiddleware } from './notesApi.js'
 
@@ -99,6 +100,7 @@ const aiSettingsMiddleware = createAiSettingsApiMiddleware(process.env)
 const aiMiddleware = createAiApiMiddleware(process.env)
 const agentMiddleware = createAgentApiMiddleware(process.env)
 const notesMiddleware = createNotesApiMiddleware(process.env)
+const internshipMiddleware = createInternshipApiMiddleware(process.env)
 
 const server = createServer(async (req, res) => {
   applyCorsHeaders(res, corsOrigin)
@@ -121,8 +123,10 @@ const server = createServer(async (req, res) => {
           await aiSettingsMiddleware(req, res, async () => {
             await aiMiddleware(req, res, async () => {
               await agentMiddleware(req, res, async () => {
-                await notesMiddleware(req, res, () => {
-                  writeJson(res, 404, { message: 'Not found' })
+                await internshipMiddleware(req, res, async () => {
+                  await notesMiddleware(req, res, () => {
+                    writeJson(res, 404, { message: 'Not found' })
+                  })
                 })
               })
             })

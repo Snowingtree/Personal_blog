@@ -1,11 +1,12 @@
 <template>
   <main v-if="privateAppAvailable" class="display-layout ai-quiz-history-layout">
     <AppHeader
-      :username="username"
       :tag="headerTag"
       :title="headerTitle"
       :description="headerDescription"
-      @logout="handleLogout"
+      :show-user="false"
+      logout-label="返回选择"
+      @logout="handleBackToTools"
     >
       <template #actions>
         <button type="button" class="secondary-btn" @click="handleBackToNotes">返回笔记</button>
@@ -124,14 +125,6 @@ import { createMessage } from 'snowingress-my-components'
 import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
-import {
-  AUTH_KEY,
-  AUTH_TOKEN_KEY,
-  NOTE_AUTH_KEY,
-  NOTE_DESKTOP_WORKSPACE_KEY,
-  NOTE_USERNAME_KEY,
-  USERNAME_KEY
-} from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import http from '../../utils/http'
 
@@ -139,7 +132,6 @@ const router = useRouter()
 const route = useRoute()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 
-const username = ref(localStorage.getItem(NOTE_USERNAME_KEY) || localStorage.getItem(USERNAME_KEY) || '访客')
 const loading = ref(false)
 const loadError = ref('')
 const historyItems = ref([])
@@ -289,14 +281,8 @@ function handleBackToNotes() {
   router.push('/notes')
 }
 
-function handleLogout() {
-  localStorage.removeItem(AUTH_KEY)
-  localStorage.removeItem(AUTH_TOKEN_KEY)
-  localStorage.removeItem(NOTE_AUTH_KEY)
-  localStorage.removeItem(USERNAME_KEY)
-  localStorage.removeItem(NOTE_USERNAME_KEY)
-  localStorage.removeItem(NOTE_DESKTOP_WORKSPACE_KEY)
-  router.push('/notes-login')
+function handleBackToTools() {
+  router.push('/tools')
 }
 
 watch(

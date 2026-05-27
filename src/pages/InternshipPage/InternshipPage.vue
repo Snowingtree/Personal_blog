@@ -1,51 +1,303 @@
 <template>
   <main v-if="privateAppAvailable" class="internship-page">
-    <header class="internship-topbar">
-      <RouterLink class="internship-back" to="/tools" aria-label="返回工具选择">←</RouterLink>
-      <button type="button" class="internship-logout" @click="handleLogout">退出登录</button>
-    </header>
+    <section class="internship-summary" aria-label="实习概览">
+      <article v-for="card in statCards" :key="card.key" class="internship-stat">
+        <span>{{ card.label }}</span>
+        <strong>{{ card.value }}</strong>
+      </article>
+    </section>
 
     <section class="internship-shell">
-      <div class="internship-editor">
-        <div class="internship-editor__head">
-          <p>方片 Q</p>
-          <h1>实习</h1>
+      <section class="internship-board" aria-label="实习记录列表">
+        <div class="internship-board__head">
+          <div>
+            <h1>实习记录</h1>
+          </div>
+          <div class="internship-board__actions">
+            <button type="button" class="internship-logout" @click="handleBackToTools">返回</button>
+            <button
+              type="button"
+              class="internship-add-button"
+              aria-label="添加实习记录"
+              @click="openCreateDialog"
+            >
+              <span aria-hidden="true">+</span>
+            </button>
+          </div>
         </div>
 
-        <form class="internship-form" @submit.prevent="handleSave">
-          <label class="internship-field">
-            <span>标题</span>
-            <input v-model.trim="draftTitle" type="text" placeholder="例如：第 1 周周报" />
+        <div class="internship-board__toolbar">
+          <label class="internship-search">
+            <span>搜索</span>
+            <input v-model.trim="searchQuery" type="search" placeholder="标题、内容、类型或状态" />
           </label>
 
-          <label class="internship-field">
-            <span>记录</span>
-            <textarea v-model.trim="draftContent" rows="9" placeholder="记录实习任务、问题、复盘或待办"></textarea>
-          </label>
-
-          <div class="internship-actions">
-            <button v-if="editingId" type="button" class="internship-secondary" @click="resetDraft">取消</button>
-            <button type="submit" class="internship-primary">{{ editingId ? '更新' : '保存' }}</button>
+          <div class="internship-filter">
+            <span>类型</span>
+            <span
+              class="internship-select-wrap"
+              :class="{ 'is-open': openSelectMenu === 'activeCategory' }"
+              @focusout="handleSelectFocusout($event, 'activeCategory')"
+            >
+              <button
+                type="button"
+                class="internship-select-trigger"
+                aria-haspopup="listbox"
+                :aria-expanded="openSelectMenu === 'activeCategory'"
+                @click="toggleSelectMenu('activeCategory')"
+                @keydown.escape.stop="closeSelectMenu('activeCategory')"
+              >
+                <span>{{ getCategoryFilterLabel(activeCategory) }}</span>
+              </button>
+              <Transition name="internship-select-menu">
+                <span v-if="openSelectMenu === 'activeCategory'" class="internship-select-menu" role="listbox">
+                  <button
+                    v-for="option in categoryFilterOptions"
+                    :key="option.value"
+                    type="button"
+                    class="internship-select-option"
+                    :class="{ 'is-selected': activeCategory === option.value }"
+                    role="option"
+                    :aria-selected="activeCategory === option.value"
+                    @mousedown.prevent
+                    @click="selectActiveCategory(option.value)"
+                  >
+                  {{ option.label }}
+                  </button>
+                </span>
+              </Transition>
+            </span>
           </div>
-        </form>
-      </div>
+        </div>
 
-      <div class="internship-records" aria-label="实习记录">
-        <article v-for="record in sortedRecords" :key="record.id" class="internship-record">
-          <div>
-            <h2>{{ record.title }}</h2>
-            <time :datetime="record.updatedAt">{{ formatDate(record.updatedAt) }}</time>
-          </div>
-          <p>{{ record.content }}</p>
-          <div class="internship-record__actions">
-            <button type="button" @click="startEditing(record)">编辑</button>
-            <button type="button" @click="removeRecord(record.id)">删除</button>
-          </div>
-        </article>
+        <div class="internship-status-tabs" role="tablist" aria-label="记录状态筛选">
+          <button
+            v-for="option in statusFilterOptions"
+            :key="option.value"
+            type="button"
+            :class="{ 'is-active': activeStatus === option.value }"
+            @click="activeStatus = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
 
-        <p v-if="!records.length" class="internship-empty">暂无实习记录</p>
-      </div>
+        <div class="internship-records">
+          <article v-for="record in filteredRecords" :key="record.id" class="internship-record">
+            <div class="internship-record__head">
+              <h2>{{ record.title }}</h2>
+
+              <div class="internship-record__meta">
+                <time :datetime="record.recordDate">{{ formatRecordDate(record.recordDate) }}</time>
+                <span>{{ getCategoryLabel(record.category) }}</span>
+                <span :class="['internship-record__status', `is-${record.status}`]">
+                  {{ getStatusLabel(record.status) }}
+                </span>
+              </div>
+            </div>
+
+            <p class="internship-record__content">{{ record.content }}</p>
+
+            <div class="internship-record__footer">
+              <span>更新于 {{ formatDate(record.updatedAt) }}</span>
+              <div class="internship-record__actions">
+                <button type="button" @click="openRecordDetail(record)">详情</button>
+                <button type="button" @click="startEditing(record)">编辑</button>
+                <button type="button" @click="removeRecord(record.id)">删除</button>
+              </div>
+            </div>
+          </article>
+
+          <p v-if="!filteredRecords.length" class="internship-empty">
+            {{ records.length ? '没有匹配的实习记录' : '暂无实习记录' }}
+          </p>
+        </div>
+      </section>
     </section>
+
+    <Transition name="internship-window">
+      <div
+        v-if="draftDialogOpen"
+        class="internship-modal"
+        role="presentation"
+        @click.self="closeDraftDialog"
+      >
+        <section
+          class="internship-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="internship-dialog-title"
+        >
+          <div class="internship-dialog__head">
+            <div>
+              <h2 id="internship-dialog-title">{{ editingId ? '编辑记录' : '添加实习记录' }}</h2>
+            </div>
+            <div class="internship-dialog__actions">
+              <button
+                type="submit"
+                form="internship-record-form"
+                class="internship-dialog__save"
+                :aria-label="editingId ? '更新记录' : '保存记录'"
+                :title="editingId ? '更新记录' : '保存记录'"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 4h12l2 2v14H5V4Z" />
+                  <path d="M8 4v6h8V4" />
+                  <path d="M8 16h8v4H8v-4Z" />
+                </svg>
+              </button>
+              <button type="button" class="internship-dialog__close" aria-label="关闭" @click="closeDraftDialog">
+                ×
+              </button>
+            </div>
+          </div>
+
+          <form id="internship-record-form" class="internship-form" @submit.prevent="handleSave">
+            <div class="internship-form__left">
+              <label class="internship-field internship-field--wide">
+                <span>标题</span>
+                <input v-model.trim="draftTitle" type="text" placeholder="例如：第 1 周周报" />
+              </label>
+
+              <label class="internship-field">
+                <span>日期</span>
+                <input v-model="draftDate" type="date" />
+              </label>
+
+              <div class="internship-field">
+                <span>类型</span>
+                <span
+                  class="internship-select-wrap"
+                  :class="{ 'is-open': openSelectMenu === 'draftCategory' }"
+                  @focusout="handleSelectFocusout($event, 'draftCategory')"
+                >
+                  <button
+                    type="button"
+                    class="internship-select-trigger"
+                    aria-haspopup="listbox"
+                    :aria-expanded="openSelectMenu === 'draftCategory'"
+                    @click="toggleSelectMenu('draftCategory')"
+                    @keydown.escape.stop="closeSelectMenu('draftCategory')"
+                  >
+                    <span>{{ getCategoryLabel(draftCategory) }}</span>
+                  </button>
+                  <Transition name="internship-select-menu">
+                    <span v-if="openSelectMenu === 'draftCategory'" class="internship-select-menu" role="listbox">
+                      <button
+                        v-for="option in categoryOptions"
+                        :key="option.value"
+                        type="button"
+                        class="internship-select-option"
+                        :class="{ 'is-selected': draftCategory === option.value }"
+                        role="option"
+                        :aria-selected="draftCategory === option.value"
+                        @mousedown.prevent
+                        @click="selectDraftCategory(option.value)"
+                      >
+                      {{ option.label }}
+                      </button>
+                    </span>
+                  </Transition>
+                </span>
+              </div>
+
+              <div class="internship-field">
+                <span>状态</span>
+                <span
+                  class="internship-select-wrap internship-select-wrap--up"
+                  :class="{ 'is-open': openSelectMenu === 'draftStatus' }"
+                  @focusout="handleSelectFocusout($event, 'draftStatus')"
+                >
+                  <button
+                    type="button"
+                    class="internship-select-trigger"
+                    aria-haspopup="listbox"
+                    :aria-expanded="openSelectMenu === 'draftStatus'"
+                    @click="toggleSelectMenu('draftStatus')"
+                    @keydown.escape.stop="closeSelectMenu('draftStatus')"
+                  >
+                    <span>{{ getStatusLabel(draftStatus) }}</span>
+                  </button>
+                  <Transition name="internship-select-menu">
+                    <span v-if="openSelectMenu === 'draftStatus'" class="internship-select-menu" role="listbox">
+                      <button
+                        v-for="option in statusOptions"
+                        :key="option.value"
+                        type="button"
+                        class="internship-select-option"
+                        :class="{ 'is-selected': draftStatus === option.value }"
+                        role="option"
+                        :aria-selected="draftStatus === option.value"
+                        @mousedown.prevent
+                        @click="selectDraftStatus(option.value)"
+                      >
+                      {{ option.label }}
+                      </button>
+                    </span>
+                  </Transition>
+                </span>
+              </div>
+            </div>
+
+            <label class="internship-form__record">
+              <span>记录</span>
+              <textarea
+                v-model.trim="draftContent"
+                rows="10"
+                placeholder="记录任务、问题、解决方案、复盘或待办"
+              ></textarea>
+            </label>
+          </form>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="internship-window">
+      <div
+        v-if="detailRecord"
+        class="internship-modal"
+        role="presentation"
+        @click.self="closeRecordDetail"
+      >
+        <section
+          class="internship-dialog internship-detail-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="internship-detail-title"
+        >
+          <div class="internship-dialog__head">
+            <div>
+              <h2 id="internship-detail-title">日志详情</h2>
+            </div>
+            <button type="button" class="internship-dialog__close" aria-label="关闭" @click="closeRecordDetail">
+              ×
+            </button>
+          </div>
+
+          <article class="internship-detail">
+            <header class="internship-detail__head">
+              <h3>{{ detailRecord.title }}</h3>
+              <div class="internship-detail__meta">
+                <time :datetime="detailRecord.recordDate">{{ formatRecordDate(detailRecord.recordDate) }}</time>
+                <span>{{ getCategoryLabel(detailRecord.category) }}</span>
+                <span :class="['internship-record__status', `is-${detailRecord.status}`]">
+                  {{ getStatusLabel(detailRecord.status) }}
+                </span>
+              </div>
+            </header>
+
+            <div class="internship-detail__content">
+              {{ detailRecord.content }}
+            </div>
+
+            <footer class="internship-detail__footer">
+              <span>创建于 {{ formatDate(detailRecord.createdAt) }}</span>
+              <span>更新于 {{ formatDate(detailRecord.updatedAt) }}</span>
+            </footer>
+          </article>
+        </section>
+      </div>
+    </Transition>
   </main>
 
   <main v-else class="auth-layout">
@@ -54,31 +306,122 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { createMessage } from 'snowingress-my-components'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
-import {
-  AUTH_KEY,
-  AUTH_TOKEN_KEY,
-  INTERNSHIP_RECORDS_KEY,
-  NOTE_AUTH_KEY,
-  NOTE_USERNAME_KEY,
-  USERNAME_KEY
-} from '../../constants/storage'
+import { INTERNSHIP_RECORDS_KEY } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
+import http from '../../utils/http'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 
+const categoryOptions = [
+  { value: 'daily', label: '日报' },
+  { value: 'task', label: '任务' },
+  { value: 'study', label: '学习' },
+  { value: 'review', label: '复盘' }
+]
+
+const categoryFilterOptions = [
+  { value: 'all', label: '全部' },
+  ...categoryOptions
+]
+
+const statusOptions = [
+  { value: 'progress', label: '进行中' },
+  { value: 'done', label: '已完成' },
+  { value: 'follow-up', label: '待跟进' }
+]
+
+const statusFilterOptions = [
+  { value: 'all', label: '全部' },
+  ...statusOptions
+]
+
 const draftTitle = ref('')
 const draftContent = ref('')
+const draftDate = ref(formatInputDate(new Date()))
+const draftCategory = ref('daily')
+const draftStatus = ref('progress')
 const editingId = ref('')
+const draftDialogOpen = ref(false)
+const detailRecord = ref(null)
+const searchQuery = ref('')
+const activeStatus = ref('all')
+const activeCategory = ref('all')
+const openSelectMenu = ref('')
 const records = ref(readStoredRecords())
+const recordsLoaded = ref(false)
+
+watch(
+  privateAppAvailable,
+  (available) => {
+    if (available && !recordsLoaded.value) {
+      recordsLoaded.value = true
+      loadRecords()
+    }
+  },
+  { immediate: true }
+)
 
 const sortedRecords = computed(() => (
-  [...records.value].sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))
+  [...records.value].sort((left, right) => {
+    const dateDelta = new Date(right.recordDate).getTime() - new Date(left.recordDate).getTime()
+    return dateDelta || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+  })
 ))
+
+const filteredRecords = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase()
+
+  return sortedRecords.value.filter((record) => {
+    if (activeStatus.value !== 'all' && record.status !== activeStatus.value) {
+      return false
+    }
+
+    if (activeCategory.value !== 'all' && record.category !== activeCategory.value) {
+      return false
+    }
+
+    if (!keyword) {
+      return true
+    }
+
+    const searchableText = [
+      record.title,
+      record.content,
+      getCategoryLabel(record.category),
+      getStatusLabel(record.status)
+    ].join(' ').toLowerCase()
+
+    return searchableText.includes(keyword)
+  })
+})
+
+const statCards = computed(() => [
+  {
+    key: 'total',
+    label: '总记录',
+    value: records.value.length
+  },
+  {
+    key: 'progress',
+    label: '进行中',
+    value: records.value.filter((record) => record.status === 'progress').length
+  },
+  {
+    key: 'follow-up',
+    label: '待跟进',
+    value: records.value.filter((record) => record.status === 'follow-up').length
+  },
+  {
+    key: 'week',
+    label: '本周',
+    value: records.value.filter((record) => isThisWeek(record.recordDate)).length
+  }
+])
 
 function notify(message, type = 'success') {
   createMessage({
@@ -101,27 +444,12 @@ function readStoredRecords() {
 
     if (Array.isArray(parsedValue)) {
       return parsedValue.reduce((validRecords, item) => {
-        if (
-          !item
-          || typeof item.id !== 'string'
-          || typeof item.title !== 'string'
-          || typeof item.content !== 'string'
-        ) {
-          return validRecords
+        const normalizedRecord = normalizeRecord(item)
+
+        if (normalizedRecord) {
+          validRecords.push(normalizedRecord)
         }
 
-        const updatedAt = normalizeDateValue(item.updatedAt)
-        const createdAt = normalizeDateValue(item.createdAt) || updatedAt
-
-        if (!updatedAt) {
-          return validRecords
-        }
-
-        validRecords.push({
-          ...item,
-          createdAt,
-          updatedAt
-        })
         return validRecords
       }, [])
     }
@@ -132,69 +460,240 @@ function readStoredRecords() {
   return []
 }
 
-function persistRecords(nextRecords) {
-  records.value = nextRecords
-  localStorage.setItem(INTERNSHIP_RECORDS_KEY, JSON.stringify(nextRecords))
+function normalizeRecord(item) {
+  if (
+    !item
+    || typeof item.id !== 'string'
+    || typeof item.title !== 'string'
+    || typeof item.content !== 'string'
+  ) {
+    return null
+  }
+
+  const now = new Date().toISOString()
+  const updatedAt = normalizeDateValue(item.updatedAt) || now
+  const createdAt = normalizeDateValue(item.createdAt) || updatedAt
+  const recordDate = normalizeInputDate(item.recordDate) || formatInputDate(updatedAt)
+  const category = categoryOptions.some((option) => option.value === item.category) ? item.category : 'daily'
+  const status = statusOptions.some((option) => option.value === item.status) ? item.status : 'progress'
+
+  return {
+    id: item.id,
+    title: item.title,
+    content: item.content,
+    recordDate,
+    category,
+    status,
+    createdAt,
+    updatedAt
+  }
+}
+
+function normalizeRecords(value) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.reduce((validRecords, item) => {
+    const normalizedRecord = normalizeRecord(item)
+
+    if (normalizedRecord) {
+      validRecords.push(normalizedRecord)
+    }
+
+    return validRecords
+  }, [])
+}
+
+async function loadRecords() {
+  const localRecords = readStoredRecords()
+
+  try {
+    const data = await http.get('/api/internship/records')
+    const databaseRecords = normalizeRecords(data.records)
+
+    if (!databaseRecords.length && localRecords.length) {
+      const migratedRecords = []
+
+      for (const record of localRecords) {
+        const result = await http.post('/api/internship/records', record)
+        const migratedRecord = normalizeRecord(result.record)
+
+        if (migratedRecord) {
+          migratedRecords.push(migratedRecord)
+        }
+      }
+
+      records.value = migratedRecords
+      localStorage.removeItem(INTERNSHIP_RECORDS_KEY)
+      notify('本地记录已迁移到数据库')
+      return
+    }
+
+    records.value = databaseRecords
+    localStorage.removeItem(INTERNSHIP_RECORDS_KEY)
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '实习记录加载失败', 'danger')
+  }
 }
 
 function resetDraft() {
   draftTitle.value = ''
   draftContent.value = ''
+  draftDate.value = formatInputDate(new Date())
+  draftCategory.value = 'daily'
+  draftStatus.value = 'progress'
   editingId.value = ''
 }
 
-function handleSave() {
+function openCreateDialog() {
+  closeSelectMenu()
+  resetDraft()
+  draftDialogOpen.value = true
+}
+
+function closeDraftDialog() {
+  closeSelectMenu()
+  draftDialogOpen.value = false
+  resetDraft()
+}
+
+function openRecordDetail(record) {
+  closeSelectMenu()
+  detailRecord.value = record
+}
+
+function closeRecordDetail() {
+  detailRecord.value = null
+}
+
+async function handleSave() {
   if (!draftTitle.value || !draftContent.value) {
     notify('标题和记录都需要填写', 'danger')
     return
   }
 
   const now = new Date().toISOString()
-
-  if (editingId.value) {
-    persistRecords(records.value.map((record) => (
-      record.id === editingId.value
-        ? {
-          ...record,
-          title: draftTitle.value,
-          content: draftContent.value,
-          updatedAt: now
-        }
-        : record
-    )))
-    notify('更新成功')
-    resetDraft()
-    return
+  const nextRecord = {
+    id: editingId.value || `${Date.now()}`,
+    title: draftTitle.value,
+    content: draftContent.value,
+    recordDate: normalizeInputDate(draftDate.value) || formatInputDate(new Date()),
+    category: draftCategory.value,
+    status: draftStatus.value,
+    createdAt: now,
+    updatedAt: now
   }
 
-  persistRecords([
-    {
-      id: `${Date.now()}`,
-      title: draftTitle.value,
-      content: draftContent.value,
-      createdAt: now,
-      updatedAt: now
-    },
-    ...records.value
-  ])
-  notify('保存成功')
-  resetDraft()
+  try {
+    if (editingId.value) {
+      const result = await http.put(`/api/internship/records/${encodeURIComponent(editingId.value)}`, nextRecord)
+      const savedRecord = normalizeRecord(result.record)
+
+      if (savedRecord) {
+        records.value = records.value.map((record) => (
+          record.id === editingId.value ? savedRecord : record
+        ))
+
+        if (detailRecord.value?.id === savedRecord.id) {
+          detailRecord.value = savedRecord
+        }
+      }
+
+      notify('更新成功')
+      closeDraftDialog()
+      return
+    }
+
+    const result = await http.post('/api/internship/records', nextRecord)
+    const savedRecord = normalizeRecord(result.record)
+
+    if (savedRecord) {
+      records.value = [savedRecord, ...records.value]
+    }
+
+    notify('保存成功')
+    closeDraftDialog()
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '保存失败', 'danger')
+  }
 }
 
 function startEditing(record) {
+  closeSelectMenu()
   editingId.value = record.id
   draftTitle.value = record.title
   draftContent.value = record.content
+  draftDate.value = record.recordDate
+  draftCategory.value = record.category
+  draftStatus.value = record.status
+  draftDialogOpen.value = true
 }
 
-function removeRecord(recordId) {
-  persistRecords(records.value.filter((record) => record.id !== recordId))
+async function removeRecord(recordId) {
+  try {
+    await http.delete(`/api/internship/records/${encodeURIComponent(recordId)}`)
+    records.value = records.value.filter((record) => record.id !== recordId)
 
-  if (editingId.value === recordId) {
-    resetDraft()
+    if (editingId.value === recordId) {
+      closeDraftDialog()
+    }
+
+    if (detailRecord.value?.id === recordId) {
+      closeRecordDetail()
+    }
+
+    notify('已删除')
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '删除失败', 'danger')
+  }
+}
+
+function getCategoryLabel(value) {
+  return categoryOptions.find((option) => option.value === value)?.label || '记录'
+}
+
+function getCategoryFilterLabel(value) {
+  return categoryFilterOptions.find((option) => option.value === value)?.label || '全部'
+}
+
+function getStatusLabel(value) {
+  return statusOptions.find((option) => option.value === value)?.label || '进行中'
+}
+
+function toggleSelectMenu(name) {
+  openSelectMenu.value = openSelectMenu.value === name ? '' : name
+}
+
+function closeSelectMenu(name = '') {
+  if (!name || openSelectMenu.value === name) {
+    openSelectMenu.value = ''
+  }
+}
+
+function handleSelectFocusout(event, name) {
+  const nextTarget = event.relatedTarget
+
+  if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+    return
   }
 
-  notify('已删除')
+  closeSelectMenu(name)
+}
+
+function selectActiveCategory(value) {
+  activeCategory.value = value
+  closeSelectMenu('activeCategory')
+}
+
+function selectDraftCategory(value) {
+  draftCategory.value = value
+  closeSelectMenu('draftCategory')
+}
+
+function selectDraftStatus(value) {
+  draftStatus.value = value
+  closeSelectMenu('draftStatus')
 }
 
 function formatDate(value) {
@@ -212,6 +711,48 @@ function formatDate(value) {
   }).format(date)
 }
 
+function formatRecordDate(value) {
+  const date = new Date(`${value}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short'
+  }).format(date)
+}
+
+function formatInputDate(value) {
+  const date = value instanceof Date ? value : new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return formatInputDate(new Date())
+  }
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function normalizeInputDate(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return ''
+  }
+
+  const date = new Date(`${value}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return value
+}
+
 function normalizeDateValue(value) {
   if (typeof value !== 'string') {
     return ''
@@ -226,39 +767,61 @@ function normalizeDateValue(value) {
   return value
 }
 
-function handleLogout() {
-  localStorage.removeItem(AUTH_KEY)
-  localStorage.removeItem(NOTE_AUTH_KEY)
-  localStorage.removeItem(AUTH_TOKEN_KEY)
-  localStorage.removeItem(USERNAME_KEY)
-  localStorage.removeItem(NOTE_USERNAME_KEY)
-  router.push('/notes-login')
+function isThisWeek(value) {
+  const date = new Date(`${value}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) {
+    return false
+  }
+
+  const today = new Date()
+  const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7))
+
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+
+  return date >= weekStart && date < weekEnd
+}
+
+function handleBackToTools() {
+  router.push('/tools')
 }
 </script>
 
 <style scoped>
 .internship-page {
+  --internship-ink: #111827;
+  --internship-copy: #374151;
+  --internship-muted: #6b7280;
+  --internship-line: rgba(17, 24, 39, 0.08);
+  --internship-line-strong: rgba(17, 24, 39, 0.16);
+  --internship-soft: #f6f7f9;
+  --internship-soft-strong: #eceff3;
+  --internship-accent: #b4232f;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  width: 100%;
+  height: 100vh;
   min-height: 100vh;
-  padding: 24px max(16px, calc((100vw - 1180px) / 2)) 48px;
-  color: #1f2933;
-  background: #ffffff;
+  padding: 14px;
+  color: var(--internship-ink);
+  background: #f7f8fa;
+  overflow: hidden;
 }
 
-.internship-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-
-.internship-back,
 .internship-logout,
+.internship-add-button,
+.internship-dialog__close,
+.internship-dialog__save,
 .internship-primary,
 .internship-secondary,
-.internship-record__actions button {
-  border: 1px solid rgba(31, 41, 51, 0.14);
-  border-radius: 999px;
-  color: #1f2933;
+.internship-record__actions button,
+.internship-status-tabs button {
+  border: 1px solid var(--internship-line);
+  border-radius: 14px;
+  color: var(--internship-copy);
   background: #ffffff;
   cursor: pointer;
   text-decoration: none;
@@ -269,149 +832,816 @@ function handleLogout() {
     background-color 160ms ease;
 }
 
-.internship-back {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  font-size: 1.25rem;
+.internship-logout,
+.internship-add-button,
+.internship-dialog__close,
+.internship-dialog__save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  font-weight: 700;
+}
+
+.internship-add-button {
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  border-color: #111827;
+  border-radius: 16px;
+  color: #ffffff;
+  background: #111827;
+  box-shadow: 0 14px 26px rgba(17, 24, 39, 0.16);
+}
+
+.internship-add-button span {
+  font-size: 1.7rem;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.internship-dialog__close,
+.internship-dialog__save {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+  font-size: 1.45rem;
   line-height: 1;
 }
 
-.internship-logout,
+.internship-dialog__save {
+  border-color: #111827;
+  color: #ffffff;
+  background: #111827;
+  box-shadow: 0 12px 24px rgba(17, 24, 39, 0.14);
+}
+
+.internship-dialog__save svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
 .internship-primary,
 .internship-secondary,
-.internship-record__actions button {
+.internship-record__actions button,
+.internship-status-tabs button {
   padding: 10px 16px;
   font-weight: 700;
 }
 
-.internship-back:hover,
 .internship-logout:hover,
+.internship-add-button:hover,
+.internship-dialog__close:hover,
+.internship-dialog__save:hover,
 .internship-primary:hover,
 .internship-secondary:hover,
-.internship-record__actions button:hover {
+.internship-record__actions button:hover,
+.internship-status-tabs button:hover {
   transform: translateY(-1px);
-  border-color: rgba(31, 41, 51, 0.26);
-  box-shadow: 0 12px 28px rgba(15, 23, 32, 0.1);
+  border-color: var(--internship-line-strong);
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+}
+
+.internship-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  min-height: 0;
+}
+
+.internship-stat {
+  display: grid;
+  gap: 8px;
+  min-height: 92px;
+  align-content: center;
+  border: 1px solid var(--internship-line);
+  border-radius: 18px;
+  padding: 18px;
+  background: #ffffff;
+  box-shadow:
+    0 18px 40px rgba(17, 24, 39, 0.06),
+    0 3px 10px rgba(17, 24, 39, 0.03);
+}
+
+.internship-stat span {
+  color: var(--internship-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.internship-stat strong {
+  color: var(--internship-ink);
+  font-size: 2.25rem;
+  line-height: 1;
 }
 
 .internship-shell {
   display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-  gap: 28px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  align-items: stretch;
 }
 
-.internship-editor,
-.internship-record {
-  border: 1px solid rgba(31, 41, 51, 0.12);
+.internship-board,
+.internship-record,
+.internship-dialog {
+  border: 1px solid var(--internship-line);
   border-radius: 18px;
   background: #ffffff;
-  box-shadow: 0 20px 46px rgba(15, 23, 32, 0.1);
-}
-
-.internship-editor {
-  position: sticky;
-  top: 24px;
-  padding: 24px;
-}
-
-.internship-editor__head {
-  margin-bottom: 22px;
-}
-
-.internship-editor__head p,
-.internship-record time {
-  margin: 0;
-  color: #b4232f;
-  font-size: 0.86rem;
-  font-weight: 800;
-}
-
-.internship-editor__head h1 {
-  margin: 6px 0 0;
-  font-size: clamp(2.2rem, 6vw, 3.4rem);
-  line-height: 1;
+  box-shadow:
+    0 18px 40px rgba(17, 24, 39, 0.07),
+    0 3px 10px rgba(17, 24, 39, 0.04);
 }
 
 .internship-form,
+.internship-form__left,
+.internship-form__record,
 .internship-field,
 .internship-records {
   display: grid;
   gap: 16px;
 }
 
-.internship-field span {
-  color: #4b5563;
-  font-size: 0.92rem;
+.internship-form {
+  --internship-dialog-body-height: clamp(420px, 52vh, 560px);
+  grid-template-columns: minmax(260px, 0.86fr) minmax(0, 1.14fr);
+  align-items: stretch;
+  min-height: var(--internship-dialog-body-height);
+}
+
+.internship-form__left {
+  grid-auto-rows: auto;
+  align-content: start;
+  gap: 18px;
+  min-height: var(--internship-dialog-body-height);
+}
+
+.internship-form__record {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: var(--internship-dialog-body-height);
+}
+
+.internship-field {
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.internship-form__left .internship-field {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: start;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.internship-field--textarea {
+  align-items: start;
+}
+
+.internship-records {
+  min-height: 0;
+  align-content: start;
+  padding-right: 4px;
+  overflow: auto;
+}
+
+.internship-records::-webkit-scrollbar,
+.internship-dialog::-webkit-scrollbar {
+  width: 8px;
+}
+
+.internship-records::-webkit-scrollbar-thumb,
+.internship-dialog::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.18);
+}
+
+.internship-records::-webkit-scrollbar-track,
+.internship-dialog::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.internship-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.internship-field > span:first-child,
+.internship-form__record > span:first-child,
+.internship-search > span:first-child,
+.internship-filter > span:first-child {
+  color: var(--internship-copy);
+  font-size: 0.9rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .internship-field input,
-.internship-field textarea {
+.internship-field textarea,
+.internship-field select,
+.internship-form__record textarea,
+.internship-search input,
+.internship-filter select,
+.internship-select-trigger {
   width: 100%;
-  border: 1px solid rgba(31, 41, 51, 0.14);
+  border: 1px solid var(--internship-line);
   border-radius: 14px;
   padding: 12px 14px;
-  color: #1f2933;
-  background: #f9fafb;
+  color: var(--internship-ink);
+  background: var(--internship-soft);
   outline: none;
+}
+
+.internship-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.internship-select-trigger::after {
+  content: '';
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-left: 12px;
+  border-right: 2px solid var(--internship-ink);
+  border-bottom: 2px solid var(--internship-ink);
+  transform: translateY(-2px) rotate(45deg);
+  transform-origin: 50% 50%;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 160ms ease;
+}
+
+.internship-select-wrap.is-open .internship-select-trigger {
+  border-color: rgba(17, 24, 39, 0.38);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.08);
+}
+
+.internship-select-wrap.is-open .internship-select-trigger::after {
+  border-color: #111827;
+  transform: translateY(3px) rotate(225deg);
+}
+
+.internship-field select,
+.internship-filter select {
+  display: block;
+  min-height: 48px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 46px;
+  cursor: pointer;
+  line-height: 1.25;
+  background-image: none;
+}
+
+.internship-field select::-ms-expand,
+.internship-filter select::-ms-expand {
+  display: none;
+}
+
+.internship-select-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.internship-select-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: 0;
+  z-index: 60;
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  padding: 6px;
+  border: 1px solid var(--internship-line);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow:
+    0 18px 42px rgba(17, 24, 39, 0.14),
+    0 4px 12px rgba(17, 24, 39, 0.08);
+  overflow: auto;
+  transform-origin: top center;
+}
+
+.internship-select-wrap--up .internship-select-menu {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom center;
+}
+
+.internship-select-option {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--internship-copy);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+.internship-select-option:hover,
+.internship-select-option:focus-visible {
+  color: var(--internship-ink);
+  background: var(--internship-soft);
+  outline: none;
+  transform: translateX(2px);
+}
+
+.internship-select-option.is-selected {
+  color: #ffffff;
+  background: #111827;
+}
+
+.internship-select-menu-enter-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.internship-select-menu-leave-active {
+  transition:
+    opacity 130ms ease,
+    transform 150ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.internship-select-menu-enter-from,
+.internship-select-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+}
+
+.internship-select-wrap--up .internship-select-menu-enter-from,
+.internship-select-wrap--up .internship-select-menu-leave-to {
+  transform: translateY(8px) scale(0.98);
+}
+
+.internship-select-menu-enter-to,
+.internship-select-menu-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.internship-field textarea,
+.internship-form__record textarea {
+  min-height: clamp(220px, 34vh, 360px);
   resize: vertical;
 }
 
+.internship-form__record textarea {
+  min-height: clamp(320px, 44vh, 500px);
+  height: 100%;
+}
+
+.internship-field--textarea > span:first-child {
+  padding-top: 13px;
+}
+
 .internship-field input:focus,
-.internship-field textarea:focus {
-  border-color: rgba(180, 35, 47, 0.46);
-  box-shadow: 0 0 0 4px rgba(180, 35, 47, 0.08);
+.internship-field textarea:focus,
+.internship-form__record textarea:focus,
+.internship-field select:focus,
+.internship-search input:focus,
+.internship-filter select:focus,
+.internship-select-trigger:focus-visible {
+  border-color: rgba(17, 24, 39, 0.38);
+  box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.08);
 }
 
 .internship-actions,
 .internship-record__actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }
 
 .internship-primary {
-  border-color: #b4232f;
+  border-color: #111827;
   color: #ffffff;
-  background: #b4232f;
+  background: linear-gradient(135deg, #111827 0%, #374151 100%);
+  box-shadow: 0 14px 26px rgba(17, 24, 39, 0.16);
+}
+
+.internship-board {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.internship-board__head,
+.internship-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.internship-dialog__head {
+  align-items: center;
+}
+
+.internship-board__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.internship-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.internship-board__head h1,
+.internship-dialog__head h2 {
+  margin: 0;
+  color: var(--internship-ink);
+  line-height: 1;
+}
+
+.internship-board__head h1 {
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+}
+
+.internship-dialog__head h2 {
+  font-size: 1.55rem;
+}
+
+.internship-board__toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 14px;
+}
+
+.internship-search,
+.internship-filter {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.internship-status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.internship-status-tabs button {
+  background: var(--internship-soft);
+}
+
+.internship-status-tabs button.is-active {
+  color: #ffffff;
+  border-color: #111827;
+  background: linear-gradient(135deg, #111827 0%, #374151 100%);
 }
 
 .internship-record {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   padding: 20px;
 }
 
-.internship-record h2 {
-  margin: 0 0 4px;
-  font-size: 1.18rem;
+.internship-record__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
 }
 
-.internship-record p {
+.internship-record__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.internship-record__meta span,
+.internship-record__meta time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: var(--internship-copy);
+  background: var(--internship-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.internship-record__meta time {
+  color: var(--internship-muted);
+}
+
+.internship-record__status.is-progress {
+  color: #111827;
+  background: #e5e7eb;
+}
+
+.internship-record__status.is-done {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.internship-record__status.is-follow-up {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
+.internship-record h2 {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
-  color: #374151;
+  color: var(--internship-ink);
+  font-size: 1.22rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.internship-record__content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  margin: 0;
+  color: var(--internship-copy);
+  line-height: 1.78;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: pre-line;
+}
+
+.internship-record__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--internship-line);
+  padding-top: 14px;
+  color: var(--internship-muted);
+  font-size: 0.88rem;
+}
+
+.internship-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(17, 24, 39, 0.42);
+  overflow: auto;
+}
+
+.internship-dialog {
+  width: min(1080px, calc(100vw - 44px));
+  max-height: calc(100vh - 44px);
+  padding: 24px 26px 26px;
+  overflow: visible;
+  transform-origin: top right;
+  box-shadow:
+    0 28px 72px rgba(17, 24, 39, 0.24),
+    0 8px 24px rgba(17, 24, 39, 0.12);
+}
+
+.internship-dialog .internship-form {
+  gap: 22px;
+  margin-top: 20px;
+}
+
+.internship-detail-dialog {
+  width: min(760px, calc(100vw - 44px));
+  overflow: hidden;
+}
+
+.internship-detail {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.internship-detail__head {
+  display: grid;
+  gap: 12px;
+}
+
+.internship-detail__head h3 {
+  margin: 0;
+  color: var(--internship-ink);
+  font-size: 1.35rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.internship-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.internship-detail__meta span,
+.internship-detail__meta time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 5px 11px;
+  color: var(--internship-copy);
+  background: var(--internship-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.internship-detail__content {
+  max-height: min(46vh, 460px);
+  border: 1px solid var(--internship-line);
+  border-radius: 16px;
+  padding: 16px;
+  color: var(--internship-copy);
+  background: var(--internship-soft);
+  line-height: 1.8;
+  overflow: auto;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.internship-detail__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--internship-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.internship-window-enter-active,
+.internship-window-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.internship-window-enter-active .internship-dialog {
+  transition:
+    opacity 220ms ease,
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.internship-window-leave-active .internship-dialog {
+  transition:
+    opacity 160ms ease,
+    transform 200ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.internship-window-enter-from,
+.internship-window-leave-to {
+  opacity: 0;
+}
+
+.internship-window-enter-from .internship-dialog {
+  opacity: 0;
+  transform: translate3d(18px, -18px, 0) scale(0.88);
+}
+
+.internship-window-leave-to .internship-dialog {
+  opacity: 0;
+  transform: translate3d(14px, -14px, 0) scale(0.9);
+}
+
+.internship-window-enter-to,
+.internship-window-leave-from {
+  opacity: 1;
+}
+
+.internship-window-enter-to .internship-dialog,
+.internship-window-leave-from .internship-dialog {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
 }
 
 .internship-empty {
   margin: 0;
-  border: 1px dashed rgba(31, 41, 51, 0.18);
+  border: 1px dashed var(--internship-line-strong);
   border-radius: 18px;
   padding: 44px 20px;
-  color: #6b7280;
+  color: var(--internship-muted);
   text-align: center;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 980px) {
+  .internship-page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .internship-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .internship-shell {
     grid-template-columns: 1fr;
   }
 
-  .internship-editor {
-    position: static;
+  .internship-board,
+  .internship-records {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 640px) {
+  .internship-page {
+    padding: 12px;
+  }
+
+  .internship-summary,
+  .internship-form,
+  .internship-form-grid,
+  .internship-board__toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .internship-board__head,
+  .internship-dialog__head {
+    align-items: center;
+  }
+
+  .internship-modal {
+    padding: 12px;
+  }
+
+  .internship-dialog {
+    max-height: calc(100vh - 24px);
+    min-height: auto;
+    width: 100%;
+    padding: 18px;
+  }
+
+  .internship-form,
+  .internship-form__left,
+  .internship-form__record {
+    min-height: auto;
+  }
+
+  .internship-form__left {
+    grid-template-rows: auto;
+  }
+
+  .internship-form__left .internship-field {
+    align-content: start;
+  }
+
+  .internship-form__record textarea {
+    min-height: 260px;
+  }
+
+  .internship-record__head {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .internship-record__meta {
+    justify-content: flex-start;
+  }
+
+  .internship-record__footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

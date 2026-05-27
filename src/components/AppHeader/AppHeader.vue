@@ -7,9 +7,9 @@
     </div>
 
     <div class="header-actions">
-      <span class="welcome-text">当前用户：{{ username }}</span>
+      <span v-if="showUser" class="welcome-text">当前用户：{{ username }}</span>
       <slot name="actions" />
-      <button type="button" class="ghost-btn" @click="$emit('logout')">退出登录</button>
+      <button type="button" class="ghost-btn" @click="$emit('logout')">{{ logoutLabel }}</button>
     </div>
   </header>
 </template>
@@ -31,6 +31,14 @@ defineProps({
   username: {
     type: String,
     default: '访客'
+  },
+  showUser: {
+    type: Boolean,
+    default: true
+  },
+  logoutLabel: {
+    type: String,
+    default: '退出登录'
   }
 })
 

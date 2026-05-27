@@ -8,6 +8,7 @@ import {
   NOTE_USERNAME_KEY,
   USERNAME_KEY
 } from '../constants/storage'
+import { canUsePrivateAppOrigin, getPrivateApiBaseUrl } from './privateAccess'
 
 const EXPLICIT_API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
 const EXPLICIT_PRIVATE_APP_BASE_URL = String(import.meta.env.VITE_PRIVATE_APP_BASE_URL || '')
@@ -45,8 +46,14 @@ function resolveApiBaseUrl() {
     return ''
   }
 
-  if (EXPLICIT_PRIVATE_APP_BASE_URL && isPrivateRoutePath(window.location.pathname)) {
-    return EXPLICIT_PRIVATE_APP_BASE_URL
+  if (isPrivateRoutePath(window.location.pathname)) {
+    if (EXPLICIT_PRIVATE_APP_BASE_URL) {
+      return EXPLICIT_PRIVATE_APP_BASE_URL
+    }
+
+    if (canUsePrivateAppOrigin()) {
+      return getPrivateApiBaseUrl()
+    }
   }
 
   return ''
@@ -77,7 +84,7 @@ function createHttpError(error) {
   const message =
     responseMessage ||
     (error.response?.status === 403
-      ? 'Request was blocked with 403. Check whether the deployed site is forwarding /api to the Node service, or set VITE_API_BASE_URL to the real backend origin.'
+      ? `API request was blocked with 403: ${error.config?.url || ''}. The request did not reach the Node API service. Check the /api reverse proxy or set VITE_API_BASE_URL / VITE_PRIVATE_APP_BASE_URL to the backend origin.`
       : '') ||
     (error.response?.status === 500
       ? 'Server returned 500. Check the Node service logs for the exact auth error.'
