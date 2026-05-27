@@ -1,10 +1,6 @@
 const DEFAULT_PRIVATE_APP_BASE_URL = (
   import.meta.env.VITE_PRIVATE_APP_BASE_URL || 'http://100.73.19.92'
 ).replace(/\/$/, '')
-const EXPLICIT_PRIVATE_API_BASE_URL = String(
-  import.meta.env.VITE_PRIVATE_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || ''
-).trim().replace(/\/$/, '')
-const DEFAULT_PRIVATE_API_PORT = String(import.meta.env.VITE_PRIVATE_API_PORT || '3001').trim()
 const DEFAULT_PUBLIC_APP_BASE_URL = (
   import.meta.env.VITE_PUBLIC_APP_BASE_URL || 'http://www.wmzh.online'
 ).replace(/\/$/, '')
@@ -55,36 +51,6 @@ function getPrivateAppBaseUrl() {
   }
 
   return DEFAULT_PRIVATE_APP_BASE_URL
-}
-
-function resolveDirectPrivateApiBaseUrl(value) {
-  try {
-    const url = new URL(value)
-
-    if (!url.port && DEFAULT_PRIVATE_API_PORT) {
-      url.port = DEFAULT_PRIVATE_API_PORT
-    }
-
-    url.pathname = ''
-    url.search = ''
-    url.hash = ''
-
-    return url.toString().replace(/\/$/, '')
-  } catch {
-    return value
-  }
-}
-
-function getPrivateApiBaseUrl() {
-  if (typeof window !== 'undefined' && isLocalDevelopmentHost(window.location.hostname)) {
-    return ''
-  }
-
-  if (EXPLICIT_PRIVATE_API_BASE_URL) {
-    return EXPLICIT_PRIVATE_API_BASE_URL
-  }
-
-  return resolveDirectPrivateApiBaseUrl(getPrivateAppBaseUrl())
 }
 
 function getPublicAppBaseUrl() {
@@ -164,7 +130,6 @@ async function detectPrivateAppReachability(timeoutMs = 1500) {
 export {
   canUsePrivateAppOrigin,
   detectPrivateAppReachability,
-  getPrivateApiBaseUrl,
   getPrivateAppBaseUrl,
   getPublicAppBaseUrl,
   hasRuntimePrivateAppAccess,

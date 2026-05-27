@@ -8,7 +8,7 @@ import {
   NOTE_USERNAME_KEY,
   USERNAME_KEY
 } from '../constants/storage'
-import { canUsePrivateAppOrigin, getPrivateApiBaseUrl } from './privateAccess'
+import { canUsePrivateAppOrigin, getPrivateAppBaseUrl } from './privateAccess'
 
 const EXPLICIT_API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
 const EXPLICIT_PRIVATE_APP_BASE_URL = String(import.meta.env.VITE_PRIVATE_APP_BASE_URL || '')
@@ -52,7 +52,7 @@ function resolveApiBaseUrl() {
     }
 
     if (canUsePrivateAppOrigin()) {
-      return getPrivateApiBaseUrl()
+      return getPrivateAppBaseUrl()
     }
   }
 
@@ -84,7 +84,7 @@ function createHttpError(error) {
   const message =
     responseMessage ||
     (error.response?.status === 403
-      ? `API request was blocked with 403: ${error.config?.url || ''}. The request did not reach the Node API service. Check the /api reverse proxy or set VITE_API_BASE_URL / VITE_PRIVATE_APP_BASE_URL to the backend origin.`
+      ? `API request was blocked with 403: ${error.config?.url || ''}. The request did not reach the Node API service. Check whether Nginx forwards /api to Node and restart the Node service after uploading server files.`
       : '') ||
     (error.response?.status === 500
       ? 'Server returned 500. Check the Node service logs for the exact auth error.'
