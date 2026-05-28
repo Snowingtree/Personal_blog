@@ -113,6 +113,20 @@ function isLoginRequest(url) {
   return isAuthRequest(url, '/api/login')
 }
 
+function createRefreshAuthError(message, { shouldClearAuth = false, isStale = false } = {}) {
+  const error = new Error(message)
+
+  error.name = 'RefreshAuthError'
+  error.shouldClearAuth = shouldClearAuth
+  error.isStale = isStale
+
+  return error
+}
+
+function shouldClearAuthAfterRefreshError(error) {
+  return Boolean(error && typeof error === 'object' && error.shouldClearAuth)
+}
+
 let refreshAccessTokenPromise = null
 
 export async function refreshAccessToken() {
@@ -124,23 +138,37 @@ export async function refreshAccessToken() {
     const currentRefreshToken = getStoredToken(AUTH_REFRESH_TOKEN_KEY)
 
     if (!currentRefreshToken) {
-      throw new Error('Refresh token is missing.')
+      throw createRefreshAuthError('Refresh token is missing.', {
+        shouldClearAuth: true
+      })
     }
 
-    const response = await axios.post(
-      '/api/login',
-      {
-        refresh_token: currentRefreshToken
-      },
-      {
-        baseURL: resolveApiBaseUrl(),
-        timeout: 10000,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
+    let response
+
+    try {
+      response = await axios.post(
+        '/api/login',
+        {
+          refresh_token: currentRefreshToken
+        },
+        {
+          baseURL: resolveApiBaseUrl(),
+          timeout: 10000,
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          }
         }
+      )
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        throw createRefreshAuthError('Refresh token is invalid or expired.', {
+          shouldClearAuth: true
+        })
       }
-    )
+
+      throw error
+    }
 
     const data = response.data || {}
     const nextToken = String(data.token || data.accessToken || data.access_token || '').trim()
@@ -148,6 +176,12 @@ export async function refreshAccessToken() {
 
     if (!nextToken) {
       throw new Error('Refresh response did not include an auth token.')
+    }
+
+    if (getStoredToken(AUTH_REFRESH_TOKEN_KEY) !== currentRefreshToken) {
+      throw createRefreshAuthError('Refresh token changed while refresh was in flight.', {
+        isStale: true
+      })
     }
 
     writeStoredAuthTokens({
@@ -237,20 +271,27 @@ http.interceptors.response.use(
       ) {
         try {
           const nextToken = await refreshAccessToken()
+
+          if (getStoredToken(AUTH_TOKEN_KEY) !== nextToken) {
+            return Promise.reject(createHttpError(error))
+          }
+
           const headers = axios.AxiosHeaders.from(originalConfig.headers)
           headers.set('Authorization', `Bearer ${nextToken}`)
           originalConfig.headers = headers
           originalConfig.__isRetryAfterRefresh = true
           return http.request(originalConfig)
-        } catch {
-          clearStoredAuth()
+        } catch (refreshError) {
+          if (shouldClearAuthAfterRefreshError(refreshError)) {
+            clearStoredAuth()
 
-          if (typeof window !== 'undefined') {
-            const nextLocation = '/notes-login'
-            const nextUrl = new URL(nextLocation, window.location.origin).toString()
+            if (typeof window !== 'undefined') {
+              const nextLocation = '/notes-login'
+              const nextUrl = new URL(nextLocation, window.location.origin).toString()
 
-            if (window.location.href !== nextUrl) {
-              window.location.assign(nextUrl)
+              if (window.location.href !== nextUrl) {
+                window.location.assign(nextUrl)
+              }
             }
           }
         }
