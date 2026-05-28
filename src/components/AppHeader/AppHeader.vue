@@ -1,7 +1,7 @@
 <template>
   <header class="app-header">
     <div>
-      <p class="page-tag">{{ tag }}</p>
+      <p v-if="tag" class="page-tag">{{ tag }}</p>
       <h1>{{ title }}</h1>
       <p v-if="description" class="header-note">{{ description }}</p>
     </div>

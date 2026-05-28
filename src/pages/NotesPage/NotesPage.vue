@@ -7,13 +7,34 @@
     />
 
     <AppHeader
-      tag="笔记页"
+      tag=""
       title="仓库笔记浏览"
       description=""
       :show-user="false"
-      logout-label="返回选择"
+      logout-label="返回"
       @logout="handleBackToTools"
-    />
+    >
+      <template #actions>
+        <button
+          v-if="activeWorkspaceView === 'notes'"
+          type="button"
+          class="secondary-btn"
+          :disabled="repoBusy"
+          @click="handleUpdateRepository"
+        >
+          更新
+        </button>
+        <button
+          v-if="activeWorkspaceView === 'notes'"
+          type="button"
+          class="primary-btn"
+          :disabled="repoBusy"
+          @click="openCommitDialog"
+        >
+          提交
+        </button>
+      </template>
+    </AppHeader>
 
     <button
       v-if="showStickyMobileDirectoryTrigger"
@@ -33,10 +54,6 @@
 
     <section class="panel-card note-browser-panel">
       <div class="panel-head">
-        <div>
-          <p class="section-tag">{{ workspaceSectionTag }}</p>
-        </div>
-
         <div class="note-panel-actions">
           <button
             v-if="isMobileView"
@@ -80,24 +97,6 @@
             </button>
           </div>
 
-          <div v-if="!isMobileView && activeWorkspaceView === 'notes'" class="note-repo-actions">
-            <button
-              type="button"
-              class="secondary-btn"
-              :disabled="repoBusy"
-              @click="handleUpdateRepository"
-            >
-              {{ repoUpdateDialogVisible ? '更新中...' : '更新仓库' }}
-            </button>
-            <button
-              type="button"
-              class="primary-btn"
-              :disabled="repoBusy"
-              @click="openCommitDialog"
-            >
-              提交 GitHub
-            </button>
-          </div>
         </div>
       </div>
 
@@ -611,7 +610,6 @@ const showDesktopWorkspaceSwitch = computed(() => !isMobileView.value)
 const activeWorkspaceView = computed(() => desktopWorkspaceView.value)
 const repoUpdateDialogVisible = computed(() => repoBusy.value && repoAction.value === 'update')
 const workspaceTransitionName = computed(() => workspaceTransitionDirection.value === 'prev' ? 'note-workspace-prev' : 'note-workspace-next')
-const workspaceSectionTag = computed(() => activeWorkspaceView.value === 'ai' ? 'AI 提问' : '仓库文件')
 const activeFileTitle = computed(() => activePath.value ? getFileName(activePath.value).replace(/\.[^.]+$/, '') : '未选择文件')
 const isDirty = computed(() => draftContent.value !== activeContent.value)
 const showStickyMobileDirectoryTrigger = computed(() =>

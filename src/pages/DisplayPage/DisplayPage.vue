@@ -1,12 +1,21 @@
 <template>
   <main v-if="privateAppAvailable" class="display-layout anime-agent-theme">
     <AppHeader
-      tag="展示页"
+      tag=""
       title="动漫名称列表"
       :show-user="false"
-      logout-label="返回选择"
+      logout-label="返回"
       @logout="handleBackToTools"
-    />
+    >
+      <template #actions>
+        <button type="button" class="secondary-btn" @click="resetFromSource">
+          更新
+        </button>
+        <button type="button" class="primary-btn" @click="handleSave">
+          保存
+        </button>
+      </template>
+    </AppHeader>
 
     <div class="content-grid content-grid--single">
       <ListManager
@@ -16,16 +25,7 @@
         @add="handleAddItem"
         @remove="handleRemoveItem"
         @undo="handleUndo"
-      >
-        <template #source-actions>
-          <button type="button" class="secondary-btn" @click="resetFromSource">
-            重新读取
-          </button>
-          <button type="button" class="primary-btn" @click="handleSave">
-            保存
-          </button>
-        </template>
-      </ListManager>
+      />
     </div>
   </main>
 
@@ -41,7 +41,6 @@ import { useRouter } from 'vue-router'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import ListManager from '../../components/ListManager/ListManager.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
-import { LIST_KEY } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import http from '../../utils/http'
 import { parseAnimeContent, serializeAnimeItems, sortItemsByPinyin } from '../../utils/animePinyin'
@@ -49,6 +48,7 @@ import { parseAnimeContent, serializeAnimeItems, sortItemsByPinyin } from '../..
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const lastAction = ref(null)
+const LEGACY_ANIME_LIST_KEY = 'vibe-coding-anime-list'
 
 function notify(message, type = 'success') {
   createMessage({
@@ -59,43 +59,14 @@ function notify(message, type = 'success') {
   })
 }
 
-function getStoredItems() {
-  const storedValue = localStorage.getItem(LIST_KEY)
+const items = ref([])
 
-  if (!storedValue) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(storedValue)
-
-    if (Array.isArray(parsed)) {
-      return sortItemsByPinyin(parsed)
-    }
-  } catch {
-    localStorage.removeItem(LIST_KEY)
-  }
-
-  return null
-}
-
-const storedItems = getStoredItems()
-const items = ref(storedItems ?? [])
-
-const undoLabel = computed(() => {
-  if (lastAction.value?.type === 'remove') {
-    return '撤销删除'
-  }
-
-  return '撤销添加'
-})
+const undoLabel = '撤销'
 
 const canUndo = computed(() => Boolean(lastAction.value))
 
 function saveItems(nextItems) {
-  const sortedItems = sortItemsByPinyin(nextItems)
-  items.value = sortedItems
-  localStorage.setItem(LIST_KEY, JSON.stringify(sortedItems))
+  items.value = sortItemsByPinyin(nextItems)
 }
 
 function rememberAction(type) {
@@ -164,13 +135,13 @@ function handleBackToTools() {
 }
 
 onMounted(async () => {
+  localStorage.removeItem(LEGACY_ANIME_LIST_KEY)
+
   if (!privateAppAvailable.value) {
     return
   }
 
-  if (storedItems === null) {
-    await loadFromSource()
-  }
+  await loadFromSource()
 })
 </script>
 
@@ -292,5 +263,140 @@ onMounted(async () => {
 .anime-agent-theme :deep(.list-item) {
   border: 1px solid var(--mono-line);
   background: var(--mono-surface);
+}
+
+@media (max-width: 780px) {
+  .anime-agent-theme {
+    width: min(100% - 16px, 1120px);
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .anime-agent-theme :deep(.app-header) {
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .anime-agent-theme :deep(.app-header h1) {
+    font-size: clamp(1.35rem, 7vw, 1.9rem);
+  }
+
+  .anime-agent-theme :deep(.header-actions) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .anime-agent-theme :deep(.header-actions .primary-btn),
+  .anime-agent-theme :deep(.header-actions .secondary-btn),
+  .anime-agent-theme :deep(.header-actions .ghost-btn) {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 8px;
+    white-space: nowrap;
+  }
+
+  .anime-agent-theme :deep(.panel-card) {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .anime-agent-theme :deep(.panel-head) {
+    margin-bottom: 10px;
+  }
+
+  .anime-agent-theme :deep(.panel-head h2) {
+    font-size: 1.1rem;
+  }
+
+  .anime-agent-theme :deep(.action-form) {
+    grid-template-columns: minmax(0, 1fr) minmax(44px, auto) minmax(44px, auto) minmax(44px, auto);
+    gap: 6px;
+    align-items: center;
+  }
+
+  .anime-agent-theme :deep(.action-form .list-input) {
+    min-width: 0;
+    padding: 10px;
+    font-size: 0.9rem;
+  }
+
+  .anime-agent-theme :deep(.action-form .primary-btn),
+  .anime-agent-theme :deep(.action-form .secondary-btn),
+  .anime-agent-theme :deep(.action-form .ghost-btn) {
+    width: auto;
+    min-width: 0;
+    padding: 10px 8px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  .anime-agent-theme :deep(.search-status) {
+    font-size: 0.84rem;
+    line-height: 1.45;
+  }
+
+  .anime-agent-theme :deep(.list-scroll) {
+    max-height: calc(100dvh - 260px);
+    padding-right: 2px;
+  }
+
+  .anime-agent-theme :deep(.list-wrap) {
+    gap: 8px;
+  }
+
+  .anime-agent-theme :deep(.group-row) {
+    min-height: 38px;
+    border-radius: 12px;
+    padding: 0 12px;
+  }
+
+  .anime-agent-theme :deep(.list-item) {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .anime-agent-theme :deep(.list-index) {
+    width: 30px;
+    height: 30px;
+    font-size: 0.82rem;
+  }
+
+  .anime-agent-theme :deep(.list-text) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  .anime-agent-theme :deep(.list-item .danger-btn) {
+    width: auto;
+    min-width: 0;
+    justify-self: end;
+    padding: 8px 10px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .anime-agent-theme :deep(.action-form) {
+    grid-template-columns: minmax(0, 1fr) repeat(3, 38px);
+    gap: 5px;
+  }
+
+  .anime-agent-theme :deep(.action-form .primary-btn),
+  .anime-agent-theme :deep(.action-form .secondary-btn),
+  .anime-agent-theme :deep(.action-form .ghost-btn) {
+    padding: 9px 4px;
+    font-size: 0.78rem;
+  }
 }
 </style>

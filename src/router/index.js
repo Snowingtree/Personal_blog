@@ -12,6 +12,7 @@ const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPag
 const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 import {
   AUTH_KEY,
+  AUTH_REFRESH_TOKEN_KEY,
   AUTH_TOKEN_KEY,
   NOTE_AUTH_KEY,
   NOTE_USERNAME_KEY,
@@ -174,7 +175,10 @@ function isUnifiedPrivateAuthScope(scope) {
 
 router.beforeEach((to) => {
   const authToken = localStorage.getItem(AUTH_TOKEN_KEY)
-  const hasToken = typeof authToken === 'string' && authToken.trim().length > 0
+  const refreshToken = localStorage.getItem(AUTH_REFRESH_TOKEN_KEY)
+  const hasAccessToken = typeof authToken === 'string' && authToken.trim().length > 0
+  const hasRefreshToken = typeof refreshToken === 'string' && refreshToken.trim().length > 0
+  const hasToken = hasAccessToken || hasRefreshToken
 
   if (!hasToken) {
     localStorage.removeItem(AUTH_KEY)

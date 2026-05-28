@@ -306,7 +306,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createMessage } from 'snowingress-my-components'
 import { useRouter } from 'vue-router'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
@@ -316,6 +316,7 @@ import http from '../../utils/http'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
+const INTERNSHIP_BACKGROUND_CLASS = 'is-internship-page'
 
 const categoryOptions = [
   { value: 'daily', label: '日报' },
@@ -354,6 +355,23 @@ const activeCategory = ref('all')
 const openSelectMenu = ref('')
 const records = ref(readStoredRecords())
 const recordsLoaded = ref(false)
+
+function syncInternshipBackground(enabled) {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  document.documentElement.classList.toggle(INTERNSHIP_BACKGROUND_CLASS, enabled)
+  document.body.classList.toggle(INTERNSHIP_BACKGROUND_CLASS, enabled)
+}
+
+onMounted(() => {
+  syncInternshipBackground(true)
+})
+
+onBeforeUnmount(() => {
+  syncInternshipBackground(false)
+})
 
 watch(
   privateAppAvailable,
@@ -918,6 +936,7 @@ function handleBackToTools() {
 .internship-stat {
   display: grid;
   gap: 8px;
+  min-width: 0;
   min-height: 92px;
   align-content: center;
   border: 1px solid var(--internship-line);
@@ -1571,7 +1590,22 @@ function handleBackToTools() {
   }
 
   .internship-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .internship-stat {
+    min-height: 76px;
+    border-radius: 16px;
+    padding: 14px 12px;
+  }
+
+  .internship-stat span {
+    font-size: 0.82rem;
+  }
+
+  .internship-stat strong {
+    font-size: 1.9rem;
   }
 
   .internship-shell {
@@ -1589,11 +1623,53 @@ function handleBackToTools() {
     padding: 12px;
   }
 
-  .internship-summary,
   .internship-form,
   .internship-form-grid,
   .internship-board__toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .internship-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .internship-stat {
+    min-height: 62px;
+    gap: 4px;
+    border-radius: 14px;
+    padding: 10px 6px;
+    box-shadow:
+      0 10px 22px rgba(17, 24, 39, 0.05),
+      0 2px 6px rgba(17, 24, 39, 0.03);
+  }
+
+  .internship-stat span {
+    min-width: 0;
+    font-size: clamp(0.62rem, 2.6vw, 0.76rem);
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .internship-stat strong {
+    font-size: clamp(1.05rem, 7vw, 1.5rem);
+    text-align: center;
+  }
+
+  .internship-status-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .internship-status-tabs button {
+    min-width: 0;
+    padding: 8px 4px;
+    font-size: clamp(0.68rem, 2.8vw, 0.82rem);
+    white-space: nowrap;
   }
 
   .internship-board__head,

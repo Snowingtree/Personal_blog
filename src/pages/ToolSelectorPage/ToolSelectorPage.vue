@@ -43,10 +43,12 @@
 </template>
 
 <script setup>
+import { onBeforeUnmount, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import {
   AUTH_KEY,
+  AUTH_REFRESH_TOKEN_KEY,
   AUTH_TOKEN_KEY,
   NOTE_AUTH_KEY,
   NOTE_USERNAME_KEY,
@@ -56,6 +58,7 @@ import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
+const TOOL_SELECTOR_BACKGROUND_CLASS = 'is-tool-selector-page'
 
 const toolOptions = [
   {
@@ -96,15 +99,35 @@ function handleLogout() {
   localStorage.removeItem(AUTH_KEY)
   localStorage.removeItem(NOTE_AUTH_KEY)
   localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY)
   localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(NOTE_USERNAME_KEY)
   router.push('/notes-login')
 }
+
+function syncToolSelectorBackground(enabled) {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  document.documentElement.classList.toggle(TOOL_SELECTOR_BACKGROUND_CLASS, enabled)
+  document.body.classList.toggle(TOOL_SELECTOR_BACKGROUND_CLASS, enabled)
+}
+
+onMounted(() => {
+  syncToolSelectorBackground(true)
+})
+
+onBeforeUnmount(() => {
+  syncToolSelectorBackground(false)
+})
 </script>
 
 <style scoped>
 .tool-selector-page {
+  width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 28px max(16px, calc((100vw - 1280px) / 2)) 52px;
   color: #1f2933;
   background: #ffffff;

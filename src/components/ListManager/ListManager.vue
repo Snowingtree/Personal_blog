@@ -2,8 +2,7 @@
   <section class="panel-card">
     <div class="panel-head">
       <div>
-        <p class="section-tag">列表操作</p>
-        <h2>展示并管理动漫名称</h2>
+        <h2>管理</h2>
       </div>
       <div v-if="$slots['source-actions']" class="panel-head-actions">
         <slot name="source-actions" />

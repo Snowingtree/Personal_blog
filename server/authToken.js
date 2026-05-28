@@ -4,20 +4,38 @@ function normalizeEnvValue(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function parseTokenTtlSeconds(value) {
+function parseTokenTtlSeconds(value, fallbackSeconds, envKey) {
   const normalized = normalizeEnvValue(value)
 
   if (!normalized) {
-    return 24 * 60 * 60
+    return fallbackSeconds
   }
 
   const ttlSeconds = Number(normalized)
 
   if (!Number.isInteger(ttlSeconds) || ttlSeconds <= 0) {
-    throw new Error('AUTH_TOKEN_TTL_SECONDS must be a positive integer.')
+    throw new Error(`${envKey} must be a positive integer.`)
   }
 
   return ttlSeconds
+}
+
+function getAccessTokenTtlSeconds(env) {
+  const explicitAccessTtl = normalizeEnvValue(env.AUTH_ACCESS_TOKEN_TTL_SECONDS)
+
+  return parseTokenTtlSeconds(
+    explicitAccessTtl || env.AUTH_TOKEN_TTL_SECONDS,
+    24 * 60 * 60,
+    explicitAccessTtl ? 'AUTH_ACCESS_TOKEN_TTL_SECONDS' : 'AUTH_TOKEN_TTL_SECONDS'
+  )
+}
+
+function getRefreshTokenTtlSeconds(env) {
+  return parseTokenTtlSeconds(
+    env.AUTH_REFRESH_TOKEN_TTL_SECONDS,
+    30 * 24 * 60 * 60,
+    'AUTH_REFRESH_TOKEN_TTL_SECONDS'
+  )
 }
 
 function getTokenSecret(env) {
@@ -84,13 +102,38 @@ function readBearerToken(req) {
   return /^Bearer$/i.test(scheme) && token ? token : ''
 }
 
-export function createAuthToken(user, env = process.env) {
-  const ttlSeconds = parseTokenTtlSeconds(env.AUTH_TOKEN_TTL_SECONDS)
+function verifyTokenType(payload, expectedType) {
+  const normalizedExpectedType = normalizeEnvValue(expectedType)
+
+  if (!normalizedExpectedType) {
+    return
+  }
+
+  const actualType = normalizeEnvValue(payload?.typ)
+
+  if (!actualType && normalizedExpectedType === 'access') {
+    return
+  }
+
+  if (actualType !== normalizedExpectedType) {
+    throw new Error('Authentication token type is not allowed for this request.')
+  }
+}
+
+export function createAuthToken(user, env = process.env, options = {}) {
+  const tokenType = normalizeEnvValue(options.type) || 'access'
+  const ttlSeconds =
+    Number.isInteger(options.ttlSeconds) && options.ttlSeconds > 0
+      ? options.ttlSeconds
+      : tokenType === 'refresh'
+        ? getRefreshTokenTtlSeconds(env)
+        : getAccessTokenTtlSeconds(env)
   const secret = getTokenSecret(env)
   const issuedAt = Math.floor(Date.now() / 1000)
   const payload = {
     sub: user?.id == null ? String(user?.username ?? '') : String(user.id),
     username: String(user?.username ?? ''),
+    typ: tokenType,
     iat: issuedAt,
     exp: issuedAt + ttlSeconds
   }
@@ -101,11 +144,30 @@ export function createAuthToken(user, env = process.env) {
 
   return {
     token: `${unsignedToken}.${signature}`,
-    expiresAt: new Date(payload.exp * 1000).toISOString()
+    expiresAt: new Date(payload.exp * 1000).toISOString(),
+    expiresIn: ttlSeconds
   }
 }
 
-export function verifyAuthToken(token, env = process.env) {
+export function createAuthTokenPair(user, env = process.env) {
+  const accessToken = createAuthToken(user, env, { type: 'access' })
+  const refreshToken = createAuthToken(user, env, { type: 'refresh' })
+
+  return {
+    token: accessToken.token,
+    accessToken: accessToken.token,
+    access_token: accessToken.token,
+    expiresAt: accessToken.expiresAt,
+    expires_in: accessToken.expiresIn,
+    refreshToken: refreshToken.token,
+    refresh_token: refreshToken.token,
+    refreshExpiresAt: refreshToken.expiresAt,
+    refresh_expires_in: refreshToken.expiresIn,
+    token_type: 'Bearer'
+  }
+}
+
+export function verifyAuthToken(token, env = process.env, options = {}) {
   const [encodedHeader, encodedPayload, signature] = String(token).split('.')
 
   if (!encodedHeader || !encodedPayload || !signature) {
@@ -136,7 +198,13 @@ export function verifyAuthToken(token, env = process.env) {
     throw new Error('Authentication token has expired.')
   }
 
+  verifyTokenType(payload, options.expectedType)
+
   return payload
+}
+
+export function verifyAuthRefreshToken(token, env = process.env) {
+  return verifyAuthToken(token, env, { expectedType: 'refresh' })
 }
 
 export function createProtectedApiMiddleware(env = process.env) {
@@ -162,7 +230,7 @@ export function createProtectedApiMiddleware(env = process.env) {
     }
 
     try {
-      req.auth = verifyAuthToken(token, env)
+      req.auth = verifyAuthToken(token, env, { expectedType: 'access' })
       next()
     } catch (error) {
       writeJson(res, 401, {

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { createAuthToken } from './authToken.js'
+import { createAuthTokenPair, verifyAuthRefreshToken } from './authToken.js'
 
 function normalizeEnvValue(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -293,6 +293,17 @@ function writeJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload))
 }
 
+function readRefreshTokenFromBody(body) {
+  const refreshToken =
+    typeof body?.refreshToken === 'string'
+      ? body.refreshToken
+      : typeof body?.refresh_token === 'string'
+        ? body.refresh_token
+        : ''
+
+  return refreshToken.trim()
+}
+
 export function createAuthApiMiddleware(env = process.env) {
   const config = getAuthConfig(env)
   const loginRateLimitConfig = getLoginRateLimitConfig(env)
@@ -322,6 +333,65 @@ export function createAuthApiMiddleware(env = process.env) {
     return poolPromise
   }
 
+  async function findUserByUsername(username) {
+    const pool = await getPool()
+    const [rows] = await pool.query(
+      `SELECT ${idColumn} AS id, ${usernameColumn} AS username, ${passwordColumn} AS password
+       FROM ${userTable}
+       WHERE ${usernameColumn} = ?
+       LIMIT 1`,
+      [username]
+    )
+
+    return Array.isArray(rows) ? rows[0] : null
+  }
+
+  async function handleRefreshTokenRequest(body, res) {
+    const refreshToken = readRefreshTokenFromBody(body)
+
+    if (!refreshToken) {
+      writeJson(res, 401, { message: 'Refresh token is required.' })
+      return
+    }
+
+    let refreshPayload = null
+
+    try {
+      refreshPayload = verifyAuthRefreshToken(refreshToken, env)
+    } catch (error) {
+      writeJson(res, 401, {
+        message: error instanceof Error ? error.message : 'Invalid or expired refresh token.'
+      })
+      return
+    }
+
+    const refreshUsername =
+      typeof refreshPayload?.username === 'string' ? refreshPayload.username.trim() : ''
+
+    if (!refreshUsername) {
+      writeJson(res, 401, { message: 'Invalid or expired refresh token.' })
+      return
+    }
+
+    const user = await findUserByUsername(refreshUsername)
+
+    if (!user || typeof user.username !== 'string') {
+      writeJson(res, 401, { message: 'Invalid or expired refresh token.' })
+      return
+    }
+
+    const userPayload = {
+      id: user.id ?? null,
+      username: String(user.username ?? refreshUsername)
+    }
+
+    writeJson(res, 200, {
+      ok: true,
+      ...createAuthTokenPair(userPayload, env),
+      user: userPayload
+    })
+  }
+
   return async (req, res, next) => {
     if (!req.url?.startsWith('/api/login')) {
       next()
@@ -335,6 +405,12 @@ export function createAuthApiMiddleware(env = process.env) {
 
     try {
       const body = await readJsonBody(req)
+
+      if (readRefreshTokenFromBody(body)) {
+        await handleRefreshTokenRequest(body, res)
+        return
+      }
+
       const username = typeof body.username === 'string' ? body.username.trim() : ''
       const password = typeof body.password === 'string' ? body.password : ''
 
@@ -374,16 +450,7 @@ export function createAuthApiMiddleware(env = process.env) {
         return
       }
 
-      const pool = await getPool()
-      const [rows] = await pool.query(
-        `SELECT ${idColumn} AS id, ${usernameColumn} AS username, ${passwordColumn} AS password
-         FROM ${userTable}
-         WHERE ${usernameColumn} = ?
-         LIMIT 1`,
-        [username]
-      )
-
-      const user = Array.isArray(rows) ? rows[0] : null
+      const user = await findUserByUsername(username)
 
       if (!user || typeof user.password !== 'string') {
         const ipEntry = registerRateLimitFailure(
@@ -472,22 +539,15 @@ export function createAuthApiMiddleware(env = process.env) {
 
       clearRateLimitEntry(loginRateLimitStore, accountRateLimitKey)
 
-      const authToken = createAuthToken(
-        {
-          id: user.id ?? null,
-          username: String(user.username ?? username)
-        },
-        env
-      )
+      const userPayload = {
+        id: user.id ?? null,
+        username: String(user.username ?? username)
+      }
 
       writeJson(res, 200, {
         ok: true,
-        token: authToken.token,
-        expiresAt: authToken.expiresAt,
-        user: {
-          id: user.id ?? null,
-          username: String(user.username ?? username)
-        }
+        ...createAuthTokenPair(userPayload, env),
+        user: userPayload
       })
     } catch (error) {
       console.error('[auth] login failed', {

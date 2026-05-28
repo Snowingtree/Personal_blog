@@ -1,8 +1,7 @@
 import axios from 'axios'
 import {
-  AGENT_AUTH_KEY,
-  AGENT_USERNAME_KEY,
   AUTH_KEY,
+  AUTH_REFRESH_TOKEN_KEY,
   AUTH_TOKEN_KEY,
   NOTE_AUTH_KEY,
   NOTE_USERNAME_KEY,
@@ -66,11 +65,105 @@ function clearStoredAuth() {
 
   localStorage.removeItem(AUTH_KEY)
   localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY)
   localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(NOTE_AUTH_KEY)
   localStorage.removeItem(NOTE_USERNAME_KEY)
-  localStorage.removeItem(AGENT_AUTH_KEY)
-  localStorage.removeItem(AGENT_USERNAME_KEY)
+}
+
+function getStoredToken(storageKey) {
+  if (typeof localStorage === 'undefined') {
+    return ''
+  }
+
+  return String(localStorage.getItem(storageKey) || '').trim()
+}
+
+function writeStoredAuthTokens({ token, refreshToken, user } = {}) {
+  if (typeof localStorage === 'undefined') {
+    return
+  }
+
+  const normalizedToken = String(token || '').trim()
+  const normalizedRefreshToken = String(refreshToken || '').trim()
+  const username = typeof user?.username === 'string' ? user.username.trim() : ''
+
+  if (normalizedToken) {
+    localStorage.setItem(AUTH_TOKEN_KEY, normalizedToken)
+  }
+
+  if (normalizedRefreshToken) {
+    localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, normalizedRefreshToken)
+  }
+
+  localStorage.setItem(AUTH_KEY, 'true')
+  localStorage.setItem(NOTE_AUTH_KEY, 'true')
+
+  if (username) {
+    localStorage.setItem(USERNAME_KEY, username)
+    localStorage.setItem(NOTE_USERNAME_KEY, username)
+  }
+}
+
+function isAuthRequest(url, pathname) {
+  return String(url || '').includes(pathname)
+}
+
+function isLoginRequest(url) {
+  return isAuthRequest(url, '/api/login')
+}
+
+let refreshAccessTokenPromise = null
+
+export async function refreshAccessToken() {
+  if (refreshAccessTokenPromise) {
+    return refreshAccessTokenPromise
+  }
+
+  refreshAccessTokenPromise = (async () => {
+    const currentRefreshToken = getStoredToken(AUTH_REFRESH_TOKEN_KEY)
+
+    if (!currentRefreshToken) {
+      throw new Error('Refresh token is missing.')
+    }
+
+    const response = await axios.post(
+      '/api/login',
+      {
+        refresh_token: currentRefreshToken
+      },
+      {
+        baseURL: resolveApiBaseUrl(),
+        timeout: 10000,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    const data = response.data || {}
+    const nextToken = String(data.token || data.accessToken || data.access_token || '').trim()
+    const nextRefreshToken = String(data.refreshToken || data.refresh_token || '').trim()
+
+    if (!nextToken) {
+      throw new Error('Refresh response did not include an auth token.')
+    }
+
+    writeStoredAuthTokens({
+      token: nextToken,
+      refreshToken: nextRefreshToken || currentRefreshToken,
+      user: data.user
+    })
+
+    return nextToken
+  })()
+
+  try {
+    return await refreshAccessTokenPromise
+  } finally {
+    refreshAccessTokenPromise = null
+  }
 }
 
 function createHttpError(error) {
@@ -112,7 +205,7 @@ http.interceptors.request.use(
 
     headers.set('Accept', 'application/json')
 
-    const token = localStorage.getItem(AUTH_TOKEN_KEY)
+    const token = getStoredToken(AUTH_TOKEN_KEY)
 
     if (token) {
       headers.set('Authorization', `Bearer ${token}`)
@@ -132,11 +225,38 @@ http.interceptors.request.use(
 
 http.interceptors.response.use(
   (response) => response.data,
-  (error) => {
+  async (error) => {
     if (axios.isAxiosError(error)) {
+      const originalConfig = error.config || {}
+      const requestUrl = String(originalConfig.url || '')
+
       if (
         error.response?.status === 401
-        && !String(error.config?.url || '').includes('/api/login')
+        && !originalConfig.__isRetryAfterRefresh
+        && !isLoginRequest(requestUrl)
+      ) {
+        try {
+          const nextToken = await refreshAccessToken()
+          const headers = axios.AxiosHeaders.from(originalConfig.headers)
+          headers.set('Authorization', `Bearer ${nextToken}`)
+          originalConfig.headers = headers
+          originalConfig.__isRetryAfterRefresh = true
+          return http.request(originalConfig)
+        } catch {
+          clearStoredAuth()
+
+          if (typeof window !== 'undefined') {
+            const nextLocation = '/notes-login'
+            const nextUrl = new URL(nextLocation, window.location.origin).toString()
+
+            if (window.location.href !== nextUrl) {
+              window.location.assign(nextUrl)
+            }
+          }
+        }
+      } else if (
+        error.response?.status === 401
+        && !isLoginRequest(requestUrl)
       ) {
         clearStoredAuth()
 

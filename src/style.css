@@ -26,6 +26,18 @@ body {
     linear-gradient(180deg, #dff5ff 0%, #c3ebff 48%, #98d7ff 100%);
 }
 
+html.is-tool-selector-page,
+html.is-tool-selector-page body,
+html.is-tool-selector-page #app {
+  background: #ffffff;
+}
+
+html.is-internship-page,
+html.is-internship-page body,
+html.is-internship-page #app {
+  background: #f7f8fa;
+}
+
 button,
 input,
 textarea {
@@ -1190,11 +1202,15 @@ code {
     --note-workspace-tassel-clearance: 80px;
   }
 
-  .note-display-layout .header-actions,
   .note-repo-actions {
     position: relative;
     z-index: 9;
     padding-right: var(--note-workspace-tassel-clearance);
+  }
+
+  .note-display-layout .header-actions {
+    position: relative;
+    z-index: 9;
   }
 }
 
@@ -2185,9 +2201,14 @@ body.is-note-resizing * {
 
   .note-browser-panel {
     gap: 12px;
-    padding: 8px;
+    padding: 0;
     min-height: 0;
     overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   .note-panel-actions {
@@ -2381,6 +2402,27 @@ body.is-note-resizing * {
 
   .note-display-layout .header-actions {
     justify-content: flex-end;
+  }
+
+  .note-browser-panel {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .note-browser-panel .panel-head {
+    margin-bottom: 10px;
+  }
+
+  .note-view-pane {
+    background: #ffffff;
+  }
+
+  .note-view-body {
+    background: transparent;
   }
 
   .note-workspace-switch__button {
