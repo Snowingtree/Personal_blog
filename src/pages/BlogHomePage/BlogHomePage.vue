@@ -206,17 +206,21 @@ const projectSpotlights = [
 
 const profile = {
   eyebrow: 'Mini Demo Lab',
-  title: '小 Demo 入口',
-  lead: '轻量工具、交互实验和临时 demo 会集中放在这里，保持首页主项目区更干净。',
+  title: '公开工具',
+  lead: '',
   demos: [
     {
       eyebrow: 'Canvas Demo',
       title: '在线简历编辑',
-      badge: '已接入',
-      description: '固定 A4 画布的简历编辑工具，支持模块拖拽、边界调整、多页管理和高清 PDF 导出。',
-      meta: ['A4 画布', '模块拖拽', 'PDF 导出'],
-      primaryLabel: '打开简历编辑',
-      primaryTo: '/resume-editor'
+      cardTo: '/resume-editor'
+    },
+    {
+      eyebrow: 'Coming Soon',
+      title: '预留工具 01'
+    },
+    {
+      eyebrow: 'Coming Soon',
+      title: '预留工具 02'
     }
   ]
 }

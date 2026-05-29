@@ -42,6 +42,7 @@
         @commit-boundary-resize="commitSnapshot"
         @clear-section-drag="clearSectionDrag"
         @drop-section="dropSection"
+        @open-module-editor="openModuleEditor"
         @resize-module-boundary="resizeModuleBoundary"
         @select-entry="selectEntry"
         @select-module="selectModule"
@@ -60,16 +61,31 @@
         @commit-snapshot="commitSnapshot"
         @move-entry="moveEntry"
         @move-section="moveSection"
+        @open-module-editor="openModuleEditor"
         @remove-entry="removeEntry"
         @section-visibility-change="handleSectionVisibilityChange"
         @update-rich-text="updateRichTextSection"
       />
     </div>
+
+    <ResumeEditorModuleDialog
+      :active-block="activeBlock"
+      :open="Boolean(activeModuleDialogKey)"
+      :resume="resume"
+      :section="activeModuleDialogSection"
+      @add-education="addEducationFromDialog"
+      @close="closeModuleEditor"
+      @commit-snapshot="commitSnapshot"
+      @remove-entry="removeEntry"
+      @select-entry="selectEntry"
+      @update-rich-text="updateRichTextSection"
+    />
   </main>
 </template>
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ResumeEditorInspector from './components/ResumeEditorInspector.vue'
+import ResumeEditorModuleDialog from './components/ResumeEditorModuleDialog.vue'
 import ResumeEditorSidebar from './components/ResumeEditorSidebar.vue'
 import ResumeEditorToolbar from './components/ResumeEditorToolbar.vue'
 import ResumeEditorWorkspace from './components/ResumeEditorWorkspace.vue'
@@ -95,13 +111,15 @@ const MODULE_BOUND_LIMITS = Object.freeze({
 })
 
 const sectionControls = [
-  { key: 'experience', title: '实习经历', description: '富文本内容' },
-  { key: 'projects', title: '项目经历', description: '富文本内容' },
-  { key: 'education', title: '教育经历', description: '学校 / 专业 / 时间' },
-  { key: 'skills', title: '技能清单', description: '富文本内容' }
+  { key: 'education', title: '教育', resumeTitle: '教育经历', description: '学校 / 专业 / 时间' },
+  { key: 'projects', title: '项目', resumeTitle: '项目经历', description: '富文本内容' },
+  { key: 'skills', title: '技能', resumeTitle: '技能清单', description: '富文本内容' },
+  { key: 'experience', title: '实习', resumeTitle: '实习经历', description: '富文本内容' }
 ]
 const sectionMap = new Map(sectionControls.map((section) => [section.key, section]))
 const defaultSectionOrder = sectionControls.map((section) => section.key)
+const legacyDefaultSectionOrder = ['experience', 'projects', 'education', 'skills']
+const dialogEditableSections = new Set(['education', 'projects', 'experience', 'skills'])
 const zoomOptions = [70, 80, 90, 100, 110, 120]
 
 const resume = ref(createDefaultResume())
@@ -110,6 +128,7 @@ const zoom = ref(90)
 const historyStack = ref([])
 const draftStatus = ref('')
 const draggingSectionKey = ref('')
+const activeModuleDialogKey = ref('')
 let draftStatusTimer = 0
 
 const zoomScale = computed(() => zoom.value / 100)
@@ -155,12 +174,15 @@ const activePanelTitle = computed(() => {
   }
 
   if (activeBlock.value.type === 'education-item') {
-    return '教育经历'
+    return '教育'
   }
 
   return activeSection.value?.title || '属性编辑'
 })
 const selectedEducation = computed(() => resume.value.education[activeBlock.value.index] || null)
+const activeModuleDialogSection = computed(() =>
+  activeModuleDialogKey.value ? sectionMap.get(activeModuleDialogKey.value) || null : null
+)
 
 function createDefaultResume() {
   return {
@@ -211,6 +233,10 @@ function createDefaultModuleBounds() {
 }
 
 function normalizeSectionOrder(order) {
+  if (isSameSectionOrder(order, legacyDefaultSectionOrder)) {
+    return [...defaultSectionOrder]
+  }
+
   const seen = new Set()
   const normalizedOrder = Array.isArray(order)
     ? order.filter((key) => {
@@ -230,6 +256,14 @@ function normalizeSectionOrder(order) {
   })
 
   return normalizedOrder
+}
+
+function isSameSectionOrder(order, referenceOrder) {
+  return (
+    Array.isArray(order) &&
+    order.length === referenceOrder.length &&
+    order.every((key, index) => key === referenceOrder[index])
+  )
 }
 
 function normalizeVisibleSections(visibleSections = {}) {
@@ -405,6 +439,25 @@ function selectNavigatorChild(child) {
   selectEntry(child.type, child.index)
 }
 
+function openModuleEditor(key, entryIndex = null) {
+  if (!dialogEditableSections.has(key)) {
+    selectModule(key)
+    return
+  }
+
+  if (key === 'education' && Number.isInteger(entryIndex)) {
+    selectEntry('education-item', entryIndex)
+  } else {
+    selectModule(key)
+  }
+
+  activeModuleDialogKey.value = key
+}
+
+function closeModuleEditor() {
+  activeModuleDialogKey.value = ''
+}
+
 function startSectionDrag(key) {
   draggingSectionKey.value = key
 }
@@ -485,6 +538,11 @@ function addEducation() {
   ensureSectionVisible('education')
   selectEntry('education-item', resume.value.education.length - 1)
   commitSnapshot()
+}
+
+function addEducationFromDialog() {
+  addEducation()
+  activeModuleDialogKey.value = 'education'
 }
 
 function addSkill() {
@@ -1468,6 +1526,19 @@ onMounted(() => {
 .resume-entry {
   position: relative;
   border-radius: 10px;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.resume-entry--compact {
+  padding: 10px 12px;
+  margin: -10px -12px;
+}
+
+.resume-entry.is-active {
+  background: rgba(47, 107, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(47, 107, 255, 0.16);
 }
 
 .resume-entry__head {
@@ -1550,6 +1621,286 @@ onMounted(() => {
   box-shadow: 0 0 0 4px rgba(23, 26, 32, 0.08);
 }
 
+.inspector-rich-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.inspector-rich-preview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inspector-rich-preview__head span {
+  color: var(--editor-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.inspector-rich-preview__body {
+  min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid rgba(23, 26, 32, 0.14);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--editor-ink);
+  line-height: 1.65;
+}
+
+.inspector-rich-preview__body p {
+  margin: 0 0 9px;
+}
+
+.inspector-rich-preview__body ul,
+.inspector-rich-preview__body ol {
+  margin: 0 0 9px;
+  padding-left: 20px;
+}
+
+.inspector-rich-preview__empty {
+  color: var(--editor-muted);
+}
+
+.resume-module-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 20, 26, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.resume-module-dialog__panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(920px, 100%);
+  max-height: min(760px, calc(100dvh - 48px));
+  border: 1px solid rgba(23, 26, 32, 0.1);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(17, 20, 26, 0.28);
+  overflow: hidden;
+}
+
+.resume-module-dialog__head,
+.resume-module-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.resume-module-dialog__head {
+  border-bottom: 1px solid var(--editor-line);
+}
+
+.resume-module-dialog__head p,
+.resume-module-dialog__head h2 {
+  margin: 0;
+}
+
+.resume-module-dialog__head p {
+  color: var(--editor-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.resume-module-dialog__head h2 {
+  margin-top: 4px;
+  color: var(--editor-ink);
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.resume-module-dialog__close {
+  width: 38px;
+  min-height: 38px;
+  font-size: 1.35rem;
+}
+
+.resume-module-dialog__body {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.resume-module-dialog__actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--editor-line);
+}
+
+.resume-module-dialog__tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: var(--editor-muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.resume-dialog-education-list {
+  display: grid;
+  gap: 12px;
+}
+
+.resume-dialog-education-item {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--editor-line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.resume-dialog-education-item.is-active {
+  border-color: rgba(47, 107, 255, 0.28);
+  background: rgba(47, 107, 255, 0.04);
+  box-shadow: 0 14px 30px rgba(47, 107, 255, 0.08);
+}
+
+.resume-dialog-education-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resume-dialog-education-item__head strong {
+  color: var(--editor-ink);
+  font-size: 0.96rem;
+}
+
+.resume-dialog-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(150px, 0.7fr);
+  gap: 12px;
+}
+
+.resume-module-dialog-enter-active,
+.resume-module-dialog-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.resume-module-dialog-enter-active .resume-module-dialog__panel,
+.resume-module-dialog-leave-active .resume-module-dialog__panel {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.resume-module-dialog-enter-from,
+.resume-module-dialog-leave-to {
+  opacity: 0;
+}
+
+.resume-module-dialog-enter-from .resume-module-dialog__panel,
+.resume-module-dialog-leave-to .resume-module-dialog__panel {
+  opacity: 0;
+  transform: translateY(14px) scale(0.985);
+}
+
+.resume-rich-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.resume-rich-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resume-rich-editor__head > span {
+  color: var(--editor-muted);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.resume-rich-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.resume-rich-editor__toolbar button {
+  min-width: 34px;
+  min-height: 32px;
+  border: 1px solid var(--editor-line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--editor-ink);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.resume-rich-editor__toolbar button:hover {
+  border-color: rgba(23, 26, 32, 0.22);
+  background: #f7f8fa;
+}
+
+.resume-rich-editor__toolbar button:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.resume-rich-editor__area {
+  min-height: 420px;
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid rgba(23, 26, 32, 0.24);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  color: var(--editor-ink);
+  line-height: 1.7;
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(23, 26, 32, 0.04);
+}
+
+.resume-rich-editor__area:focus {
+  border-color: rgba(23, 26, 32, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(23, 26, 32, 0.06);
+}
+
+.resume-rich-editor__area p {
+  margin: 0 0 10px;
+}
+
+.resume-rich-editor__area ul,
+.resume-rich-editor__area ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.resume-rich-text--html p {
+  margin: 0;
+}
+
+.resume-rich-text--html ul,
+.resume-rich-text--html ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
 .entry-action-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1600,6 +1951,10 @@ onMounted(() => {
   .resume-stage {
     padding: 22px;
   }
+
+  .resume-dialog-field-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1625,6 +1980,20 @@ onMounted(() => {
   .quick-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .resume-module-dialog {
+    padding: 12px;
+  }
+
+  .resume-module-dialog__panel {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .resume-module-dialog__head,
+  .resume-module-dialog__actions,
+  .resume-module-dialog__body {
+    padding: 14px;
+  }
 }
 
 @media print {
@@ -1648,7 +2017,8 @@ onMounted(() => {
 
   .resume-editor-toolbar,
   .resume-sidebar,
-  .resume-inspector {
+  .resume-inspector,
+  .resume-module-dialog {
     display: none !important;
   }
 

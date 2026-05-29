@@ -38,12 +38,13 @@
                 @drop.prevent="handleModuleDrop('experience')"
                 @dragend="$emit('clear-section-drag')"
                 @click.stop="$emit('select-module', 'experience')"
+                @dblclick.stop="$emit('open-module-editor', 'experience')"
               >
                 <BoundaryHandles
                   v-if="isModuleActive('experience')"
                   @start="startBoundaryResize('experience', $event)"
                 />
-                <h2>{{ section.title }}</h2>
+                <h2>{{ section.resumeTitle || section.title }}</h2>
                 <RichTextContent :content="resume.richText?.experience" />
               </section>
 
@@ -58,12 +59,13 @@
                 @drop.prevent="handleModuleDrop('projects')"
                 @dragend="$emit('clear-section-drag')"
                 @click.stop="$emit('select-module', 'projects')"
+                @dblclick.stop="$emit('open-module-editor', 'projects')"
               >
                 <BoundaryHandles
                   v-if="isModuleActive('projects')"
                   @start="startBoundaryResize('projects', $event)"
                 />
-                <h2>{{ section.title }}</h2>
+                <h2>{{ section.resumeTitle || section.title }}</h2>
                 <RichTextContent :content="resume.richText?.projects" />
               </section>
 
@@ -78,17 +80,20 @@
                 @drop.prevent="handleModuleDrop('education')"
                 @dragend="$emit('clear-section-drag')"
                 @click.stop="$emit('select-module', 'education')"
+                @dblclick.stop="$emit('open-module-editor', 'education')"
               >
                 <BoundaryHandles
                   v-if="isModuleActive('education')"
                   @start="startBoundaryResize('education', $event)"
                 />
-                <h2>{{ section.title }}</h2>
+                <h2>{{ section.resumeTitle || section.title }}</h2>
                 <article
                   v-for="(item, index) in resume.education"
                   :key="item.id"
                   class="resume-entry resume-entry--compact"
+                  :class="{ 'is-active': isEducationEntryActive(index) }"
                   @click.stop="$emit('select-entry', 'education-item', index)"
+                  @dblclick.stop="$emit('open-module-editor', 'education', index)"
                 >
                   <div class="resume-entry__head">
                     <div>
@@ -111,12 +116,13 @@
                 @drop.prevent="handleModuleDrop('skills')"
                 @dragend="$emit('clear-section-drag')"
                 @click.stop="$emit('select-module', 'skills')"
+                @dblclick.stop="$emit('open-module-editor', 'skills')"
               >
                 <BoundaryHandles
                   v-if="isModuleActive('skills')"
                   @start="startBoundaryResize('skills', $event)"
                 />
-                <h2>{{ section.title }}</h2>
+                <h2>{{ section.resumeTitle || section.title }}</h2>
                 <RichTextContent :content="resume.richText?.skills" />
               </section>
             </template>
@@ -148,6 +154,7 @@ const BoundaryHandles = defineComponent({
             draggable: 'false',
             class: ['module-boundary-handle', `module-boundary-handle--${edge}`],
             'aria-label': `调整${edge}边界`,
+            onClick: (event) => event.stopPropagation(),
             onPointerdown: (event) => emit('start', { edge, event })
           })
         )
@@ -164,7 +171,18 @@ const RichTextContent = defineComponent({
     }
   },
   setup(props) {
-    return () => h('div', { class: 'resume-rich-text' }, renderRichTextBlocks(props.content))
+    return () => {
+      const content = String(props.content || '')
+
+      if (hasHtmlTag(content)) {
+        return h('div', {
+          class: 'resume-rich-text resume-rich-text--html',
+          innerHTML: cleanRichTextHtml(content)
+        })
+      }
+
+      return h('div', { class: 'resume-rich-text' }, renderRichTextBlocks(content))
+    }
   }
 })
 
@@ -203,6 +221,7 @@ const emit = defineEmits([
   'clear-section-drag',
   'commit-boundary-resize',
   'drop-section',
+  'open-module-editor',
   'resize-module-boundary',
   'select-entry',
   'select-module',
@@ -214,6 +233,10 @@ let boundaryResize = null
 
 function isModuleActive(key) {
   return props.activeBlock.key === key
+}
+
+function isEducationEntryActive(index) {
+  return props.activeBlock.type === 'education-item' && props.activeBlock.index === index
 }
 
 function getModuleClass(key) {
@@ -350,6 +373,46 @@ function renderRichTextBlocks(content) {
 
   flushList()
   return nodes.length ? nodes : [h('p', { class: 'resume-rich-text__empty' }, '暂无内容')]
+}
+
+function cleanRichTextHtml(value) {
+  if (typeof document === 'undefined') {
+    return ''
+  }
+
+  const template = document.createElement('template')
+  template.innerHTML = String(value || '')
+  const allowedTags = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'UL', 'OL', 'LI'])
+
+  const cleanNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent || '')
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return document.createDocumentFragment()
+    }
+
+    const tagName = allowedTags.has(node.tagName) ? node.tagName.toLowerCase() : 'p'
+    const element = document.createElement(tagName)
+
+    node.childNodes.forEach((child) => {
+      element.appendChild(cleanNode(child))
+    })
+
+    return element
+  }
+
+  const wrapper = document.createElement('div')
+  template.content.childNodes.forEach((child) => {
+    wrapper.appendChild(cleanNode(child))
+  })
+
+  return wrapper.innerHTML
+}
+
+function hasHtmlTag(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value)
 }
 
 onBeforeUnmount(() => {

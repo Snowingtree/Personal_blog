@@ -1,9 +1,21 @@
 <template>
   <div class="entry-action-row">
-    <button type="button" class="editor-btn" :disabled="index <= 0" @click="$emit('move-up')">
+    <button
+      v-if="showMoveControls"
+      type="button"
+      class="editor-btn"
+      :disabled="index <= 0"
+      @click="$emit('move-up')"
+    >
       上移
     </button>
-    <button type="button" class="editor-btn" :disabled="index >= length - 1" @click="$emit('move-down')">
+    <button
+      v-if="showMoveControls"
+      type="button"
+      class="editor-btn"
+      :disabled="index >= length - 1"
+      @click="$emit('move-down')"
+    >
       下移
     </button>
     <button
@@ -26,6 +38,10 @@ defineProps({
   length: {
     type: Number,
     required: true
+  },
+  showMoveControls: {
+    type: Boolean,
+    default: true
   }
 })
 

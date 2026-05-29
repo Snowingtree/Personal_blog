@@ -12,7 +12,7 @@
       <div class="blog-profile-card__intro">
         <p class="blog-profile-card__eyebrow">{{ panel.eyebrow }}</p>
         <h2>{{ panel.title }}</h2>
-        <p class="blog-profile-card__lead">{{ panel.lead }}</p>
+        <p v-if="panel.lead" class="blog-profile-card__lead">{{ panel.lead }}</p>
       </div>
     </div>
 
@@ -24,7 +24,14 @@
     </section>
 
     <div v-if="panel.demos?.length" class="blog-profile-card__demo-list">
-      <article v-for="demo in panel.demos" :key="demo.title" class="blog-profile-card__demo-item">
+      <component
+        :is="getDemoItemComponent(demo)"
+        v-for="demo in panel.demos"
+        :key="demo.title"
+        v-bind="getDemoItemProps(demo)"
+        class="blog-profile-card__demo-item"
+        :class="{ 'is-clickable': demo.cardTo }"
+      >
         <div class="blog-profile-card__demo-head">
           <div>
             <p v-if="demo.eyebrow" class="blog-profile-card__demo-eyebrow">{{ demo.eyebrow }}</p>
@@ -78,7 +85,7 @@
             {{ demo.secondaryLabel }}
           </a>
         </div>
-      </article>
+      </component>
     </div>
 
     <div v-if="panel.status?.length" class="blog-profile-card__status-list">
@@ -134,6 +141,10 @@
 
 <script setup>
 import { RouterLink } from 'vue-router'
+
+const getDemoItemComponent = (demo) => (demo.cardTo ? RouterLink : 'article')
+
+const getDemoItemProps = (demo) => (demo.cardTo ? { to: demo.cardTo } : {})
 
 defineProps({
   panel: {

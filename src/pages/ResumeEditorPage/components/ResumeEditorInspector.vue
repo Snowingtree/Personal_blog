@@ -29,15 +29,15 @@
       </div>
 
       <div v-else-if="isRichTextBlock(activeBlock.type)" class="field-stack">
-        <label class="editor-field">
-          <span>{{ getRichTextLabel(activeBlock.type) }}</span>
-          <textarea
-            :value="resume.richText?.[activeBlock.type] || ''"
-            rows="14"
-            @input="$emit('update-rich-text', activeBlock.type, $event.target.value)"
-            @change="$emit('commit-snapshot')"
-          ></textarea>
-        </label>
+        <section class="inspector-rich-preview">
+          <div class="inspector-rich-preview__head">
+            <span>{{ getRichTextLabel(activeBlock.type) }}</span>
+            <button type="button" class="editor-btn" @click="$emit('open-module-editor', activeBlock.type)">
+              编辑
+            </button>
+          </div>
+          <div class="inspector-rich-preview__body" v-html="getRichTextPreview(activeBlock.type)"></div>
+        </section>
       </div>
 
       <div v-else-if="activeBlock.type === 'education-item' && selectedEducation" class="field-stack">
@@ -56,6 +56,7 @@
         <EntryActions
           :index="activeBlock.index"
           :length="resume.education.length"
+          :show-move-controls="false"
           @move-up="$emit('move-entry', 'education', activeBlock.index, -1)"
           @move-down="$emit('move-entry', 'education', activeBlock.index, 1)"
           @remove="$emit('remove-entry', 'education', activeBlock.index)"
@@ -71,7 +72,7 @@
           />
           <span>显示 {{ activeSection.title }}</span>
         </label>
-        <div class="entry-action-row">
+        <div v-if="activeSection.key !== 'education'" class="entry-action-row">
           <button
             type="button"
             class="editor-btn"
@@ -101,7 +102,7 @@
 <script setup>
 import EntryActions from './EntryActions.vue'
 
-defineProps({
+const props = defineProps({
   activeBlock: {
     type: Object,
     required: true
@@ -137,14 +138,15 @@ defineEmits([
   'move-entry',
   'move-section',
   'remove-entry',
+  'open-module-editor',
   'section-visibility-change',
   'update-rich-text'
 ])
 
 const richTextLabels = {
-  experience: '实习经历内容',
-  projects: '项目经历内容',
-  skills: '技能清单内容'
+  experience: '实习内容',
+  projects: '项目内容',
+  skills: '技能内容'
 }
 
 function isRichTextBlock(type) {
@@ -153,5 +155,106 @@ function isRichTextBlock(type) {
 
 function getRichTextLabel(type) {
   return richTextLabels[type] || '内容'
+}
+function getRichTextPreview(type) {
+  const content = String(props.resume.richText?.[type] || '').trim()
+
+  if (!content) {
+    return '<p class="inspector-rich-preview__empty">暂无内容</p>'
+  }
+
+  if (hasHtmlTag(content)) {
+    return cleanRichTextHtml(content)
+  }
+
+  return plainTextToHtml(content)
+}
+
+function plainTextToHtml(value) {
+  const lines = String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+  const blocks = []
+  let listItems = []
+
+  const flushList = () => {
+    if (!listItems.length) {
+      return
+    }
+
+    blocks.push(`<ul>${listItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`)
+    listItems = []
+  }
+
+  lines.forEach((line) => {
+    if (!line) {
+      flushList()
+      return
+    }
+
+    if (/^[-*•]\s+/.test(line)) {
+      listItems.push(line.replace(/^[-*•]\s+/, ''))
+      return
+    }
+
+    flushList()
+    blocks.push(`<p>${escapeHtml(line)}</p>`)
+  })
+
+  flushList()
+  return blocks.length ? blocks.join('') : '<p class="inspector-rich-preview__empty">暂无内容</p>'
+}
+
+function cleanRichTextHtml(value) {
+  if (typeof document === 'undefined') {
+    return escapeHtml(value)
+  }
+
+  const template = document.createElement('template')
+  template.innerHTML = String(value || '')
+  const allowedTags = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'UL', 'OL', 'LI'])
+
+  const cleanNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent || '')
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return document.createDocumentFragment()
+    }
+
+    const tagName = allowedTags.has(node.tagName) ? node.tagName.toLowerCase() : 'p'
+    const element = document.createElement(tagName)
+
+    node.childNodes.forEach((child) => {
+      element.appendChild(cleanNode(child))
+    })
+
+    if (!element.childNodes.length && tagName === 'p') {
+      element.appendChild(document.createElement('br'))
+    }
+
+    return element
+  }
+
+  const wrapper = document.createElement('div')
+  template.content.childNodes.forEach((child) => {
+    wrapper.appendChild(cleanNode(child))
+  })
+
+  return wrapper.innerHTML || '<p class="inspector-rich-preview__empty">暂无内容</p>'
+}
+
+function hasHtmlTag(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value)
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 </script>

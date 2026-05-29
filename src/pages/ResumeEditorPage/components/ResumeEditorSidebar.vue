@@ -80,10 +80,10 @@
         <span>添加内容</span>
       </div>
       <div class="quick-actions">
-        <button type="button" class="editor-btn" @click="$emit('add-experience')">经历</button>
-        <button type="button" class="editor-btn" @click="$emit('add-project')">项目</button>
         <button type="button" class="editor-btn" @click="$emit('add-education')">教育</button>
+        <button type="button" class="editor-btn" @click="$emit('add-project')">项目</button>
         <button type="button" class="editor-btn" @click="$emit('add-skill')">技能</button>
+        <button type="button" class="editor-btn" @click="$emit('add-experience')">实习</button>
       </div>
     </section>
   </aside>
