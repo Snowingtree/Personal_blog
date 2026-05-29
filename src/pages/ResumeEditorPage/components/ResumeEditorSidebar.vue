@@ -39,21 +39,21 @@
             <div class="module-sort-item__actions" @click.stop>
               <button
                 type="button"
-                class="icon-btn"
+                class="icon-btn module-sort-move-btn module-sort-move-btn--up"
                 :disabled="index === 0"
                 aria-label="上移模块"
                 @click="$emit('move-section', index, -1)"
               >
-                ↑
+                <span class="module-sort-move-btn__chevron" aria-hidden="true"></span>
               </button>
               <button
                 type="button"
-                class="icon-btn"
+                class="icon-btn module-sort-move-btn module-sort-move-btn--down"
                 :disabled="index === moduleNavigator.length - 1"
                 aria-label="下移模块"
                 @click="$emit('move-section', index, 1)"
               >
-                ↓
+                <span class="module-sort-move-btn__chevron" aria-hidden="true"></span>
               </button>
             </div>
           </article>
@@ -128,10 +128,6 @@ function isModuleActive(key) {
 }
 
 function isNavigatorChildActive(child) {
-  if (child.type === 'summary') {
-    return props.activeBlock.type === 'summary'
-  }
-
   return props.activeBlock.type === child.type && props.activeBlock.index === child.index
 }
 </script>

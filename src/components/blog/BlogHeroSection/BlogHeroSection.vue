@@ -11,8 +11,14 @@
           :key="item.title"
           :class="[
             'blog-hero__spotlight',
-            item.theme && `blog-hero__spotlight--${item.theme}`
+            item.theme && `blog-hero__spotlight--${item.theme}`,
+            getSpotlightTarget(item) && 'is-clickable'
           ]"
+          :role="getSpotlightTarget(item) ? 'link' : undefined"
+          :tabindex="getSpotlightTarget(item) ? 0 : undefined"
+          @click="handleSpotlightClick(item)"
+          @keydown.enter.prevent="handleSpotlightKeydown(item)"
+          @keydown.space.prevent="handleSpotlightKeydown(item)"
         >
           <p v-if="item.eyebrow" class="blog-hero__spotlight-eyebrow">
             {{ item.eyebrow }}
@@ -41,9 +47,18 @@
               v-if="item.primaryLabel && item.primaryHref"
               class="blog-card-link"
               :href="item.primaryHref"
+              @click.stop
             >
               {{ item.primaryLabel }}
             </a>
+            <RouterLink
+              v-else-if="item.primaryLabel && item.primaryTo"
+              class="blog-card-link"
+              :to="item.primaryTo"
+              @click.stop
+            >
+              {{ item.primaryLabel }}
+            </RouterLink>
             <span
               v-else-if="item.primaryLabel"
               class="blog-card-link blog-card-link--disabled"
@@ -55,9 +70,18 @@
               v-if="item.secondaryLabel && item.secondaryHref"
               class="blog-card-link blog-card-link--secondary"
               :href="item.secondaryHref"
+              @click.stop
             >
               {{ item.secondaryLabel }}
             </a>
+            <RouterLink
+              v-else-if="item.secondaryLabel && item.secondaryTo"
+              class="blog-card-link blog-card-link--secondary"
+              :to="item.secondaryTo"
+              @click.stop
+            >
+              {{ item.secondaryLabel }}
+            </RouterLink>
             <span
               v-else-if="item.secondaryLabel"
               class="blog-card-link blog-card-link--secondary blog-card-link--disabled"
@@ -168,7 +192,9 @@
 
 <script setup>
 import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const props = defineProps({
   hero: {
@@ -252,4 +278,27 @@ const hasActions = computed(() => {
       || (props.primaryLabel && (props.primaryHref || props.primaryTo))
   )
 })
+
+function getSpotlightTarget(item) {
+  return item?.cardTo || item?.cardHref || ''
+}
+
+function handleSpotlightClick(item) {
+  const target = getSpotlightTarget(item)
+
+  if (!target) {
+    return
+  }
+
+  if (item.cardTo) {
+    router.push(item.cardTo)
+    return
+  }
+
+  window.location.href = target
+}
+
+function handleSpotlightKeydown(item) {
+  handleSpotlightClick(item)
+}
 </script>

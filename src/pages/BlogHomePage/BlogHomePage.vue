@@ -192,26 +192,32 @@ const projectSpotlights = [
   },
   {
     eyebrow: '站内项目',
-    title: '在线简历编辑',
+    title: 'AI 项目实验室',
     theme: 'ai',
-    badge: 'Demo 已接入',
+    badge: 'Agent 展示',
     description:
-      '一个面向在线简历编辑的小型画布 demo，包含模板切换、模块控制、属性编辑、缩放预览和打印输出。',
-    meta: ['Resume', 'Editor', 'Canvas Demo'],
-    primaryLabel: '打开简历编辑',
-    primaryHref: '/resume-editor',
-    secondaryLabel: '本地草稿'
+      '展示自建 Web Agent 工作台：多会话、工作区文件、RAG、MCP、Skills、审计与用量分析。',
+    meta: ['Web Agent', 'Workspace Tools', 'RAG / MCP'],
+    primaryLabel: '查看 Agent',
+    primaryTo: '/agent-intro',
+    cardTo: '/agent-intro'
   }
 ]
 
 const profile = {
-  eyebrow: 'About This Site',
-  title: '一个持续承接内容和项目入口的个人站点',
-  lead: '这里会继续更新文章分享、AI 分享和独立项目入口，首页保持简洁，只负责把内容组织清楚。',
-  status: [
-    { label: '当前状态', value: '公开首页已上线' },
-    { label: '独立项目', value: '组件库 / 小兔鲜商城' },
-    { label: '内容区块', value: '文章 / AI 分享' }
+  eyebrow: 'Mini Demo Lab',
+  title: '小 Demo 入口',
+  lead: '轻量工具、交互实验和临时 demo 会集中放在这里，保持首页主项目区更干净。',
+  demos: [
+    {
+      eyebrow: 'Canvas Demo',
+      title: '在线简历编辑',
+      badge: '已接入',
+      description: '固定 A4 画布的简历编辑工具，支持模块拖拽、边界调整、多页管理和高清 PDF 导出。',
+      meta: ['A4 画布', '模块拖拽', 'PDF 导出'],
+      primaryLabel: '打开简历编辑',
+      primaryTo: '/resume-editor'
+    }
   ]
 }
 </script>

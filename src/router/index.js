@@ -9,6 +9,7 @@ const BlogArticlePage = () => import('../pages/BlogArticlePage/BlogArticlePage.v
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
 const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPage.vue')
+const AgentIntroPage = () => import('../pages/AgentIntroPage/AgentIntroPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
 const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 import {
@@ -57,6 +58,11 @@ const router = createRouter({
       path: '/resume-editor',
       name: 'resume-editor',
       component: ResumeEditorPage
+    },
+    {
+      path: '/agent-intro',
+      name: 'agent-intro',
+      component: AgentIntroPage
     },
     {
       path: '/ai-shares/:slug',

@@ -33,15 +33,20 @@
 
       <ResumeEditorWorkspace
         :active-block="activeBlock"
+        :dragging-section-key="draggingSectionKey"
         :paper-frame-style="paperFrameStyle"
         :paper-style="paperStyle"
         :resume="resume"
         :resume-pages="resumePages"
-        :ruler-marks="rulerMarks"
+        :zoom-scale="zoomScale"
+        @commit-boundary-resize="commitSnapshot"
+        @clear-section-drag="clearSectionDrag"
+        @drop-section="dropSection"
+        @resize-module-boundary="resizeModuleBoundary"
         @select-entry="selectEntry"
         @select-module="selectModule"
         @select-profile="selectProfile"
-        @select-skill="selectSkill"
+        @start-section-drag="startSectionDrag"
       />
 
       <ResumeEditorInspector
@@ -52,18 +57,12 @@
         :module-navigator="moduleNavigator"
         :resume="resume"
         :selected-education="selectedEducation"
-        :selected-experience="selectedExperience"
-        :selected-project="selectedProject"
-        @add-skill="addSkill"
         @commit-snapshot="commitSnapshot"
         @move-entry="moveEntry"
         @move-section="moveSection"
-        @move-skill="moveSkill"
         @remove-entry="removeEntry"
-        @remove-skill="removeSkill"
         @section-visibility-change="handleSectionVisibilityChange"
-        @update-bullets="updateBullets"
-        @update-skill="updateSkill"
+        @update-rich-text="updateRichTextSection"
       />
     </div>
   </main>
@@ -81,18 +80,29 @@ const PAPER_HEIGHT = 1123
 const PAGE_CONTENT_HEIGHT = 1040
 const PROFILE_BLOCK_HEIGHT = 178
 const MODULE_BASE_HEIGHT = 84
+const MODULE_CONTENT_INSET = 18
+const DEFAULT_MODULE_BOUNDS = Object.freeze({
+  top: 22,
+  right: 56,
+  bottom: 22,
+  left: 56
+})
+const MODULE_BOUND_LIMITS = Object.freeze({
+  top: [-42, 40],
+  right: [24, 180],
+  bottom: [8, 86],
+  left: [24, 180]
+})
 
 const sectionControls = [
-  { key: 'summary', title: '个人优势', description: '一段概要' },
-  { key: 'experience', title: '工作经历', description: '公司 / 岗位 / 要点' },
-  { key: 'projects', title: '项目经历', description: '项目 / 角色 / 成果' },
+  { key: 'experience', title: '实习经历', description: '富文本内容' },
+  { key: 'projects', title: '项目经历', description: '富文本内容' },
   { key: 'education', title: '教育经历', description: '学校 / 专业 / 时间' },
-  { key: 'skills', title: '技能清单', description: '标签式技能' }
+  { key: 'skills', title: '技能清单', description: '富文本内容' }
 ]
 const sectionMap = new Map(sectionControls.map((section) => [section.key, section]))
 const defaultSectionOrder = sectionControls.map((section) => section.key)
 const zoomOptions = [70, 80, 90, 100, 110, 120]
-const rulerMarks = [0, 25, 50, 75, 100]
 
 const resume = ref(createDefaultResume())
 const activeBlock = ref({ type: 'profile', key: 'profile', index: null })
@@ -144,26 +154,12 @@ const activePanelTitle = computed(() => {
     return '基本信息'
   }
 
-  if (activeBlock.value.type === 'experience-item') {
-    return '工作经历'
-  }
-
-  if (activeBlock.value.type === 'project-item') {
-    return '项目经历'
-  }
-
   if (activeBlock.value.type === 'education-item') {
     return '教育经历'
   }
 
-  if (activeBlock.value.type === 'skill-item') {
-    return '技能条目'
-  }
-
   return activeSection.value?.title || '属性编辑'
 })
-const selectedExperience = computed(() => resume.value.experience[activeBlock.value.index] || null)
-const selectedProject = computed(() => resume.value.projects[activeBlock.value.index] || null)
 const selectedEducation = computed(() => resume.value.education[activeBlock.value.index] || null)
 
 function createDefaultResume() {
@@ -171,47 +167,27 @@ function createDefaultResume() {
     pageCount: 1,
     sectionOrder: [...defaultSectionOrder],
     visibleSections: {
-      summary: true,
       experience: true,
       projects: true,
       education: true,
       skills: true
     },
+    moduleBounds: createDefaultModuleBounds(),
     profile: {
       name: '刘安',
       role: '前端开发工程师',
       phone: '138 0000 0000',
       email: 'liuan@example.com',
-      location: '杭州',
-      summary:
-        '关注工程质量、交互体验和产品落地，熟悉 Vue 技术栈，能够独立完成从页面搭建、状态组织到接口联调的完整前端工作。'
+      location: '杭州'
     },
-    experience: [
-      {
-        id: createId(),
-        company: 'Snowingress Studio',
-        role: '前端开发实习生',
-        period: '2025.07 - 至今',
-        bullets: [
-          '负责内部工具页面搭建，完成登录、列表管理、编辑器交互和移动端适配。',
-          '优化图片与接口请求链路，减少首屏等待时间并提升异常状态可读性。',
-          '参与组件样式收敛，沉淀可复用的表单、弹窗和卡片布局。'
-        ]
-      }
-    ],
-    projects: [
-      {
-        id: createId(),
-        name: '在线笔记与 AI 问答工作台',
-        role: '个人项目',
-        period: '2026.02 - 2026.05',
-        bullets: [
-          '实现 Markdown 文件树、预览、编辑、提交与 AI 出题流程。',
-          '接入私有后台接口，统一处理鉴权、刷新 token 和错误提示。',
-          '针对移动端重构布局，保证窄屏下核心操作可用。'
-        ]
-      }
-    ],
+    richText: {
+      experience:
+        'Snowingress Studio｜前端开发实习生｜2025.07 - 至今\n- 负责内部工具页面搭建，完成登录、列表管理、编辑器交互和移动端适配。\n- 优化图片与接口请求链路，减少首屏等待时间并提升异常状态可读性。\n- 参与组件样式收敛，沉淀可复用的表单、弹窗和卡片布局。',
+      projects:
+        '在线笔记与 AI 问答工作台｜个人项目｜2026.02 - 2026.05\n- 实现 Markdown 文件树、预览、编辑、提交与 AI 出题流程。\n- 接入私有后台接口，统一处理鉴权、刷新 token 和错误提示。\n- 针对移动端重构布局，保证窄屏下核心操作可用。',
+      skills:
+        'Vue 生态: 熟悉 Vue2 / Vue3 开发，具备 Vue3 + TypeScript 项目实践经验，熟悉 Composition API、Pinia 状态管理及 Vue Router 路由配置。\n工程化: 熟悉 Vite 项目配置、组件拆分和前端构建流程，能够结合接口鉴权、状态管理和错误处理完成业务闭环。\n页面实现: 能够根据现有设计体系完成响应式页面还原，关注移动端适配、交互细节和可维护的样式组织。'
+    },
     education: [
       {
         id: createId(),
@@ -219,13 +195,19 @@ function createDefaultResume() {
         major: '软件工程 本科',
         period: '2022.09 - 2026.06'
       }
-    ],
-    skills: ['Vue 3', 'JavaScript', 'Vite', 'Node.js', 'MySQL', 'UI 还原']
+    ]
   }
 }
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function createDefaultModuleBounds() {
+  return defaultSectionOrder.reduce((bounds, key) => {
+    bounds[key] = { ...DEFAULT_MODULE_BOUNDS }
+    return bounds
+  }, {})
 }
 
 function normalizeSectionOrder(order) {
@@ -255,6 +237,26 @@ function normalizeVisibleSections(visibleSections = {}) {
     result[key] = visibleSections[key] !== false
     return result
   }, {})
+}
+
+function normalizeModuleBounds(moduleBounds = {}) {
+  return defaultSectionOrder.reduce((result, key) => {
+    result[key] = normalizeModuleBound(moduleBounds[key])
+    return result
+  }, {})
+}
+
+function normalizeModuleBound(bound = {}) {
+  return Object.entries(DEFAULT_MODULE_BOUNDS).reduce((result, [edge, defaultValue]) => {
+    result[edge] = clampNumber(bound?.[edge], MODULE_BOUND_LIMITS[edge][0], MODULE_BOUND_LIMITS[edge][1], defaultValue)
+    return result
+  }, {})
+}
+
+function clampNumber(value, min, max, fallback) {
+  const numberValue = Number(value)
+  const safeValue = Number.isFinite(numberValue) ? numberValue : fallback
+  return Math.min(Math.max(Math.round(safeValue), min), max)
 }
 
 function normalizePageCount(pageCount) {
@@ -291,52 +293,46 @@ function paginateSections(sections) {
 }
 
 function estimateSectionHeight(key) {
-  if (key === 'summary') {
-    return MODULE_BASE_HEIGHT + estimateTextLines(resume.value.profile.summary, 48) * 25
-  }
+  const bounds = getModuleBounds(key)
+  const verticalOffset = bounds.bottom - DEFAULT_MODULE_BOUNDS.bottom
 
   if (key === 'experience') {
-    return estimateTimelineSectionHeight(resume.value.experience, 'company', 'role')
+    return estimateRichTextSectionHeight(key, resume.value.richText?.experience)
   }
 
   if (key === 'projects') {
-    return estimateTimelineSectionHeight(resume.value.projects, 'name', 'role')
+    return estimateRichTextSectionHeight(key, resume.value.richText?.projects)
   }
 
   if (key === 'education') {
     const itemCount = Math.max(resume.value.education.length, 1)
-    return MODULE_BASE_HEIGHT + itemCount * 58 + Math.max(itemCount - 1, 0) * 12
+    return MODULE_BASE_HEIGHT + verticalOffset + itemCount * 58 + Math.max(itemCount - 1, 0) * 12
   }
 
   if (key === 'skills') {
-    const rows = Math.max(Math.ceil(resume.value.skills.length / 4), 1)
-    return MODULE_BASE_HEIGHT + rows * 36
+    return estimateRichTextSectionHeight(key, resume.value.richText?.skills)
   }
 
-  return MODULE_BASE_HEIGHT
+  return MODULE_BASE_HEIGHT + verticalOffset
 }
 
-function estimateTimelineSectionHeight(items, titleKey, subtitleKey) {
-  const normalizedItems = Array.isArray(items) && items.length ? items : [{}]
-
-  return (
-    MODULE_BASE_HEIGHT +
-    normalizedItems.reduce((total, item) => {
-      const titleLines = estimateTextLines(item[titleKey], 26)
-      const subtitleLines = estimateTextLines(item[subtitleKey], 34)
-      const bulletHeight = estimateBulletHeight(item.bullets)
-      return total + 42 + titleLines * 20 + subtitleLines * 18 + bulletHeight
-    }, 0) +
-    Math.max(normalizedItems.length - 1, 0) * 18
-  )
+function estimateRichTextSectionHeight(key, content) {
+  const bounds = getModuleBounds(key)
+  const verticalOffset = bounds.bottom - DEFAULT_MODULE_BOUNDS.bottom
+  return MODULE_BASE_HEIGHT + verticalOffset + Math.max(estimateTextLines(content, getCharsPerLine(key, 54)), 2) * 25
 }
 
-function estimateBulletHeight(bullets) {
-  if (!Array.isArray(bullets) || !bullets.length) {
-    return 0
-  }
+function getCharsPerLine(key, defaultCharsPerLine) {
+  const bounds = getModuleBounds(key)
+  const moduleContentInset = MODULE_CONTENT_INSET * 2
+  const defaultContentWidth =
+    PAPER_WIDTH - DEFAULT_MODULE_BOUNDS.left - DEFAULT_MODULE_BOUNDS.right - moduleContentInset
+  const contentWidth = PAPER_WIDTH - bounds.left - bounds.right - moduleContentInset
+  return Math.max(Math.floor(defaultCharsPerLine * (contentWidth / defaultContentWidth)), 28)
+}
 
-  return bullets.reduce((total, bullet) => total + estimateTextLines(bullet, 52) * 24 + 7, 12)
+function getModuleBounds(key) {
+  return normalizeModuleBound(resume.value.moduleBounds?.[key])
 }
 
 function estimateTextLines(value, charsPerLine) {
@@ -352,74 +348,18 @@ function estimateTextLines(value, charsPerLine) {
 }
 
 function getSectionNavigatorChildren(key) {
-  if (key === 'summary') {
-    return [
-      {
-        id: 'summary-content',
-        type: 'summary',
-        sectionKey: 'summary',
-        index: null,
-        label: '个人优势内容',
-        meta: getExcerpt(resume.value.profile.summary, 18)
-      }
-    ]
+  if (key !== 'education') {
+    return []
   }
 
-  if (key === 'experience') {
-    return resume.value.experience.map((item, index) => ({
-      id: item.id || `experience-${index}`,
-      type: 'experience-item',
-      sectionKey: 'experience',
-      index,
-      label: item.company || item.role || `工作经历 ${index + 1}`,
-      meta: [item.role, item.period].filter(Boolean).join(' · ') || `第 ${index + 1} 条`
-    }))
-  }
-
-  if (key === 'projects') {
-    return resume.value.projects.map((item, index) => ({
-      id: item.id || `project-${index}`,
-      type: 'project-item',
-      sectionKey: 'projects',
-      index,
-      label: item.name || item.role || `项目经历 ${index + 1}`,
-      meta: [item.role, item.period].filter(Boolean).join(' · ') || `第 ${index + 1} 条`
-    }))
-  }
-
-  if (key === 'education') {
-    return resume.value.education.map((item, index) => ({
-      id: item.id || `education-${index}`,
-      type: 'education-item',
-      sectionKey: 'education',
-      index,
-      label: item.school || item.major || `教育经历 ${index + 1}`,
-      meta: [item.major, item.period].filter(Boolean).join(' · ') || `第 ${index + 1} 条`
-    }))
-  }
-
-  if (key === 'skills') {
-    return resume.value.skills.map((skill, index) => ({
-      id: `skill-${index}-${skill}`,
-      type: 'skill-item',
-      sectionKey: 'skills',
-      index,
-      label: skill || `技能 ${index + 1}`,
-      meta: `第 ${index + 1} 项`
-    }))
-  }
-
-  return []
-}
-
-function getExcerpt(value, limit) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim()
-
-  if (!text) {
-    return '点击编辑内容'
-  }
-
-  return text.length > limit ? `${text.slice(0, limit)}...` : text
+  return resume.value.education.map((item, index) => ({
+    id: item.id || `education-${index}`,
+    type: 'education-item',
+    sectionKey: 'education',
+    index,
+    label: item.school || item.major || `教育经历 ${index + 1}`,
+    meta: [item.major, item.period].filter(Boolean).join(' · ') || `第 ${index + 1} 条`
+  }))
 }
 
 function getSnapshot() {
@@ -441,7 +381,7 @@ function selectProfile() {
 }
 
 function selectModule(key) {
-  if (key === 'summary' || key === 'skills') {
+  if (key === 'experience' || key === 'projects' || key === 'skills') {
     activeBlock.value = { type: key, key, index: null }
     return
   }
@@ -451,8 +391,6 @@ function selectModule(key) {
 
 function selectEntry(type, index) {
   const sectionKeyByType = {
-    'experience-item': 'experience',
-    'project-item': 'projects',
     'education-item': 'education'
   }
 
@@ -463,26 +401,7 @@ function selectEntry(type, index) {
   }
 }
 
-function selectSkill(index) {
-  if (index < 0 || index >= resume.value.skills.length) {
-    selectModule('skills')
-    return
-  }
-
-  activeBlock.value = { type: 'skill-item', key: 'skills', index }
-}
-
 function selectNavigatorChild(child) {
-  if (child.type === 'summary') {
-    selectModule('summary')
-    return
-  }
-
-  if (child.type === 'skill-item') {
-    selectSkill(child.index)
-    return
-  }
-
   selectEntry(child.type, child.index)
 }
 
@@ -543,28 +462,16 @@ function handleSectionVisibilityChange(key) {
 }
 
 function addExperience() {
-  resume.value.experience.push({
-    id: createId(),
-    company: '公司名称',
-    role: '岗位名称',
-    period: '2026.01 - 2026.06',
-    bullets: ['补充负责事项、关键成果或量化指标。']
-  })
+  appendRichTextBlock('experience', '\n\n实习单位｜实习岗位｜2026.01 - 2026.06\n- 补充负责事项、关键成果或量化指标。')
   ensureSectionVisible('experience')
-  selectEntry('experience-item', resume.value.experience.length - 1)
+  selectModule('experience')
   commitSnapshot()
 }
 
 function addProject() {
-  resume.value.projects.push({
-    id: createId(),
-    name: '项目名称',
-    role: '负责角色',
-    period: '2026.01 - 2026.03',
-    bullets: ['补充项目背景、技术方案和个人贡献。']
-  })
+  appendRichTextBlock('projects', '\n\n项目名称｜负责角色｜2026.01 - 2026.03\n- 补充项目背景、技术方案和个人贡献。')
   ensureSectionVisible('projects')
-  selectEntry('project-item', resume.value.projects.length - 1)
+  selectModule('projects')
   commitSnapshot()
 }
 
@@ -581,52 +488,52 @@ function addEducation() {
 }
 
 function addSkill() {
-  resume.value.skills.push('新技能')
+  appendRichTextBlock('skills', '\n新技能分类: 补充技能描述。')
   ensureSectionVisible('skills')
-  selectSkill(resume.value.skills.length - 1)
+  selectModule('skills')
   commitSnapshot()
 }
 
 function ensureSectionVisible(key) {
   resume.value.visibleSections[key] = true
   resume.value.sectionOrder = normalizeSectionOrder(resume.value.sectionOrder)
+  resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
 }
 
-function removeSkill(index) {
-  resume.value.skills.splice(index, 1)
-
-  if (activeBlock.value.type === 'skill-item') {
-    const nextIndex = Math.min(index, resume.value.skills.length - 1)
-
-    if (nextIndex >= 0) {
-      selectSkill(nextIndex)
-    } else {
-      selectModule('skills')
-    }
-  }
-
-  commitSnapshot()
-}
-
-function updateSkill(index, value) {
-  if (index < 0 || index >= resume.value.skills.length) {
+function resizeModuleBoundary(key, edge, delta) {
+  if (!sectionMap.has(key) || !Object.hasOwn(DEFAULT_MODULE_BOUNDS, edge)) {
     return
   }
 
-  resume.value.skills[index] = value
-}
+  resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
 
-function moveSkill(index, direction) {
-  const nextIndex = index + direction
-
-  if (nextIndex < 0 || nextIndex >= resume.value.skills.length) {
-    return
+  const bounds = resume.value.moduleBounds[key]
+  const [min, max] = MODULE_BOUND_LIMITS[edge]
+  const nextValueByEdge = {
+    top: bounds.top + delta.y,
+    right: bounds.right - delta.x,
+    bottom: bounds.bottom + delta.y,
+    left: bounds.left + delta.x
   }
 
-  const [skill] = resume.value.skills.splice(index, 1)
-  resume.value.skills.splice(nextIndex, 0, skill)
-  selectSkill(nextIndex)
-  commitSnapshot()
+  bounds[edge] = clampNumber(nextValueByEdge[edge], min, max, DEFAULT_MODULE_BOUNDS[edge])
+}
+
+function updateRichTextSection(key, value) {
+  if (!resume.value.richText) {
+    resume.value.richText = {}
+  }
+
+  resume.value.richText[key] = value
+}
+
+function appendRichTextBlock(key, block) {
+  if (!resume.value.richText) {
+    resume.value.richText = {}
+  }
+
+  const current = resume.value.richText[key] || ''
+  resume.value.richText[key] = current ? `${current}${block}` : block.trimStart()
 }
 
 function removeEntry(collectionName, index) {
@@ -653,8 +560,6 @@ function moveEntry(collectionName, index, direction) {
   collection.splice(nextIndex, 0, item)
 
   const entryTypeByCollection = {
-    experience: 'experience-item',
-    projects: 'project-item',
     education: 'education-item'
   }
 
@@ -662,15 +567,130 @@ function moveEntry(collectionName, index, direction) {
   commitSnapshot()
 }
 
-function updateBullets(item, value) {
-  if (!item) {
-    return
+function createSkillItem(category, details = []) {
+  return {
+    id: createId(),
+    category,
+    details
+  }
+}
+
+function normalizeSkills(skills, fallbackSkills) {
+  if (!Array.isArray(skills)) {
+    return fallbackSkills
   }
 
-  item.bullets = String(value)
-    .split('\n')
-    .map((line) => line.trim())
+  const normalizedSkills = skills
+    .map((skill, index) => normalizeSkillItem(skill, index))
     .filter(Boolean)
+
+  return normalizedSkills.length ? normalizedSkills : fallbackSkills
+}
+
+function normalizeSkillItem(skill, index) {
+  if (typeof skill === 'string') {
+    return createSkillItem(skill || `技能 ${index + 1}`, ['补充技能描述。'])
+  }
+
+  if (!skill || typeof skill !== 'object') {
+    return null
+  }
+
+  const details = Array.isArray(skill.details)
+    ? skill.details.map((detail) => String(detail).trim()).filter(Boolean)
+    : String(skill.description || skill.detail || '')
+        .split('\n')
+        .map((detail) => detail.trim())
+        .filter(Boolean)
+
+  return {
+    id: skill.id || createId(),
+    category: String(skill.category || skill.name || `技能 ${index + 1}`).trim(),
+    details: details.length ? details : ['补充技能描述。']
+  }
+}
+
+function normalizeRichTextSections(parsedDraft, fallbackRichText) {
+  const draftRichText = parsedDraft?.richText && typeof parsedDraft.richText === 'object'
+    ? parsedDraft.richText
+    : {}
+
+  return {
+    experience: normalizeRichTextValue(
+      draftRichText.experience,
+      () => formatExperienceAsRichText(parsedDraft?.experience),
+      fallbackRichText.experience
+    ),
+    projects: normalizeRichTextValue(
+      draftRichText.projects,
+      () => formatProjectsAsRichText(parsedDraft?.projects),
+      fallbackRichText.projects
+    ),
+    skills: normalizeRichTextValue(
+      draftRichText.skills,
+      () => formatSkillsAsRichText(parsedDraft?.skills),
+      fallbackRichText.skills
+    )
+  }
+}
+
+function normalizeRichTextValue(value, legacyFormatter, fallbackValue) {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  const legacyValue = legacyFormatter()
+  return legacyValue || fallbackValue
+}
+
+function formatExperienceAsRichText(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return ''
+  }
+
+  return items
+    .map((item) =>
+      [
+        [item.company, item.role, item.period].filter(Boolean).join('｜'),
+        ...formatBulletsAsLines(item.bullets)
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
+    .join('\n\n')
+}
+
+function formatProjectsAsRichText(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return ''
+  }
+
+  return items
+    .map((item) =>
+      [
+        [item.name, item.role, item.period].filter(Boolean).join('｜'),
+        ...formatBulletsAsLines(item.bullets)
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
+    .join('\n\n')
+}
+
+function formatSkillsAsRichText(skills) {
+  if (!Array.isArray(skills) || !skills.length) {
+    return ''
+  }
+
+  return normalizeSkills(skills, [])
+    .map((skill) => `${skill.category}: ${skill.details.join('，')}`)
+    .join('\n')
+}
+
+function formatBulletsAsLines(bullets) {
+  return Array.isArray(bullets)
+    ? bullets.map((bullet) => `- ${String(bullet).trim()}`).filter((bullet) => bullet !== '-')
+    : []
 }
 
 function undoResume() {
@@ -683,6 +703,7 @@ function undoResume() {
   resume.value.pageCount = normalizePageCount(resume.value.pageCount)
   resume.value.sectionOrder = normalizeSectionOrder(resume.value.sectionOrder)
   resume.value.visibleSections = normalizeVisibleSections(resume.value.visibleSections)
+  resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
   selectProfile()
   flashStatus('已撤销')
 }
@@ -778,22 +799,20 @@ function loadDraft() {
         ...parsedDraft,
         pageCount: normalizePageCount(parsedDraft.pageCount),
         sectionOrder: normalizeSectionOrder(parsedDraft.sectionOrder),
+        moduleBounds: normalizeModuleBounds(parsedDraft.moduleBounds),
         profile: {
           ...defaultResume.profile,
           ...parsedDraft.profile
         },
         visibleSections: normalizeVisibleSections(parsedDraft.visibleSections),
-        experience: Array.isArray(parsedDraft.experience)
-          ? parsedDraft.experience
-          : defaultResume.experience,
-        projects: Array.isArray(parsedDraft.projects)
-          ? parsedDraft.projects
-          : defaultResume.projects,
+        richText: normalizeRichTextSections(parsedDraft, defaultResume.richText),
         education: Array.isArray(parsedDraft.education)
           ? parsedDraft.education
-          : defaultResume.education,
-        skills: Array.isArray(parsedDraft.skills) ? parsedDraft.skills : defaultResume.skills
+          : defaultResume.education
       }
+      delete resume.value.experience
+      delete resume.value.projects
+      delete resume.value.skills
     }
   } catch {
     localStorage.removeItem(RESUME_EDITOR_DRAFT_KEY)
@@ -1112,6 +1131,45 @@ onMounted(() => {
   font-size: 0.82rem;
 }
 
+.module-sort-item__actions {
+  display: grid;
+  gap: 4px;
+}
+
+.module-sort-item__actions .module-sort-move-btn {
+  width: 28px;
+  height: 22px;
+  min-height: 22px;
+  border-color: rgba(23, 26, 32, 0.08);
+  border-radius: 7px;
+  background: #f7f8fa;
+  box-shadow: none;
+  color: #596171;
+}
+
+.module-sort-item__actions .module-sort-move-btn:hover:not(:disabled) {
+  border-color: rgba(23, 26, 32, 0.18);
+  background: #171a20;
+  color: #fff;
+  transform: none;
+  box-shadow: 0 8px 18px rgba(23, 26, 32, 0.12);
+}
+
+.module-sort-move-btn__chevron {
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+}
+
+.module-sort-move-btn--up .module-sort-move-btn__chevron {
+  transform: translateY(2px) rotate(45deg);
+}
+
+.module-sort-move-btn--down .module-sort-move-btn__chevron {
+  transform: translateY(-2px) rotate(225deg);
+}
+
 .module-child-list {
   display: grid;
   gap: 6px;
@@ -1193,35 +1251,6 @@ onMounted(() => {
   background: #fff;
 }
 
-.workspace-ruler {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  min-height: 34px;
-  border-bottom: 1px solid var(--editor-line);
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--editor-muted);
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.workspace-ruler span {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding-left: 8px;
-}
-
-.workspace-ruler span::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 1px;
-  height: 12px;
-  background: rgba(23, 26, 32, 0.24);
-}
-
 .resume-stage {
   flex: 1;
   min-height: 0;
@@ -1271,9 +1300,83 @@ onMounted(() => {
 .resume-document-hero,
 .resume-module {
   position: relative;
+  box-sizing: border-box;
   margin: 0 56px;
-  padding: 22px 0;
-  cursor: pointer;
+  padding: 22px 18px;
+  cursor: grab;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    background-color 160ms ease,
+    outline-color 160ms ease;
+}
+
+.resume-module:active {
+  cursor: grabbing;
+}
+
+.resume-module.is-dragging {
+  opacity: 0.48;
+  transform: scale(0.995);
+}
+
+.resume-module.is-drop-target {
+  background: linear-gradient(90deg, rgba(23, 26, 32, 0.045), transparent 72%);
+}
+
+.resume-module.is-selected {
+  outline: 2px solid #2f6bff;
+  outline-offset: 0;
+}
+
+.module-boundary-handles {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.module-boundary-handle {
+  position: absolute;
+  display: block;
+  width: 11px;
+  height: 11px;
+  border: 1px solid #a9b3c1;
+  border-radius: 2px;
+  padding: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(23, 26, 32, 0.18);
+  pointer-events: auto;
+}
+
+.module-boundary-handle--top,
+.module-boundary-handle--bottom {
+  left: 50%;
+  cursor: ns-resize;
+  transform: translateX(-50%);
+}
+
+.module-boundary-handle--top {
+  top: -6px;
+}
+
+.module-boundary-handle--bottom {
+  bottom: -6px;
+}
+
+.module-boundary-handle--left,
+.module-boundary-handle--right {
+  top: 50%;
+  cursor: ew-resize;
+  transform: translateY(-50%);
+}
+
+.module-boundary-handle--left {
+  left: -6px;
+}
+
+.module-boundary-handle--right {
+  right: -6px;
 }
 
 .resume-document-hero {
@@ -1331,10 +1434,31 @@ onMounted(() => {
   background: currentColor;
 }
 
-.resume-summary {
+.resume-rich-text {
+  display: grid;
+  gap: 8px;
+  color: #3f4652;
+  line-height: 1.7;
+}
+
+.resume-rich-text p {
   margin: 0;
-  color: #444b57;
-  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.resume-rich-text__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.resume-rich-text__list li::marker {
+  color: #171a20;
+}
+
+.resume-rich-text__empty {
+  color: #7a8391;
 }
 
 .resume-entry + .resume-entry {
@@ -1384,32 +1508,9 @@ onMounted(() => {
   color: #171a20;
 }
 
-.resume-skill-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.resume-skill-list li {
-  border-radius: 999px;
-  padding: 8px 12px;
-  border: 1px solid rgba(23, 26, 32, 0.14);
-  background: #fff;
-  color: #171a20;
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .is-selected {
   outline: 2px solid rgba(23, 26, 32, 0.6);
   outline-offset: 5px;
-}
-
-.resume-entry.is-selected {
-  outline-offset: 7px;
 }
 
 .editor-field {
@@ -1424,8 +1525,7 @@ onMounted(() => {
 }
 
 .editor-field input,
-.editor-field textarea,
-.skill-editor-row input {
+.editor-field textarea {
   width: 100%;
   border: 1px solid var(--editor-line);
   border-radius: 10px;
@@ -1445,8 +1545,7 @@ onMounted(() => {
 }
 
 .editor-field input:focus,
-.editor-field textarea:focus,
-.skill-editor-row input:focus {
+.editor-field textarea:focus {
   border-color: rgba(23, 26, 32, 0.34);
   box-shadow: 0 0 0 4px rgba(23, 26, 32, 0.08);
 }
@@ -1455,17 +1554,6 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-}
-
-.skill-editor-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
-
-.skill-editor-row .icon-btn {
-  width: auto;
-  padding: 0 10px;
 }
 
 .section-empty-state {
@@ -1560,8 +1648,7 @@ onMounted(() => {
 
   .resume-editor-toolbar,
   .resume-sidebar,
-  .resume-inspector,
-  .workspace-ruler {
+  .resume-inspector {
     display: none !important;
   }
 

@@ -28,73 +28,16 @@
         </label>
       </div>
 
-      <div v-else-if="activeBlock.type === 'summary'" class="field-stack">
+      <div v-else-if="isRichTextBlock(activeBlock.type)" class="field-stack">
         <label class="editor-field">
-          <span>内容</span>
-          <textarea v-model="resume.profile.summary" rows="9" @change="$emit('commit-snapshot')"></textarea>
-        </label>
-      </div>
-
-      <div v-else-if="activeBlock.type === 'experience-item' && selectedExperience" class="field-stack">
-        <label class="editor-field">
-          <span>公司</span>
-          <input v-model="selectedExperience.company" type="text" @change="$emit('commit-snapshot')" />
-        </label>
-        <label class="editor-field">
-          <span>岗位</span>
-          <input v-model="selectedExperience.role" type="text" @change="$emit('commit-snapshot')" />
-        </label>
-        <label class="editor-field">
-          <span>时间</span>
-          <input v-model="selectedExperience.period" type="text" @change="$emit('commit-snapshot')" />
-        </label>
-        <label class="editor-field">
-          <span>要点</span>
+          <span>{{ getRichTextLabel(activeBlock.type) }}</span>
           <textarea
-            :value="formatBullets(selectedExperience)"
-            rows="7"
-            @input="$emit('update-bullets', selectedExperience, $event.target.value)"
+            :value="resume.richText?.[activeBlock.type] || ''"
+            rows="14"
+            @input="$emit('update-rich-text', activeBlock.type, $event.target.value)"
             @change="$emit('commit-snapshot')"
           ></textarea>
         </label>
-        <EntryActions
-          :index="activeBlock.index"
-          :length="resume.experience.length"
-          @move-up="$emit('move-entry', 'experience', activeBlock.index, -1)"
-          @move-down="$emit('move-entry', 'experience', activeBlock.index, 1)"
-          @remove="$emit('remove-entry', 'experience', activeBlock.index)"
-        />
-      </div>
-
-      <div v-else-if="activeBlock.type === 'project-item' && selectedProject" class="field-stack">
-        <label class="editor-field">
-          <span>项目</span>
-          <input v-model="selectedProject.name" type="text" @change="$emit('commit-snapshot')" />
-        </label>
-        <label class="editor-field">
-          <span>角色</span>
-          <input v-model="selectedProject.role" type="text" @change="$emit('commit-snapshot')" />
-        </label>
-        <label class="editor-field">
-          <span>时间</span>
-          <input v-model="selectedProject.period" type="text" @change="$emit('commit-snapshot')" />
-        </label>
-        <label class="editor-field">
-          <span>要点</span>
-          <textarea
-            :value="formatBullets(selectedProject)"
-            rows="7"
-            @input="$emit('update-bullets', selectedProject, $event.target.value)"
-            @change="$emit('commit-snapshot')"
-          ></textarea>
-        </label>
-        <EntryActions
-          :index="activeBlock.index"
-          :length="resume.projects.length"
-          @move-up="$emit('move-entry', 'projects', activeBlock.index, -1)"
-          @move-down="$emit('move-entry', 'projects', activeBlock.index, 1)"
-          @remove="$emit('remove-entry', 'projects', activeBlock.index)"
-        />
       </div>
 
       <div v-else-if="activeBlock.type === 'education-item' && selectedEducation" class="field-stack">
@@ -117,57 +60,6 @@
           @move-down="$emit('move-entry', 'education', activeBlock.index, 1)"
           @remove="$emit('remove-entry', 'education', activeBlock.index)"
         />
-      </div>
-
-      <div v-else-if="activeBlock.type === 'skills'" class="field-stack">
-        <div v-for="(skill, index) in resume.skills" :key="`skill-${index}`" class="skill-editor-row">
-          <input
-            :value="skill"
-            type="text"
-            @input="$emit('update-skill', index, $event.target.value)"
-            @change="$emit('commit-snapshot')"
-          />
-          <button type="button" class="icon-btn" @click="$emit('remove-skill', index)">删除</button>
-        </div>
-        <button type="button" class="editor-btn editor-btn--wide" @click="$emit('add-skill')">添加技能</button>
-      </div>
-
-      <div v-else-if="activeBlock.type === 'skill-item'" class="field-stack">
-        <label class="editor-field">
-          <span>技能名称</span>
-          <input
-            :value="resume.skills[activeBlock.index] || ''"
-            type="text"
-            @input="$emit('update-skill', activeBlock.index, $event.target.value)"
-            @change="$emit('commit-snapshot')"
-          />
-        </label>
-        <div class="entry-action-row">
-          <button
-            type="button"
-            class="editor-btn"
-            :disabled="activeBlock.index <= 0"
-            @click="$emit('move-skill', activeBlock.index, -1)"
-          >
-            上移
-          </button>
-          <button
-            type="button"
-            class="editor-btn"
-            :disabled="activeBlock.index >= resume.skills.length - 1"
-            @click="$emit('move-skill', activeBlock.index, 1)"
-          >
-            下移
-          </button>
-          <button
-            type="button"
-            class="editor-btn editor-btn--danger"
-            :disabled="resume.skills.length <= 1"
-            @click="$emit('remove-skill', activeBlock.index)"
-          >
-            删除
-          </button>
-        </div>
       </div>
 
       <div v-else-if="activeSection" class="field-stack">
@@ -237,31 +129,29 @@ defineProps({
   selectedEducation: {
     type: Object,
     default: null
-  },
-  selectedExperience: {
-    type: Object,
-    default: null
-  },
-  selectedProject: {
-    type: Object,
-    default: null
   }
 })
 
 defineEmits([
-  'add-skill',
   'commit-snapshot',
   'move-entry',
   'move-section',
-  'move-skill',
   'remove-entry',
-  'remove-skill',
   'section-visibility-change',
-  'update-bullets',
-  'update-skill'
+  'update-rich-text'
 ])
 
-function formatBullets(item) {
-  return Array.isArray(item?.bullets) ? item.bullets.join('\n') : ''
+const richTextLabels = {
+  experience: '实习经历内容',
+  projects: '项目经历内容',
+  skills: '技能清单内容'
+}
+
+function isRichTextBlock(type) {
+  return Object.hasOwn(richTextLabels, type)
+}
+
+function getRichTextLabel(type) {
+  return richTextLabels[type] || '内容'
 }
 </script>
