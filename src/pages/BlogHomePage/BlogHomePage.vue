@@ -192,14 +192,15 @@ const projectSpotlights = [
   },
   {
     eyebrow: '站内项目',
-    title: 'AI 项目实验室',
+    title: '在线简历编辑',
     theme: 'ai',
-    badge: '开发中',
+    badge: 'Demo 已接入',
     description:
-      '后续会把正在做的 AI 产品实验、工作流验证和交互原型单独整理到这里。目前先保留项目位，不开放跳转。',
-    meta: ['AI Product', 'Workflow', 'In Progress'],
-    primaryLabel: '即将开放',
-    secondaryLabel: '等待发布'
+      '一个面向在线简历编辑的小型画布 demo，包含模板切换、模块控制、属性编辑、缩放预览和打印输出。',
+    meta: ['Resume', 'Editor', 'Canvas Demo'],
+    primaryLabel: '打开简历编辑',
+    primaryHref: '/resume-editor',
+    secondaryLabel: '本地草稿'
   }
 ]
 

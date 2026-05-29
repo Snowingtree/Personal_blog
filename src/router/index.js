@@ -8,6 +8,7 @@ const AiQuizHistoryPage = () => import('../pages/AiQuizHistoryPage/AiQuizHistory
 const BlogArticlePage = () => import('../pages/BlogArticlePage/BlogArticlePage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
+const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
 const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 import {
@@ -51,6 +52,11 @@ const router = createRouter({
       path: '/photo-wall',
       name: 'photo-wall',
       component: PhotoWallPage
+    },
+    {
+      path: '/resume-editor',
+      name: 'resume-editor',
+      component: ResumeEditorPage
     },
     {
       path: '/ai-shares/:slug',
