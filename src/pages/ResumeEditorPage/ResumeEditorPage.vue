@@ -49,23 +49,6 @@
         @select-profile="selectProfile"
         @start-section-drag="startSectionDrag"
       />
-
-      <ResumeEditorInspector
-        :active-block="activeBlock"
-        :active-panel-title="activePanelTitle"
-        :active-section="activeSection"
-        :active-section-index="activeSectionIndex"
-        :module-navigator="moduleNavigator"
-        :resume="resume"
-        :selected-education="selectedEducation"
-        @commit-snapshot="commitSnapshot"
-        @move-entry="moveEntry"
-        @move-section="moveSection"
-        @open-module-editor="openModuleEditor"
-        @remove-entry="removeEntry"
-        @section-visibility-change="handleSectionVisibilityChange"
-        @update-rich-text="updateRichTextSection"
-      />
     </div>
 
     <ResumeEditorModuleDialog
@@ -84,7 +67,6 @@
 </template>
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import ResumeEditorInspector from './components/ResumeEditorInspector.vue'
 import ResumeEditorModuleDialog from './components/ResumeEditorModuleDialog.vue'
 import ResumeEditorSidebar from './components/ResumeEditorSidebar.vue'
 import ResumeEditorToolbar from './components/ResumeEditorToolbar.vue'
@@ -94,9 +76,14 @@ const RESUME_EDITOR_DRAFT_KEY = 'vibe-coding-resume-editor-draft'
 const PAPER_WIDTH = 794
 const PAPER_HEIGHT = 1123
 const PAGE_CONTENT_HEIGHT = 1040
+const PAGE_TOP_SAFE_GAP = 34
+const PAGE_BOTTOM_SAFE_GAP = 18
 const PROFILE_BLOCK_HEIGHT = 178
 const MODULE_BASE_HEIGHT = 84
 const MODULE_CONTENT_INSET = 18
+const MODULE_FLOW_GAP = 14
+const MODULE_TITLE_HEIGHT = 38
+const MODULE_CONTINUATION_PADDING = 10
 const DEFAULT_MODULE_BOUNDS = Object.freeze({
   top: 22,
   right: 56,
@@ -106,20 +93,23 @@ const DEFAULT_MODULE_BOUNDS = Object.freeze({
 const MODULE_BOUND_LIMITS = Object.freeze({
   top: [-42, 40],
   right: [24, 180],
-  bottom: [8, 86],
+  bottom: [8, 460],
   left: [24, 180]
 })
 
 const sectionControls = [
-  { key: 'education', title: '教育', resumeTitle: '教育经历', description: '学校 / 专业 / 时间' },
-  { key: 'projects', title: '项目', resumeTitle: '项目经历', description: '富文本内容' },
-  { key: 'skills', title: '技能', resumeTitle: '技能清单', description: '富文本内容' },
-  { key: 'experience', title: '实习', resumeTitle: '实习经历', description: '富文本内容' }
+  { key: 'education', title: '\u6559\u80b2', resumeTitle: '\u6559\u80b2\u7ecf\u5386', description: '\u5b66\u6821 / \u4e13\u4e1a / \u65f6\u95f4' },
+  { key: 'projects', title: '\u9879\u76ee', resumeTitle: '\u9879\u76ee\u7ecf\u5386', description: '\u5bcc\u6587\u672c\u5185\u5bb9' },
+  { key: 'skills', title: '\u6280\u80fd', resumeTitle: '\u6280\u80fd\u6e05\u5355', description: '\u5bcc\u6587\u672c\u5185\u5bb9' },
+  { key: 'experience', title: '\u5b9e\u4e60', resumeTitle: '\u5b9e\u4e60\u7ecf\u5386', description: '\u5bcc\u6587\u672c\u5185\u5bb9' }
 ]
 const sectionMap = new Map(sectionControls.map((section) => [section.key, section]))
 const defaultSectionOrder = sectionControls.map((section) => section.key)
 const legacyDefaultSectionOrder = ['experience', 'projects', 'education', 'skills']
 const dialogEditableSections = new Set(['education', 'projects', 'experience', 'skills'])
+const richTextSectionKeys = new Set(['experience', 'projects', 'skills'])
+const MIN_SPLIT_REMAINING_HEIGHT = 120
+const MIN_BOUNDARY_CONTINUATION_HEIGHT = 44
 const zoomOptions = [70, 80, 90, 100, 110, 120]
 
 const resume = ref(createDefaultResume())
@@ -155,12 +145,6 @@ const resumePages = computed(() => {
     number: index + 1
   }))
 })
-const activeSection = computed(() =>
-  activeBlock.value.key ? sectionMap.get(activeBlock.value.key) || null : null
-)
-const activeSectionIndex = computed(() =>
-  activeSection.value ? moduleNavigator.value.findIndex((section) => section.key === activeSection.value.key) : -1
-)
 const paperFrameStyle = computed(() => ({
   width: `${Math.round(PAPER_WIDTH * zoomScale.value)}px`,
   height: `${Math.round(PAPER_HEIGHT * zoomScale.value)}px`
@@ -168,18 +152,6 @@ const paperFrameStyle = computed(() => ({
 const paperStyle = computed(() => ({
   transform: `scale(${zoomScale.value})`
 }))
-const activePanelTitle = computed(() => {
-  if (activeBlock.value.type === 'profile') {
-    return '基本信息'
-  }
-
-  if (activeBlock.value.type === 'education-item') {
-    return '教育'
-  }
-
-  return activeSection.value?.title || '属性编辑'
-})
-const selectedEducation = computed(() => resume.value.education[activeBlock.value.index] || null)
 const activeModuleDialogSection = computed(() =>
   activeModuleDialogKey.value ? sectionMap.get(activeModuleDialogKey.value) || null : null
 )
@@ -196,25 +168,25 @@ function createDefaultResume() {
     },
     moduleBounds: createDefaultModuleBounds(),
     profile: {
-      name: '刘安',
-      role: '前端开发工程师',
+      name: '\u5218\u5b89',
+      role: '\u524d\u7aef\u5f00\u53d1\u5de5\u7a0b\u5e08',
       phone: '138 0000 0000',
       email: 'liuan@example.com',
-      location: '杭州'
+      location: '\u676d\u5dde'
     },
     richText: {
       experience:
-        'Snowingress Studio｜前端开发实习生｜2025.07 - 至今\n- 负责内部工具页面搭建，完成登录、列表管理、编辑器交互和移动端适配。\n- 优化图片与接口请求链路，减少首屏等待时间并提升异常状态可读性。\n- 参与组件样式收敛，沉淀可复用的表单、弹窗和卡片布局。',
+        'Snowingress Studio | \u524d\u7aef\u5f00\u53d1\u5b9e\u4e60\u751f | 2025.07 - \u81f3\u4eca\n- \u8d1f\u8d23\u9875\u9762\u642d\u5efa\u3001\u5217\u8868\u7ba1\u7406\u3001\u7f16\u8f91\u4ea4\u4e92\u548c\u79fb\u52a8\u7aef\u9002\u914d\u3002\n- \u4f18\u5316\u56fe\u7247\u52a0\u8f7d\u548c\u63a5\u53e3\u8bf7\u6c42\u94fe\u8def\uff0c\u63d0\u5347\u5f02\u5e38\u72b6\u6001\u53ef\u8bfb\u6027\u3002',
       projects:
-        '在线笔记与 AI 问答工作台｜个人项目｜2026.02 - 2026.05\n- 实现 Markdown 文件树、预览、编辑、提交与 AI 出题流程。\n- 接入私有后台接口，统一处理鉴权、刷新 token 和错误提示。\n- 针对移动端重构布局，保证窄屏下核心操作可用。',
+        '\u5728\u7ebf\u7b14\u8bb0\u4e0e AI \u95ee\u7b54\u5de5\u4f5c\u53f0 | \u4e2a\u4eba\u9879\u76ee | 2026.02 - 2026.05\n- \u5b9e\u73b0 Markdown \u6587\u4ef6\u6811\u3001\u9884\u89c8\u3001\u7f16\u8f91\u3001\u63d0\u4ea4\u4e0e AI \u51fa\u9898\u6d41\u7a0b\u3002\n- \u63a5\u5165\u540e\u53f0\u63a5\u53e3\uff0c\u7edf\u4e00\u5904\u7406\u9274\u6743\u3001\u5237\u65b0 token \u548c\u9519\u8bef\u63d0\u793a\u3002',
       skills:
-        'Vue 生态: 熟悉 Vue2 / Vue3 开发，具备 Vue3 + TypeScript 项目实践经验，熟悉 Composition API、Pinia 状态管理及 Vue Router 路由配置。\n工程化: 熟悉 Vite 项目配置、组件拆分和前端构建流程，能够结合接口鉴权、状态管理和错误处理完成业务闭环。\n页面实现: 能够根据现有设计体系完成响应式页面还原，关注移动端适配、交互细节和可维护的样式组织。'
+        'Vue \u751f\u6001: \u719f\u6089 Vue2 / Vue3 \u5f00\u53d1\uff0c\u5177\u5907 Vue3 + TypeScript \u9879\u76ee\u5b9e\u8df5\u7ecf\u9a8c\uff0c\u719f\u6089 Composition API\u3001Pinia \u72b6\u6001\u7ba1\u7406\u53ca Vue Router \u8def\u7531\u914d\u7f6e\u3002\n\u5de5\u7a0b\u5316: \u719f\u6089 Vite \u9879\u76ee\u914d\u7f6e\u3001\u7ec4\u4ef6\u62c6\u5206\u548c\u524d\u7aef\u6784\u5efa\u6d41\u7a0b\u3002\n\u9875\u9762\u5b9e\u73b0: \u5173\u6ce8\u79fb\u52a8\u7aef\u9002\u914d\u3001\u4ea4\u4e92\u7ec6\u8282\u548c\u53ef\u7ef4\u62a4\u7684\u6837\u5f0f\u7ec4\u7ec7\u3002'
     },
     education: [
       {
         id: createId(),
-        school: '某某大学',
-        major: '软件工程 本科',
+        school: '\u67d0\u67d0\u5927\u5b66',
+        major: '\u8f6f\u4ef6\u5de5\u7a0b \u672c\u79d1',
         period: '2022.09 - 2026.06'
       }
     ]
@@ -302,7 +274,7 @@ function createResumePage(includeProfile) {
   return {
     includeProfile,
     sections: [],
-    usedHeight: includeProfile ? PROFILE_BLOCK_HEIGHT : 0
+    usedHeight: includeProfile ? PROFILE_BLOCK_HEIGHT : PAGE_TOP_SAFE_GAP
   }
 }
 
@@ -310,25 +282,191 @@ function paginateSections(sections) {
   const pages = [createResumePage(true)]
 
   sections.forEach((section) => {
-    const sectionHeight = estimateSectionHeight(section.key)
-    let currentPage = pages[pages.length - 1]
-    const currentPageHasContent = currentPage.includeProfile || currentPage.sections.length > 0
-
-    if (currentPageHasContent && currentPage.usedHeight + sectionHeight > PAGE_CONTENT_HEIGHT) {
-      currentPage = createResumePage(false)
-      pages.push(currentPage)
+    if (richTextSectionKeys.has(section.key)) {
+      paginateRichTextSection(pages, section)
+      return
     }
 
-    currentPage.sections.push(section)
-    currentPage.usedHeight += sectionHeight
+    const sectionHeight = estimateSectionHeight(section.key)
+    paginateWholeSection(pages, section, sectionHeight)
   })
 
   return pages.map(({ usedHeight, ...page }) => page)
 }
 
+function paginateWholeSection(pages, section, sectionHeight) {
+  let currentPage = pages[pages.length - 1]
+
+  if (shouldCreateNextPage(currentPage, sectionHeight)) {
+    currentPage = createResumePage(false)
+    pages.push(currentPage)
+  }
+
+  currentPage.sections.push(section)
+  currentPage.usedHeight += sectionHeight
+}
+
+function paginateRichTextSection(pages, section) {
+  let content = getRichTextSectionContent(section.key)
+  let partIndex = 0
+
+  if (!content) {
+    paginateWholeSection(
+      pages,
+      { ...section, content: '', hideEmptyContent: false, isContinuation: false, partIndex: 0 },
+      estimateRichTextSectionHeight(section.key, '', {
+        isContinuation: false,
+        continuesNext: false
+      })
+    )
+    return
+  }
+
+  while (content) {
+    let currentPage = pages[pages.length - 1]
+    let isContinuation = partIndex > 0
+    let availableHeight = getAvailablePageHeight(currentPage)
+    const sectionHeight = estimateRichTextSectionHeight(section.key, content, {
+      isContinuation,
+      continuesNext: false
+    })
+
+    if (shouldCreateNextPage(currentPage, sectionHeight) && availableHeight < MIN_SPLIT_REMAINING_HEIGHT) {
+      currentPage = createResumePage(false)
+      pages.push(currentPage)
+      isContinuation = partIndex > 0
+      availableHeight = getAvailablePageHeight(currentPage)
+    }
+
+    const flowingSectionHeight = estimateRichTextSectionHeight(section.key, content, {
+      isContinuation,
+      continuesNext: true
+    })
+    const splitResult =
+      sectionHeight > availableHeight
+        ? flowingSectionHeight <= availableHeight
+          ? {
+              pageContent: content,
+              restContent: '',
+              carryBoundaryToNext: true,
+              overflowHeight: sectionHeight - availableHeight
+            }
+          : splitRichTextContentForPage(section.key, content, availableHeight, { isContinuation })
+        : { pageContent: content, restContent: '' }
+
+    if (!splitResult.pageContent && currentPage.sections.length > 0) {
+      currentPage = createResumePage(false)
+      pages.push(currentPage)
+      availableHeight = getAvailablePageHeight(currentPage)
+      isContinuation = partIndex > 0
+      const retrySplit = splitRichTextContentForPage(section.key, content, availableHeight, { isContinuation })
+      splitResult.pageContent = retrySplit.pageContent
+      splitResult.restContent = retrySplit.restContent
+    }
+
+    const pageContent = splitResult.pageContent || content
+    const continuesNext = Boolean(splitResult.restContent || splitResult.carryBoundaryToNext)
+    const renderedHeight = continuesNext
+      ? availableHeight
+      : estimateRichTextSectionHeight(section.key, pageContent, {
+          isContinuation,
+          continuesNext: false
+        })
+    currentPage.sections.push({
+      ...section,
+      content: pageContent,
+      isContinuation,
+      continuesNext,
+      forcedHeight: continuesNext ? availableHeight : null,
+      partIndex
+    })
+    currentPage.usedHeight += renderedHeight
+
+    if (splitResult.carryBoundaryToNext) {
+      const nextPage = createResumePage(false)
+      const continuationHeight = Math.min(
+        Math.max(Math.ceil(splitResult.overflowHeight), MIN_BOUNDARY_CONTINUATION_HEIGHT),
+        getAvailablePageHeight(nextPage)
+      )
+      nextPage.sections.push({
+        ...section,
+        content: '',
+        isBoundaryContinuation: true,
+        isContinuation: true,
+        continuesNext: false,
+        forcedHeight: continuationHeight,
+        hideEmptyContent: true,
+        partIndex: partIndex + 1
+      })
+      nextPage.usedHeight += continuationHeight + MODULE_FLOW_GAP
+      pages.push(nextPage)
+      return
+    }
+
+    if (!splitResult.restContent) {
+      return
+    }
+
+    content = splitResult.restContent
+    partIndex += 1
+    pages.push(createResumePage(false))
+  }
+}
+
+function shouldCreateNextPage(page, sectionHeight) {
+  const pageHasContent = page.includeProfile || page.sections.length > 0
+  return pageHasContent && page.usedHeight + sectionHeight + PAGE_BOTTOM_SAFE_GAP > PAGE_CONTENT_HEIGHT
+}
+
+function getAvailablePageHeight(page) {
+  return Math.max(PAGE_CONTENT_HEIGHT - PAGE_BOTTOM_SAFE_GAP - page.usedHeight, 0)
+}
+
+function getRichTextSectionContent(key) {
+  return String(resume.value.richText?.[key] || '').trim()
+}
+
+function splitRichTextContentForPage(key, content, availableHeight, options = {}) {
+  const blocks = getRichTextRenderBlocks(content)
+
+  if (!blocks.length) {
+    return { pageContent: content, restContent: '' }
+  }
+
+  const pageBlocks = []
+
+  for (const block of blocks) {
+    const candidateBlocks = [...pageBlocks, block]
+    const candidateContent = joinRichTextRenderBlocks(candidateBlocks)
+
+    if (
+      estimateRichTextSectionHeight(key, candidateContent, {
+        ...options,
+        continuesNext: true
+      }) <= availableHeight ||
+      !pageBlocks.length
+    ) {
+      pageBlocks.push(block)
+      continue
+    }
+
+    break
+  }
+
+  if (!pageBlocks.length) {
+    return { pageContent: '', restContent: content }
+  }
+
+  return {
+    pageContent: joinRichTextRenderBlocks(pageBlocks),
+    restContent: joinRichTextRenderBlocks(blocks.slice(pageBlocks.length))
+  }
+}
+
 function estimateSectionHeight(key) {
   const bounds = getModuleBounds(key)
   const verticalOffset = bounds.bottom - DEFAULT_MODULE_BOUNDS.bottom
+  const moduleBaseHeight = MODULE_BASE_HEIGHT + verticalOffset + MODULE_FLOW_GAP
 
   if (key === 'experience') {
     return estimateRichTextSectionHeight(key, resume.value.richText?.experience)
@@ -340,20 +478,34 @@ function estimateSectionHeight(key) {
 
   if (key === 'education') {
     const itemCount = Math.max(resume.value.education.length, 1)
-    return MODULE_BASE_HEIGHT + verticalOffset + itemCount * 58 + Math.max(itemCount - 1, 0) * 12
+    return moduleBaseHeight + itemCount * 58 + Math.max(itemCount - 1, 0) * 12
   }
 
   if (key === 'skills') {
     return estimateRichTextSectionHeight(key, resume.value.richText?.skills)
   }
 
-  return MODULE_BASE_HEIGHT + verticalOffset
+  return moduleBaseHeight
 }
 
-function estimateRichTextSectionHeight(key, content) {
+function estimateRichTextSectionHeight(key, content, options = {}) {
   const bounds = getModuleBounds(key)
-  const verticalOffset = bounds.bottom - DEFAULT_MODULE_BOUNDS.bottom
-  return MODULE_BASE_HEIGHT + verticalOffset + Math.max(estimateTextLines(content, getCharsPerLine(key, 54)), 2) * 25
+  const topDelta = bounds.top - DEFAULT_MODULE_BOUNDS.top
+  const topPadding = options.isContinuation
+    ? MODULE_CONTINUATION_PADDING
+    : Math.max(DEFAULT_MODULE_BOUNDS.top - topDelta, 4)
+  const bottomPadding = options.continuesNext ? MODULE_CONTINUATION_PADDING : bounds.bottom
+  const titleHeight = options.isContinuation ? 0 : MODULE_TITLE_HEIGHT
+  const flowGap = options.continuesNext ? 0 : MODULE_FLOW_GAP
+
+  return (
+    (options.isContinuation ? 0 : topDelta) +
+    topPadding +
+    titleHeight +
+    estimateRichTextContentHeight(content, getCharsPerLine(key, 54)) +
+    bottomPadding +
+    flowGap
+  )
 }
 
 function getCharsPerLine(key, defaultCharsPerLine) {
@@ -369,16 +521,154 @@ function getModuleBounds(key) {
   return normalizeModuleBound(resume.value.moduleBounds?.[key])
 }
 
-function estimateTextLines(value, charsPerLine) {
-  const text = String(value || '').trim()
+function estimateRichTextContentHeight(value, charsPerLine) {
+  const blocks = getRichTextEstimateBlocks(value)
 
-  if (!text) {
-    return 1
+  if (!blocks.length) {
+    return 50
   }
 
-  return text
+  const lineCount = blocks.reduce(
+    (total, block) => total + Math.max(Math.ceil(block.length / charsPerLine), 1),
+    0
+  )
+  const blockGapHeight = Math.max(blocks.length - 1, 0) * 8
+
+  return Math.max(lineCount, 2) * 25 + blockGapHeight
+}
+
+function getRichTextEstimateBlocks(value) {
+  const content = String(value || '').trim()
+
+  if (!content) {
+    return []
+  }
+
+  if (!/<\/?[a-z][\s\S]*>/i.test(content)) {
+    return content
+      .split(/\n+/)
+      .map((line) => line.replace(/^[-*]\s+/, '').trim())
+      .filter(Boolean)
+  }
+
+  return decodeHtmlForEstimate(
+    content
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<li\b[^>]*>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+  )
     .split(/\n+/)
-    .reduce((total, line) => total + Math.max(Math.ceil(line.length / charsPerLine), 1), 0)
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function getRichTextRenderBlocks(value) {
+  const content = String(value || '').trim()
+
+  if (!content) {
+    return []
+  }
+
+  if (!/<\/?[a-z][\s\S]*>/i.test(content)) {
+    return content
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => ({
+        html: false,
+        source: line,
+        text: line.replace(/^[-*]\s+/, '').trim()
+      }))
+  }
+
+  const blocks = []
+  const blockPattern = /<(p|ul|ol)\b[^>]*>[\s\S]*?<\/\1>/gi
+  let match = blockPattern.exec(content)
+
+  while (match) {
+    const source = match[0]
+    const tagName = match[1].toLowerCase()
+
+    if (tagName === 'ul' || tagName === 'ol') {
+      const itemPattern = /<li\b[^>]*>[\s\S]*?<\/li>/gi
+      let itemMatch = itemPattern.exec(source)
+
+      while (itemMatch) {
+        const itemSource = itemMatch[0]
+        blocks.push({
+          html: true,
+          source: `<${tagName}>${itemSource}</${tagName}>`,
+          text: stripHtmlForEstimate(itemSource)
+        })
+        itemMatch = itemPattern.exec(source)
+      }
+    } else {
+      blocks.push({
+        html: true,
+        source,
+        text: stripHtmlForEstimate(source)
+      })
+    }
+
+    match = blockPattern.exec(content)
+  }
+
+  if (blocks.length) {
+    return blocks
+  }
+
+  return stripHtmlForEstimate(content)
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => ({
+      html: false,
+      source: line,
+      text: line
+    }))
+}
+
+function joinRichTextRenderBlocks(blocks) {
+  if (!blocks.length) {
+    return ''
+  }
+
+  if (blocks.some((block) => block.html)) {
+    return blocks
+      .map((block) => (block.html ? block.source : `<p>${escapeHtml(block.source)}</p>`))
+      .join('')
+  }
+
+  return blocks.map((block) => block.source).join('\n')
+}
+
+function stripHtmlForEstimate(value) {
+  return decodeHtmlForEstimate(
+    String(value || '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+  ).trim()
+}
+
+function decodeHtmlForEstimate(value) {
+  return String(value || '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 function getSectionNavigatorChildren(key) {
@@ -391,11 +681,10 @@ function getSectionNavigatorChildren(key) {
     type: 'education-item',
     sectionKey: 'education',
     index,
-    label: item.school || item.major || `教育经历 ${index + 1}`,
-    meta: [item.major, item.period].filter(Boolean).join(' · ') || `第 ${index + 1} 条`
+    label: item.school || item.major || `\u6559\u80b2\u7ecf\u5386 ${index + 1}`,
+    meta: [item.major, item.period].filter(Boolean).join(' | ') || `\u7b2c ${index + 1} \u6761\u6559\u80b2`
   }))
 }
-
 function getSnapshot() {
   return JSON.stringify(resume.value)
 }
@@ -515,14 +804,14 @@ function handleSectionVisibilityChange(key) {
 }
 
 function addExperience() {
-  appendRichTextBlock('experience', '\n\n实习单位｜实习岗位｜2026.01 - 2026.06\n- 补充负责事项、关键成果或量化指标。')
+  appendRichTextBlock('experience', '\n\n\u5b9e\u4e60\u5355\u4f4d | \u5b9e\u4e60\u5c97\u4f4d | 2026.01 - 2026.06\n- \u8865\u5145\u8d1f\u8d23\u4e8b\u9879\u3001\u5173\u952e\u6210\u679c\u6216\u91cf\u5316\u6307\u6807\u3002')
   ensureSectionVisible('experience')
   selectModule('experience')
   commitSnapshot()
 }
 
 function addProject() {
-  appendRichTextBlock('projects', '\n\n项目名称｜负责角色｜2026.01 - 2026.03\n- 补充项目背景、技术方案和个人贡献。')
+  appendRichTextBlock('projects', '\n\n\u9879\u76ee\u540d\u79f0 | \u8d1f\u8d23\u89d2\u8272 | 2026.01 - 2026.03\n- \u8865\u5145\u9879\u76ee\u80cc\u666f\u3001\u6280\u672f\u65b9\u6848\u548c\u4e2a\u4eba\u8d21\u732e\u3002')
   ensureSectionVisible('projects')
   selectModule('projects')
   commitSnapshot()
@@ -531,8 +820,8 @@ function addProject() {
 function addEducation() {
   resume.value.education.push({
     id: createId(),
-    school: '学校名称',
-    major: '专业 / 学历',
+    school: '\u5b66\u6821\u540d\u79f0',
+    major: '\u4e13\u4e1a / \u5b66\u5386',
     period: '2022.09 - 2026.06'
   })
   ensureSectionVisible('education')
@@ -546,12 +835,11 @@ function addEducationFromDialog() {
 }
 
 function addSkill() {
-  appendRichTextBlock('skills', '\n新技能分类: 补充技能描述。')
+  appendRichTextBlock('skills', '\n\u65b0\u6280\u80fd\u5206\u7c7b: \u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002')
   ensureSectionVisible('skills')
   selectModule('skills')
   commitSnapshot()
 }
-
 function ensureSectionVisible(key) {
   resume.value.visibleSections[key] = true
   resume.value.sectionOrder = normalizeSectionOrder(resume.value.sectionOrder)
@@ -647,7 +935,7 @@ function normalizeSkills(skills, fallbackSkills) {
 
 function normalizeSkillItem(skill, index) {
   if (typeof skill === 'string') {
-    return createSkillItem(skill || `技能 ${index + 1}`, ['补充技能描述。'])
+    return createSkillItem(skill || `\u6280\u80fd ${index + 1}`, ['\u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002'])
   }
 
   if (!skill || typeof skill !== 'object') {
@@ -663,8 +951,8 @@ function normalizeSkillItem(skill, index) {
 
   return {
     id: skill.id || createId(),
-    category: String(skill.category || skill.name || `技能 ${index + 1}`).trim(),
-    details: details.length ? details : ['补充技能描述。']
+    category: String(skill.category || skill.name || `\u6280\u80fd ${index + 1}`).trim(),
+    details: details.length ? details : ['\u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002']
   }
 }
 
@@ -709,7 +997,7 @@ function formatExperienceAsRichText(items) {
   return items
     .map((item) =>
       [
-        [item.company, item.role, item.period].filter(Boolean).join('｜'),
+        [item.company, item.role, item.period].filter(Boolean).join(' | '),
         ...formatBulletsAsLines(item.bullets)
       ]
         .filter(Boolean)
@@ -726,7 +1014,7 @@ function formatProjectsAsRichText(items) {
   return items
     .map((item) =>
       [
-        [item.name, item.role, item.period].filter(Boolean).join('｜'),
+        [item.name, item.role, item.period].filter(Boolean).join(' | '),
         ...formatBulletsAsLines(item.bullets)
       ]
         .filter(Boolean)
@@ -741,7 +1029,7 @@ function formatSkillsAsRichText(skills) {
   }
 
   return normalizeSkills(skills, [])
-    .map((skill) => `${skill.category}: ${skill.details.join('，')}`)
+    .map((skill) => `${skill.category}: ${skill.details.join('\uff0c')}`)
     .join('\n')
 }
 
@@ -763,30 +1051,30 @@ function undoResume() {
   resume.value.visibleSections = normalizeVisibleSections(resume.value.visibleSections)
   resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
   selectProfile()
-  flashStatus('已撤销')
+  flashStatus('\u5df2\u64a4\u9500')
 }
 
 function saveDraft() {
   commitSnapshot()
   writeDraft()
-  flashStatus('草稿已保存')
+  flashStatus('\u5df2\u4fdd\u5b58')
 }
 
 function resetResume() {
-  if (typeof window !== 'undefined' && !window.confirm('确认重置为示例简历吗？')) {
+  if (typeof window !== 'undefined' && !window.confirm('\u786e\u8ba4\u91cd\u7f6e\u7b80\u5386\u5185\u5bb9\uff1f')) {
     return
   }
 
   resume.value = createDefaultResume()
   selectProfile()
   commitSnapshot()
-  flashStatus('已重置')
+  flashStatus('\u5df2\u91cd\u7f6e')
 }
 
 function addPage() {
   resume.value.pageCount = Math.max(normalizePageCount(resume.value.pageCount), resumePages.value.length) + 1
   commitSnapshot()
-  flashStatus('已添加一页')
+  flashStatus('\u5df2\u6dfb\u52a0\u4e00\u9875')
 }
 
 async function exportPdf() {
@@ -795,7 +1083,7 @@ async function exportPdf() {
   }
 
   const previousTitle = document.title
-  const exportTitle = `${sanitizeFileName(resume.value.profile.name || 'resume')}-简历`
+  const exportTitle = `${sanitizeFileName(resume.value.profile.name || 'resume')}-\u7b80\u5386`
   let fallbackTimer = 0
 
   const restoreTitle = () => {
@@ -809,7 +1097,7 @@ async function exportPdf() {
 
   document.title = exportTitle
   window.addEventListener('afterprint', restoreTitle)
-  flashStatus('正在打开PDF导出')
+  flashStatus('\u6b63\u5728\u51c6\u5907 PDF...')
   await nextTick()
 
   window.setTimeout(() => {
@@ -1048,20 +1336,18 @@ onMounted(() => {
 
 .resume-editor-shell {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 14px;
   height: calc(100dvh - 64px);
   padding: 14px;
 }
 
 .resume-sidebar,
-.resume-inspector,
 .resume-workspace {
   min-height: 0;
 }
 
-.resume-sidebar,
-.resume-inspector {
+.resume-sidebar {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1074,10 +1360,6 @@ onMounted(() => {
   padding: 14px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 18px 40px rgba(23, 26, 32, 0.06);
-}
-
-.editor-panel--inspector {
-  flex: 1;
 }
 
 .editor-panel__head {
@@ -1355,6 +1637,10 @@ onMounted(() => {
     sans-serif;
 }
 
+.resume-paper--continuation {
+  padding-top: 34px;
+}
+
 .resume-document-hero,
 .resume-module {
   position: relative;
@@ -1367,6 +1653,11 @@ onMounted(() => {
     transform 160ms ease,
     background-color 160ms ease,
     outline-color 160ms ease;
+  will-change: transform;
+}
+
+.resume-module {
+  margin-bottom: 14px;
 }
 
 .resume-module:active {
@@ -1383,8 +1674,24 @@ onMounted(() => {
 }
 
 .resume-module.is-selected {
-  outline: 2px solid #2f6bff;
-  outline-offset: 0;
+  outline: 0;
+}
+
+.resume-module.is-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border: 2px solid #2f6bff;
+  pointer-events: none;
+}
+
+.resume-module.is-selected.is-continuation-fragment::after {
+  border-top: 0;
+}
+
+.resume-module.is-selected.is-continued-fragment::after {
+  border-bottom: 0;
 }
 
 .module-boundary-handles {
@@ -1517,6 +1824,10 @@ onMounted(() => {
 
 .resume-rich-text__empty {
   color: #7a8391;
+}
+
+.resume-rich-text--empty-fragment {
+  min-height: 0;
 }
 
 .resume-entry + .resume-entry {
@@ -1932,10 +2243,6 @@ onMounted(() => {
     height: auto;
   }
 
-  .resume-inspector {
-    grid-column: 1 / -1;
-    max-height: 420px;
-  }
 }
 
 @media (max-width: 820px) {
@@ -2017,7 +2324,6 @@ onMounted(() => {
 
   .resume-editor-toolbar,
   .resume-sidebar,
-  .resume-inspector,
   .resume-module-dialog {
     display: none !important;
   }
