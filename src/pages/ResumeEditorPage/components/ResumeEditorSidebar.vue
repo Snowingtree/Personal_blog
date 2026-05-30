@@ -20,14 +20,7 @@
             @drop.prevent="$emit('drop-section', section.key)"
             @dragend="$emit('clear-section-drag')"
           >
-            <span class="module-sort-item__handle" aria-hidden="true">☰</span>
-            <label class="module-sort-item__visible" @click.stop>
-              <input
-                v-model="resume.visibleSections[section.key]"
-                type="checkbox"
-                @change="$emit('section-visibility-change', section.key)"
-              />
-            </label>
+            <span class="module-sort-item__handle" aria-hidden="true">⋮⋮</span>
             <button
               type="button"
               class="module-sort-item__title"
@@ -39,26 +32,47 @@
             <div class="module-sort-item__actions" @click.stop>
               <button
                 type="button"
-                class="icon-btn module-sort-move-btn module-sort-move-btn--up"
-                :disabled="index === 0"
-                aria-label="上移模块"
-                @click="$emit('move-section', index, -1)"
+                class="icon-btn module-sort-delete-btn"
+                aria-label="删除模块"
+                @click="$emit('delete-section', section.key)"
               >
-                <span class="module-sort-move-btn__chevron" aria-hidden="true"></span>
+                <svg
+                  class="module-sort-delete-btn__icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M6 6l1 15h10l1-15" />
+                  <path d="M10 10v7" />
+                  <path d="M14 10v7" />
+                </svg>
               </button>
-              <button
-                type="button"
-                class="icon-btn module-sort-move-btn module-sort-move-btn--down"
-                :disabled="index === moduleNavigator.length - 1"
-                aria-label="下移模块"
-                @click="$emit('move-section', index, 1)"
-              >
-                <span class="module-sort-move-btn__chevron" aria-hidden="true"></span>
-              </button>
+              <div class="module-sort-item__move-stack">
+                <button
+                  type="button"
+                  class="icon-btn module-sort-move-btn module-sort-move-btn--up"
+                  :disabled="index === 0"
+                  aria-label="上移模块"
+                  @click="$emit('move-section', section.key, -1)"
+                >
+                  <span class="module-sort-move-btn__chevron" aria-hidden="true"></span>
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn module-sort-move-btn module-sort-move-btn--down"
+                  :disabled="index === moduleNavigator.length - 1"
+                  aria-label="下移模块"
+                  @click="$emit('move-section', section.key, 1)"
+                >
+                  <span class="module-sort-move-btn__chevron" aria-hidden="true"></span>
+                </button>
+              </div>
             </div>
           </article>
 
-          <div v-if="resume.visibleSections[section.key] && section.children.length" class="module-child-list">
+          <div v-if="section.children.length" class="module-child-list">
             <button
               v-for="child in section.children"
               :key="child.id"
@@ -115,9 +129,9 @@ defineEmits([
   'add-project',
   'add-skill',
   'clear-section-drag',
+  'delete-section',
   'drop-section',
   'move-section',
-  'section-visibility-change',
   'select-module',
   'select-navigator-child',
   'start-section-drag'

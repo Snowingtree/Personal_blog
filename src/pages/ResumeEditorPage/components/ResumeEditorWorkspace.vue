@@ -17,7 +17,7 @@
             <header
               v-if="page.includeProfile"
               class="resume-document-hero"
-              @click.stop="$emit('select-profile')"
+              @click.stop="$emit('open-profile-editor')"
             >
               <div>
                 <h1>{{ resume.profile.name }}</h1>
@@ -112,12 +112,11 @@
                   @click.stop="$emit('select-entry', 'education-item', index)"
                   @dblclick.stop="$emit('open-module-editor', 'education', index)"
                 >
-                  <div class="resume-entry__head">
-                    <div>
-                      <h3>{{ item.school }}</h3>
-                      <p>{{ item.major }}</p>
-                    </div>
-                    <span>{{ item.period }}</span>
+                  <div class="resume-entry__education-line">
+                    <strong>{{ item.school }}</strong>
+                    <span>{{ item.major }}</span>
+                    <span>{{ item.degree }}</span>
+                    <time>{{ item.period }}</time>
                   </div>
                 </article>
               </section>
@@ -265,6 +264,7 @@ const emit = defineEmits([
   'commit-boundary-resize',
   'drop-section',
   'open-module-editor',
+  'open-profile-editor',
   'resize-module-boundary',
   'select-entry',
   'select-module',

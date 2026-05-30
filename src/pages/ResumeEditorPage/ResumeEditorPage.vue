@@ -23,9 +23,9 @@
         @add-project="addProject"
         @add-skill="addSkill"
         @clear-section-drag="clearSectionDrag"
+        @delete-section="deleteSection"
         @drop-section="dropSection"
         @move-section="moveSection"
-        @section-visibility-change="handleSectionVisibilityChange"
         @select-module="selectModule"
         @select-navigator-child="selectNavigatorChild"
         @start-section-drag="startSectionDrag"
@@ -42,6 +42,7 @@
         @commit-boundary-resize="commitSnapshot"
         @clear-section-drag="clearSectionDrag"
         @drop-section="dropSection"
+        @open-profile-editor="openProfileEditor"
         @open-module-editor="openModuleEditor"
         @resize-module-boundary="resizeModuleBoundary"
         @select-entry="selectEntry"
@@ -49,6 +50,12 @@
         @select-profile="selectProfile"
         @start-section-drag="startSectionDrag"
       />
+
+      <Transition name="resume-inline-notice">
+        <div v-if="resumeNotice" class="resume-inline-notice" role="status">
+          <span>{{ resumeNotice }}</span>
+        </div>
+      </Transition>
     </div>
 
     <ResumeEditorModuleDialog
@@ -63,11 +70,19 @@
       @select-entry="selectEntry"
       @update-rich-text="updateRichTextSection"
     />
+
+    <ResumeEditorProfileDialog
+      :open="profileDialogOpen"
+      :profile="resume.profile"
+      @close="closeProfileEditor"
+      @commit-snapshot="commitSnapshot"
+    />
   </main>
 </template>
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ResumeEditorModuleDialog from './components/ResumeEditorModuleDialog.vue'
+import ResumeEditorProfileDialog from './components/ResumeEditorProfileDialog.vue'
 import ResumeEditorSidebar from './components/ResumeEditorSidebar.vue'
 import ResumeEditorToolbar from './components/ResumeEditorToolbar.vue'
 import ResumeEditorWorkspace from './components/ResumeEditorWorkspace.vue'
@@ -75,6 +90,11 @@ import ResumeEditorWorkspace from './components/ResumeEditorWorkspace.vue'
 const RESUME_EDITOR_DRAFT_KEY = 'vibe-coding-resume-editor-draft'
 const PAPER_WIDTH = 794
 const PAPER_HEIGHT = 1123
+const PDF_A4_WIDTH_PT = 595.28
+const PDF_A4_HEIGHT_PT = 841.89
+const PDF_EXPORT_SCALE = 3
+const PDF_IMAGE_QUALITY = 0.98
+const PDF_FILE_NAME = '\u7b80\u5386.pdf'
 const PAGE_CONTENT_HEIGHT = 1040
 const PAGE_TOP_SAFE_GAP = 34
 const PAGE_BOTTOM_SAFE_GAP = 18
@@ -98,7 +118,7 @@ const MODULE_BOUND_LIMITS = Object.freeze({
 })
 
 const sectionControls = [
-  { key: 'education', title: '\u6559\u80b2', resumeTitle: '\u6559\u80b2\u7ecf\u5386', description: '\u5b66\u6821 / \u4e13\u4e1a / \u65f6\u95f4' },
+  { key: 'education', title: '\u6559\u80b2', resumeTitle: '\u6559\u80b2\u7ecf\u5386', description: '\u5b66\u6821 / \u4e13\u4e1a / \u5b66\u5386 / \u65f6\u95f4' },
   { key: 'projects', title: '\u9879\u76ee', resumeTitle: '\u9879\u76ee\u7ecf\u5386', description: '\u5bcc\u6587\u672c\u5185\u5bb9' },
   { key: 'skills', title: '\u6280\u80fd', resumeTitle: '\u6280\u80fd\u6e05\u5355', description: '\u5bcc\u6587\u672c\u5185\u5bb9' },
   { key: 'experience', title: '\u5b9e\u4e60', resumeTitle: '\u5b9e\u4e60\u7ecf\u5386', description: '\u5bcc\u6587\u672c\u5185\u5bb9' }
@@ -110,6 +130,7 @@ const dialogEditableSections = new Set(['education', 'projects', 'experience', '
 const richTextSectionKeys = new Set(['experience', 'projects', 'skills'])
 const MIN_SPLIT_REMAINING_HEIGHT = 120
 const MIN_BOUNDARY_CONTINUATION_HEIGHT = 44
+const RICH_TEXT_SPLIT_TOLERANCE = 240
 const zoomOptions = [70, 80, 90, 100, 110, 120]
 
 const resume = ref(createDefaultResume())
@@ -119,15 +140,20 @@ const historyStack = ref([])
 const draftStatus = ref('')
 const draggingSectionKey = ref('')
 const activeModuleDialogKey = ref('')
+const profileDialogOpen = ref(false)
+const resumeNotice = ref('')
 let draftStatusTimer = 0
+let resumeNoticeTimer = 0
 
 const zoomScale = computed(() => zoom.value / 100)
 const canUndo = computed(() => historyStack.value.length > 1)
 const moduleNavigator = computed(() =>
-  normalizeSectionOrder(resume.value.sectionOrder).map((key) => ({
-    ...sectionMap.get(key),
-    children: getSectionNavigatorChildren(key)
-  }))
+  normalizeSectionOrder(resume.value.sectionOrder)
+    .filter((key) => resume.value.visibleSections[key])
+    .map((key) => ({
+      ...sectionMap.get(key),
+      children: getSectionNavigatorChildren(key)
+    }))
 )
 const visibleSectionBlocks = computed(() =>
   moduleNavigator.value.filter((section) => resume.value.visibleSections[section.key])
@@ -186,7 +212,8 @@ function createDefaultResume() {
       {
         id: createId(),
         school: '\u67d0\u67d0\u5927\u5b66',
-        major: '\u8f6f\u4ef6\u5de5\u7a0b \u672c\u79d1',
+        major: '\u8f6f\u4ef6\u5de5\u7a0b',
+        degree: '\u672c\u79d1',
         period: '2022.09 - 2026.06'
       }
     ]
@@ -366,18 +393,19 @@ function paginateRichTextSection(pages, section) {
 
     const pageContent = splitResult.pageContent || content
     const continuesNext = Boolean(splitResult.restContent || splitResult.carryBoundaryToNext)
+    const estimatedPageHeight = estimateRichTextSectionHeight(section.key, pageContent, {
+      isContinuation,
+      continuesNext
+    })
     const renderedHeight = continuesNext
-      ? availableHeight
-      : estimateRichTextSectionHeight(section.key, pageContent, {
-          isContinuation,
-          continuesNext: false
-        })
+      ? Math.min(estimatedPageHeight, availableHeight)
+      : estimatedPageHeight
     currentPage.sections.push({
       ...section,
       content: pageContent,
       isContinuation,
       continuesNext,
-      forcedHeight: continuesNext ? availableHeight : null,
+      forcedHeight: continuesNext ? renderedHeight : null,
       partIndex
     })
     currentPage.usedHeight += renderedHeight
@@ -428,6 +456,7 @@ function getRichTextSectionContent(key) {
 
 function splitRichTextContentForPage(key, content, availableHeight, options = {}) {
   const blocks = getRichTextRenderBlocks(content)
+  const maxCandidateHeight = availableHeight + RICH_TEXT_SPLIT_TOLERANCE
 
   if (!blocks.length) {
     return { pageContent: content, restContent: '' }
@@ -443,7 +472,7 @@ function splitRichTextContentForPage(key, content, availableHeight, options = {}
       estimateRichTextSectionHeight(key, candidateContent, {
         ...options,
         continuesNext: true
-      }) <= availableHeight ||
+      }) <= maxCandidateHeight ||
       !pageBlocks.length
     ) {
       pageBlocks.push(block)
@@ -529,12 +558,30 @@ function estimateRichTextContentHeight(value, charsPerLine) {
   }
 
   const lineCount = blocks.reduce(
-    (total, block) => total + Math.max(Math.ceil(block.length / charsPerLine), 1),
+    (total, block) => total + Math.max(Math.ceil(getTextWidthUnits(block) / charsPerLine), 1),
     0
   )
-  const blockGapHeight = Math.max(blocks.length - 1, 0) * 8
+  const blockGapHeight = Math.max(blocks.length - 1, 0) * 6
 
-  return Math.max(lineCount, 2) * 25 + blockGapHeight
+  return Math.max(lineCount, 2) * 24 + blockGapHeight
+}
+
+function getTextWidthUnits(value) {
+  return Array.from(String(value || '')).reduce((total, char) => {
+    if (/\s/.test(char)) {
+      return total + 0.35
+    }
+
+    if (/[\u0000-\u007f]/.test(char)) {
+      return total + 0.56
+    }
+
+    if (/[\uff01-\uff60\u3000-\u303f]/.test(char)) {
+      return total + 0.65
+    }
+
+    return total + 1
+  }, 0)
 }
 
 function getRichTextEstimateBlocks(value) {
@@ -682,7 +729,7 @@ function getSectionNavigatorChildren(key) {
     sectionKey: 'education',
     index,
     label: item.school || item.major || `\u6559\u80b2\u7ecf\u5386 ${index + 1}`,
-    meta: [item.major, item.period].filter(Boolean).join(' | ') || `\u7b2c ${index + 1} \u6761\u6559\u80b2`
+    meta: [item.major, item.degree, item.period].filter(Boolean).join(' | ') || `\u7b2c ${index + 1} \u6761\u6559\u80b2`
   }))
 }
 function getSnapshot() {
@@ -747,6 +794,16 @@ function closeModuleEditor() {
   activeModuleDialogKey.value = ''
 }
 
+function openProfileEditor() {
+  selectProfile()
+  profileDialogOpen.value = true
+}
+
+function closeProfileEditor() {
+  commitSnapshot()
+  profileDialogOpen.value = false
+}
+
 function startSectionDrag(key) {
   draggingSectionKey.value = key
 }
@@ -780,48 +837,69 @@ function dropSection(targetKey) {
   clearSectionDrag()
 }
 
-function moveSection(index, direction) {
+function moveSection(key, direction) {
   const nextOrder = normalizeSectionOrder(resume.value.sectionOrder)
-  const nextIndex = index + direction
+  const visibleOrder = nextOrder.filter((sectionKey) => resume.value.visibleSections[sectionKey])
+  const visibleIndex = visibleOrder.indexOf(key)
+  const targetKey = visibleOrder[visibleIndex + direction]
 
-  if (nextIndex < 0 || nextIndex >= nextOrder.length) {
+  if (!sectionMap.has(key) || !targetKey) {
     return
   }
 
-  const [sectionKey] = nextOrder.splice(index, 1)
-  nextOrder.splice(nextIndex, 0, sectionKey)
+  const sourceIndex = nextOrder.indexOf(key)
+
+  if (sourceIndex < 0) {
+    return
+  }
+
+  const [sectionKey] = nextOrder.splice(sourceIndex, 1)
+  const targetIndex = nextOrder.indexOf(targetKey)
+  nextOrder.splice(direction > 0 ? targetIndex + 1 : targetIndex, 0, sectionKey)
   resume.value.sectionOrder = nextOrder
   selectModule(sectionKey)
   commitSnapshot()
 }
 
-function handleSectionVisibilityChange(key) {
-  if (!resume.value.visibleSections[key] && activeBlock.value.key === key) {
+function deleteSection(key) {
+  if (!sectionMap.has(key)) {
+    return
+  }
+
+  resume.value.visibleSections[key] = false
+
+  if (activeBlock.value.key === key) {
     selectProfile()
   }
 
   commitSnapshot()
+  flashStatus('\u5df2\u5220\u9664\u6a21\u5757')
 }
 
 function addExperience() {
-  appendRichTextBlock('experience', '\n\n\u5b9e\u4e60\u5355\u4f4d | \u5b9e\u4e60\u5c97\u4f4d | 2026.01 - 2026.06\n- \u8865\u5145\u8d1f\u8d23\u4e8b\u9879\u3001\u5173\u952e\u6210\u679c\u6216\u91cf\u5316\u6307\u6807\u3002')
-  ensureSectionVisible('experience')
-  selectModule('experience')
-  commitSnapshot()
+  addSectionFromQuickAction(
+    'experience',
+    '\u5b9e\u4e60\u5355\u4f4d | \u5b9e\u4e60\u5c97\u4f4d | 2026.01 - 2026.06\n- \u8865\u5145\u8d1f\u8d23\u4e8b\u9879\u3001\u5173\u952e\u6210\u679c\u6216\u91cf\u5316\u6307\u6807\u3002'
+  )
 }
 
 function addProject() {
-  appendRichTextBlock('projects', '\n\n\u9879\u76ee\u540d\u79f0 | \u8d1f\u8d23\u89d2\u8272 | 2026.01 - 2026.03\n- \u8865\u5145\u9879\u76ee\u80cc\u666f\u3001\u6280\u672f\u65b9\u6848\u548c\u4e2a\u4eba\u8d21\u732e\u3002')
-  ensureSectionVisible('projects')
-  selectModule('projects')
-  commitSnapshot()
+  addSectionFromQuickAction(
+    'projects',
+    '\u9879\u76ee\u540d\u79f0 | \u8d1f\u8d23\u89d2\u8272 | 2026.01 - 2026.03\n- \u8865\u5145\u9879\u76ee\u80cc\u666f\u3001\u6280\u672f\u65b9\u6848\u548c\u4e2a\u4eba\u8d21\u732e\u3002'
+  )
 }
 
 function addEducation() {
+  addSectionFromQuickAction('education')
+}
+
+function appendEducationEntry() {
   resume.value.education.push({
     id: createId(),
     school: '\u5b66\u6821\u540d\u79f0',
-    major: '\u4e13\u4e1a / \u5b66\u5386',
+    major: '\u4e13\u4e1a\u540d\u79f0',
+    degree: '\u672c\u79d1',
     period: '2022.09 - 2026.06'
   })
   ensureSectionVisible('education')
@@ -830,16 +908,57 @@ function addEducation() {
 }
 
 function addEducationFromDialog() {
-  addEducation()
+  appendEducationEntry()
   activeModuleDialogKey.value = 'education'
 }
 
 function addSkill() {
-  appendRichTextBlock('skills', '\n\u65b0\u6280\u80fd\u5206\u7c7b: \u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002')
-  ensureSectionVisible('skills')
-  selectModule('skills')
-  commitSnapshot()
+  addSectionFromQuickAction('skills', '\u65b0\u6280\u80fd\u5206\u7c7b: \u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002')
 }
+
+function addSectionFromQuickAction(key, fallbackRichText = '') {
+  if (!sectionMap.has(key)) {
+    return
+  }
+
+  if (resume.value.visibleSections[key]) {
+    selectModule(key)
+    showResumeNotice(`${sectionMap.get(key).resumeTitle}\u5df2\u5b58\u5728`)
+    return
+  }
+
+  if (fallbackRichText && !String(resume.value.richText?.[key] || '').trim()) {
+    updateRichTextSection(key, fallbackRichText)
+  }
+
+  if (key === 'education' && !resume.value.education.length) {
+    resume.value.education.push({
+      id: createId(),
+      school: '\u5b66\u6821\u540d\u79f0',
+      major: '\u4e13\u4e1a\u540d\u79f0',
+      degree: '\u672c\u79d1',
+      period: '2022.09 - 2026.06'
+    })
+  }
+
+  ensureSectionVisible(key)
+  moveSectionToVisibleEnd(key)
+  selectModule(key)
+  commitSnapshot()
+  showResumeNotice(`${sectionMap.get(key).resumeTitle}\u5df2\u6dfb\u52a0`)
+}
+
+function moveSectionToVisibleEnd(key) {
+  const nextOrder = normalizeSectionOrder(resume.value.sectionOrder).filter((sectionKey) => sectionKey !== key)
+  const lastVisibleIndex = nextOrder.reduce(
+    (lastIndex, sectionKey, index) => (resume.value.visibleSections[sectionKey] ? index : lastIndex),
+    -1
+  )
+
+  nextOrder.splice(lastVisibleIndex + 1, 0, key)
+  resume.value.sectionOrder = nextOrder
+}
+
 function ensureSectionVisible(key) {
   resume.value.visibleSections[key] = true
   resume.value.sectionOrder = normalizeSectionOrder(resume.value.sectionOrder)
@@ -871,15 +990,6 @@ function updateRichTextSection(key, value) {
   }
 
   resume.value.richText[key] = value
-}
-
-function appendRichTextBlock(key, block) {
-  if (!resume.value.richText) {
-    resume.value.richText = {}
-  }
-
-  const current = resume.value.richText[key] || ''
-  resume.value.richText[key] = current ? `${current}${block}` : block.trimStart()
 }
 
 function removeEntry(collectionName, index) {
@@ -953,6 +1063,55 @@ function normalizeSkillItem(skill, index) {
     id: skill.id || createId(),
     category: String(skill.category || skill.name || `\u6280\u80fd ${index + 1}`).trim(),
     details: details.length ? details : ['\u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002']
+  }
+}
+
+function normalizeEducationItems(items, fallbackItems) {
+  if (!Array.isArray(items)) {
+    return fallbackItems
+  }
+
+  const normalizedItems = items
+    .map((item, index) => normalizeEducationItem(item, index))
+    .filter(Boolean)
+
+  return normalizedItems.length ? normalizedItems : fallbackItems
+}
+
+function normalizeEducationItem(item, index) {
+  if (!item || typeof item !== 'object') {
+    return null
+  }
+
+  const educationText = splitEducationMajorAndDegree(item.major, item.degree)
+
+  return {
+    id: item.id || createId(),
+    school: String(item.school || `\u5b66\u6821\u540d\u79f0 ${index + 1}`).trim(),
+    major: educationText.major || '\u4e13\u4e1a\u540d\u79f0',
+    degree: educationText.degree || '\u672c\u79d1',
+    period: String(item.period || '2022.09 - 2026.06').trim()
+  }
+}
+
+function splitEducationMajorAndDegree(majorValue, degreeValue) {
+  const major = String(majorValue || '').trim()
+  const degree = String(degreeValue || '').trim()
+
+  if (degree) {
+    return { major, degree }
+  }
+
+  const knownDegrees = ['\u535a\u58eb\u7814\u7a76\u751f', '\u7855\u58eb\u7814\u7a76\u751f', '\u7814\u7a76\u751f', '\u672c\u79d1', '\u4e13\u79d1', '\u5927\u4e13']
+  const matchedDegree = knownDegrees.find((value) => major.endsWith(value))
+
+  if (!matchedDegree) {
+    return { major, degree: '' }
+  }
+
+  return {
+    major: major.slice(0, -matchedDegree.length).replace(/[\s/｜|]+$/g, '').trim(),
+    degree: matchedDegree
   }
 }
 
@@ -1082,37 +1241,260 @@ async function exportPdf() {
     return
   }
 
-  const previousTitle = document.title
-  const exportTitle = `${sanitizeFileName(resume.value.profile.name || 'resume')}-\u7b80\u5386`
-  let fallbackTimer = 0
+  const pageElements = Array.from(document.querySelectorAll('.resume-paper'))
 
-  const restoreTitle = () => {
-    document.title = previousTitle
-    window.removeEventListener('afterprint', restoreTitle)
+  if (!pageElements.length) {
+    flashStatus('\u6ca1\u6709\u53ef\u5bfc\u51fa\u7684\u9875\u9762')
+    return
+  }
 
-    if (fallbackTimer) {
-      window.clearTimeout(fallbackTimer)
+  flashStatus('\u6b63\u5728\u751f\u6210 PDF...')
+  await nextTick()
+
+  try {
+    if (document.fonts?.ready) {
+      await document.fonts.ready
+    }
+
+    const pageImages = []
+
+    for (const pageElement of pageElements) {
+      pageImages.push(await renderResumePageToJpeg(pageElement))
+    }
+
+    const pdfBlob = createPdfBlobFromJpegs(pageImages)
+    const saved = await savePdfBlob(pdfBlob, PDF_FILE_NAME)
+
+    if (saved) {
+      flashStatus('PDF \u5df2\u5bfc\u51fa')
+    }
+  } catch (error) {
+    console.error(error)
+    flashStatus('PDF \u5bfc\u51fa\u5931\u8d25')
+  }
+}
+
+async function renderResumePageToJpeg(pageElement) {
+  const clone = pageElement.cloneNode(true)
+  inlineComputedStyles(pageElement, clone)
+  cleanResumeExportClone(clone)
+
+  clone.style.width = `${PAPER_WIDTH}px`
+  clone.style.height = `${PAPER_HEIGHT}px`
+  clone.style.transform = 'none'
+  clone.style.transformOrigin = 'top left'
+  clone.style.boxShadow = 'none'
+  clone.style.border = '0'
+  clone.style.margin = '0'
+  clone.style.background = '#fff'
+
+  const svgMarkup = createResumePageSvg(clone)
+  const svgUrl = URL.createObjectURL(new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' }))
+
+  try {
+    const image = await loadImage(svgUrl)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(PAPER_WIDTH * PDF_EXPORT_SCALE)
+    canvas.height = Math.round(PAPER_HEIGHT * PDF_EXPORT_SCALE)
+
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+    const blob = await canvasToBlob(canvas, 'image/jpeg', PDF_IMAGE_QUALITY)
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+
+    return {
+      bytes,
+      height: canvas.height,
+      width: canvas.width
+    }
+  } finally {
+    URL.revokeObjectURL(svgUrl)
+  }
+}
+
+function inlineComputedStyles(source, target) {
+  if (!(source instanceof Element) || !(target instanceof Element)) {
+    return
+  }
+
+  const computedStyle = window.getComputedStyle(source)
+  const inlineStyle = []
+
+  for (const property of computedStyle) {
+    inlineStyle.push(`${property}:${computedStyle.getPropertyValue(property)};`)
+  }
+
+  target.setAttribute('style', inlineStyle.join(''))
+
+  Array.from(source.children).forEach((sourceChild, index) => {
+    const targetChild = target.children[index]
+
+    if (targetChild) {
+      inlineComputedStyles(sourceChild, targetChild)
+    }
+  })
+}
+
+function cleanResumeExportClone(clone) {
+  clone.querySelectorAll('.module-boundary-handles').forEach((element) => element.remove())
+  clone.querySelectorAll('.is-selected, .is-dragging, .is-drop-target').forEach(removeExportStateClasses)
+  removeExportStateClasses(clone)
+}
+
+function removeExportStateClasses(element) {
+  element.classList.remove('is-selected', 'is-dragging', 'is-drop-target')
+}
+
+function createResumePageSvg(pageElement) {
+  const wrapper = document.createElement('div')
+  wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+  wrapper.style.width = `${PAPER_WIDTH}px`
+  wrapper.style.height = `${PAPER_HEIGHT}px`
+  wrapper.style.overflow = 'hidden'
+  wrapper.style.background = '#fff'
+  wrapper.appendChild(pageElement)
+
+  const serialized = new XMLSerializer().serializeToString(wrapper)
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${PAPER_WIDTH}" height="${PAPER_HEIGHT}" viewBox="0 0 ${PAPER_WIDTH} ${PAPER_HEIGHT}">`,
+    `<foreignObject width="${PAPER_WIDTH}" height="${PAPER_HEIGHT}">`,
+    serialized,
+    '</foreignObject>',
+    '</svg>'
+  ].join('')
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Failed to render PDF page.'))
+    image.src = url
+  })
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob)
+          return
+        }
+
+        reject(new Error('Failed to create PDF page image.'))
+      },
+      type,
+      quality
+    )
+  })
+}
+
+function createPdfBlobFromJpegs(images) {
+  const encoder = new TextEncoder()
+  const parts = []
+  const offsets = []
+  let offset = 0
+
+  const append = (part) => {
+    const bytes = typeof part === 'string' ? encoder.encode(part) : part
+    parts.push(bytes)
+    offset += bytes.length
+  }
+  const appendObject = (id, bodyParts) => {
+    offsets[id] = offset
+    append(`${id} 0 obj\n`)
+    bodyParts.forEach(append)
+    append('\nendobj\n')
+  }
+
+  append('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n')
+  appendObject(1, ['<< /Type /Catalog /Pages 2 0 R >>'])
+
+  const pageIds = images.map((_, index) => 3 + index * 3)
+  appendObject(2, [`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${images.length} >>`])
+
+  images.forEach((image, index) => {
+    const pageId = 3 + index * 3
+    const contentId = pageId + 1
+    const imageId = pageId + 2
+    const imageName = `Im${index + 1}`
+    const drawCommand = `q\n${PDF_A4_WIDTH_PT} 0 0 ${PDF_A4_HEIGHT_PT} 0 0 cm\n/${imageName} Do\nQ`
+
+    appendObject(pageId, [
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_A4_WIDTH_PT} ${PDF_A4_HEIGHT_PT}] `,
+      `/Resources << /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
+    ])
+    appendObject(contentId, [`<< /Length ${encoder.encode(drawCommand).length} >>\nstream\n${drawCommand}\nendstream`])
+
+    offsets[imageId] = offset
+    append(`${imageId} 0 obj\n`)
+    append(
+      `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`
+    )
+    append(image.bytes)
+    append('\nendstream\nendobj\n')
+  })
+
+  const xrefOffset = offset
+  const objectCount = 2 + images.length * 3
+  append(`xref\n0 ${objectCount + 1}\n`)
+  append('0000000000 65535 f \n')
+
+  for (let id = 1; id <= objectCount; id += 1) {
+    append(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`)
+  }
+
+  append(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`)
+
+  return new Blob(parts, { type: 'application/pdf' })
+}
+
+async function savePdfBlob(blob, fileName) {
+  if (typeof window.showSaveFilePicker === 'function') {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: 'PDF',
+            accept: {
+              'application/pdf': ['.pdf']
+            }
+          }
+        ]
+      })
+      const writable = await handle.createWritable()
+      await writable.write(blob)
+      await writable.close()
+      return true
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        flashStatus('\u5df2\u53d6\u6d88\u5bfc\u51fa')
+        return false
+      }
+
+      throw error
     }
   }
 
-  document.title = exportTitle
-  window.addEventListener('afterprint', restoreTitle)
-  flashStatus('\u6b63\u5728\u51c6\u5907 PDF...')
-  await nextTick()
-
-  window.setTimeout(() => {
-    window.print()
-    fallbackTimer = window.setTimeout(restoreTitle, 1200)
-  }, 80)
+  downloadBlob(blob, fileName)
+  return true
 }
 
-function sanitizeFileName(fileName) {
-  return String(fileName)
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function writeDraft() {
@@ -1152,9 +1534,7 @@ function loadDraft() {
         },
         visibleSections: normalizeVisibleSections(parsedDraft.visibleSections),
         richText: normalizeRichTextSections(parsedDraft, defaultResume.richText),
-        education: Array.isArray(parsedDraft.education)
-          ? parsedDraft.education
-          : defaultResume.education
+        education: normalizeEducationItems(parsedDraft.education, defaultResume.education)
       }
       delete resume.value.experience
       delete resume.value.projects
@@ -1175,6 +1555,18 @@ function flashStatus(message) {
   draftStatusTimer = window.setTimeout(() => {
     draftStatus.value = ''
   }, 1400)
+}
+
+function showResumeNotice(message) {
+  resumeNotice.value = message
+
+  if (resumeNoticeTimer) {
+    window.clearTimeout(resumeNoticeTimer)
+  }
+
+  resumeNoticeTimer = window.setTimeout(() => {
+    resumeNotice.value = ''
+  }, 1600)
 }
 
 watch(
@@ -1335,11 +1727,47 @@ onMounted(() => {
 }
 
 .resume-editor-shell {
+  position: relative;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 14px;
   height: calc(100dvh - 64px);
   padding: 14px;
+}
+
+.resume-inline-notice {
+  position: absolute;
+  top: 28px;
+  left: 308px;
+  right: 28px;
+  z-index: 26;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.resume-inline-notice span {
+  border: 1px solid rgba(23, 26, 32, 0.12);
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 38px rgba(23, 26, 32, 0.16);
+  color: var(--editor-ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.resume-inline-notice-enter-active,
+.resume-inline-notice-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.resume-inline-notice-enter-from,
+.resume-inline-notice-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .resume-sidebar,
@@ -1385,7 +1813,7 @@ onMounted(() => {
 
 .module-sort-item {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   min-height: 56px;
@@ -1418,12 +1846,6 @@ onMounted(() => {
   line-height: 1;
 }
 
-.module-sort-item__visible {
-  display: inline-flex;
-  align-items: center;
-}
-
-.module-sort-item__visible input,
 .module-toggle input {
   accent-color: #171a20;
 }
@@ -1472,8 +1894,42 @@ onMounted(() => {
 }
 
 .module-sort-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.module-sort-item__move-stack {
   display: grid;
   gap: 4px;
+}
+
+.module-sort-delete-btn {
+  width: 30px;
+  height: 48px;
+  min-height: 48px;
+  border-color: rgba(180, 35, 24, 0.18);
+  border-radius: 8px;
+  background: rgba(180, 35, 24, 0.08);
+  box-shadow: none;
+  color: #b42318;
+  font-weight: 900;
+}
+
+.module-sort-delete-btn__icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.module-sort-delete-btn:hover {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: #b42318;
+  color: #fff;
 }
 
 .module-sort-item__actions .module-sort-move-btn {
@@ -1686,6 +2142,27 @@ onMounted(() => {
   pointer-events: none;
 }
 
+.resume-module.is-selected.is-continuation-fragment::before,
+.resume-module.is-selected.is-continued-fragment::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  height: 1200px;
+  border-right: 2px solid #2f6bff;
+  border-left: 2px solid #2f6bff;
+  pointer-events: none;
+}
+
+.resume-module.is-selected.is-continuation-fragment::before {
+  bottom: 100%;
+}
+
+.resume-module.is-selected.is-continued-fragment::before {
+  top: 100%;
+}
+
 .resume-module.is-selected.is-continuation-fragment::after {
   border-top: 0;
 }
@@ -1857,6 +2334,35 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: start;
+}
+
+.resume-entry__education-line {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(52px, 0.45fr) auto;
+  gap: 14px;
+  align-items: center;
+  color: #4d5563;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.resume-entry__education-line strong,
+.resume-entry__education-line span,
+.resume-entry__education-line time {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-entry__education-line strong {
+  color: #171a20;
+  font-size: 15px;
+}
+
+.resume-entry__education-line time {
+  color: #626b78;
+  font-style: normal;
 }
 
 .resume-entry h3 {
@@ -2049,6 +2555,21 @@ onMounted(() => {
   border-top: 1px solid var(--editor-line);
 }
 
+.resume-profile-dialog__panel {
+  width: min(720px, 100%);
+}
+
+.resume-profile-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.resume-profile-dialog__grid .editor-field:first-child,
+.resume-profile-dialog__grid .editor-field:nth-child(2) {
+  grid-column: span 1;
+}
+
 .resume-module-dialog__tools {
   display: flex;
   align-items: center;
@@ -2100,6 +2621,10 @@ onMounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(150px, 0.7fr);
   gap: 12px;
+}
+
+.resume-dialog-field-grid--education {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(110px, 0.55fr) minmax(150px, 0.75fr);
 }
 
 .resume-module-dialog-enter-active,
@@ -2250,6 +2775,12 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .resume-inline-notice {
+    top: 22px;
+    left: 22px;
+    right: 22px;
+  }
+
   .resume-sidebar {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2300,6 +2831,10 @@ onMounted(() => {
   .resume-module-dialog__actions,
   .resume-module-dialog__body {
     padding: 14px;
+  }
+
+  .resume-profile-dialog__grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -46,14 +46,18 @@
                   </button>
                 </div>
 
-                <div class="resume-dialog-field-grid">
+                <div class="resume-dialog-field-grid resume-dialog-field-grid--education">
                   <label class="editor-field">
-                    <span>学校</span>
+                    <span>大学</span>
                     <input v-model="item.school" type="text" />
                   </label>
                   <label class="editor-field">
                     <span>专业</span>
                     <input v-model="item.major" type="text" />
+                  </label>
+                  <label class="editor-field">
+                    <span>学历</span>
+                    <input v-model="item.degree" type="text" />
                   </label>
                   <label class="editor-field">
                     <span>时间</span>
