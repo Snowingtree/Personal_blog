@@ -1,67 +1,68 @@
 <template>
-  <main class="agent-case-page">
-    <header class="agent-case-topbar">
-      <RouterLink class="agent-case-brand" to="/">
+  <main class="agent-showcase-page">
+    <header class="agent-showcase-topbar">
+      <RouterLink class="agent-showcase-brand" to="/">
         <span>AI</span>
         <strong>Agent Workspace</strong>
       </RouterLink>
 
-      <nav class="agent-case-nav" aria-label="Agent 展示页面导航">
+      <nav class="agent-showcase-nav" aria-label="页面导航">
+        <a href="#capabilities">功能</a>
+        <a href="#workflow">流程</a>
+        <a href="#systems">系统</a>
         <RouterLink to="/">返回首页</RouterLink>
       </nav>
     </header>
 
-    <section class="agent-case-hero">
-      <div class="agent-case-hero__copy">
-        <p class="agent-case-eyebrow">Project Showcase</p>
-        <h1>Web Agent 工作流项目展示</h1>
-        <p class="agent-case-hero__lead">
-          这个项目围绕“让 AI 参与真实任务执行”设计：前端提供完整工作台，后端承接会话、工具、知识库、扩展能力和审计记录。
-          项目重点是工程结构和任务链路，而不是对外开放一个可操作的在线服务。
+    <section class="agent-showcase-hero">
+      <div class="agent-showcase-hero__copy">
+        <p class="agent-showcase-eyebrow">Personal Web Agent</p>
+        <h1>一个能读文件、调工具、接知识库的 Agent 工作台</h1>
+        <p class="agent-showcase-hero__lead">
+          这个项目不是单纯的聊天页面。它把多轮对话、会话级文件工作区、工具调用、Skills、MCP、RAG 知识库、模型配置和调用复盘放到同一个 Web 工作台里，用来探索“AI 如何参与真实任务执行”。
         </p>
 
-        <div class="agent-case-actions">
-          <a class="agent-case-button agent-case-button--primary" href="#agent-architecture">查看项目结构</a>
-          <a class="agent-case-button" href="#agent-tools">查看工具链</a>
+        <div class="agent-showcase-summary" aria-label="项目能力摘要">
+          <article v-for="item in heroSummary" :key="item.label">
+            <strong>{{ item.value }}</strong>
+            <span>{{ item.label }}</span>
+          </article>
         </div>
-
-        <dl class="agent-case-stats" aria-label="Agent 项目概览">
-          <div v-for="item in stats" :key="item.label">
-            <dt>{{ item.value }}</dt>
-            <dd>{{ item.label }}</dd>
-          </div>
-        </dl>
       </div>
 
-      <aside class="agent-case-workbench" aria-label="Agent 工作台界面示意">
-        <div class="agent-case-workbench__top">
+      <aside class="agent-workbench-preview" aria-label="Agent 工作台示意">
+        <div class="agent-window-bar">
           <span></span>
           <span></span>
           <span></span>
-          <strong>Agent 工作台</strong>
+          <strong>Agent Workspace</strong>
         </div>
 
-        <div class="agent-case-workbench__layout">
-          <section class="agent-case-workbench__sidebar" aria-label="会话列表示意">
-            <button type="button">+ 新建对话</button>
-            <p>最近对话</p>
-            <article v-for="item in mockSessions" :key="item" :class="{ 'is-active': item === mockSessions[0] }">
-              {{ item }}
+        <div class="agent-preview-layout">
+          <section class="agent-preview-sessions" aria-label="会话列表">
+            <button type="button">新建会话</button>
+            <p>最近任务</p>
+            <article
+              v-for="session in previewSessions"
+              :key="session"
+              :class="{ 'is-active': session === previewSessions[0] }"
+            >
+              {{ session }}
             </article>
           </section>
 
-          <section class="agent-case-workbench__chat" aria-label="任务执行示意">
+          <section class="agent-preview-chat" aria-label="任务对话">
             <header>
-              <span>编码模式</span>
-              <span>任务进行中</span>
+              <span>当前模式：编码任务</span>
+              <span>模型：可切换</span>
             </header>
 
-            <article class="agent-case-message agent-case-message--user">
-              帮我定位图片加载慢的原因，并给出可落地的优化。
+            <article class="agent-preview-message agent-preview-message--user">
+              帮我定位图片加载慢的问题，给出可落地的优化并修改代码。
             </article>
 
-            <div class="agent-case-tool-stack">
-              <article v-for="tool in mockToolFlow" :key="tool.name" class="agent-case-tool-card">
+            <div class="agent-preview-tools">
+              <article v-for="tool in previewToolCalls" :key="tool.name">
                 <span>{{ tool.step }}</span>
                 <div>
                   <strong>{{ tool.name }}</strong>
@@ -70,38 +71,67 @@
               </article>
             </div>
 
-            <article class="agent-case-message">
-              已读取组件和构建产物，建议优先做图片尺寸约束、懒加载、缓存策略和组件级占位状态。
+            <article class="agent-preview-message">
+              已读取组件、网络请求和构建结果。建议优先处理图片尺寸约束、懒加载、缓存策略和异常状态提示，并给出对应代码修改。
             </article>
           </section>
 
-          <section class="agent-case-workbench__files" aria-label="工作区文件示意">
-            <p>当前对话文件</p>
-            <article v-for="file in mockFiles" :key="file">
+          <section class="agent-preview-files" aria-label="工作区文件">
+            <p>会话文件</p>
+            <article v-for="file in previewFiles" :key="file">
               <span></span>
               <strong>{{ file }}</strong>
             </article>
-            <pre>Tool: apply_patch
-Status: success
-Changed: src/components/...</pre>
+
+            <pre>tool: apply_patch
+status: success
+changed: src/components/ImagePanel.vue</pre>
           </section>
         </div>
       </aside>
     </section>
 
-    <section id="agent-architecture" class="agent-case-section agent-case-section--architecture">
-      <div class="agent-case-section__head">
-        <p class="agent-case-eyebrow">Architecture</p>
-        <h2>它不是一个单页聊天框，而是一套 Agent 工作流</h2>
-        <p>
-          从代码结构看，前端负责工作台体验，后端负责会话、工具、模型、知识库、审计和记忆。
-          每一轮对话都会经过上下文选择、模型决策、工具执行、结果回写和审计记录。
-        </p>
+    <section id="capabilities" class="agent-showcase-section">
+      <div class="agent-section-head">
+        <p class="agent-showcase-eyebrow">What It Does</p>
+        <h2>别人打开这个页面，应该能直接看懂它能做什么</h2>
       </div>
 
-      <div class="agent-case-architecture">
-        <article v-for="item in architecture" :key="item.title">
+      <div class="agent-capability-grid">
+        <article v-for="item in capabilities" :key="item.title">
           <span>{{ item.index }}</span>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.description }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="workflow" class="agent-process-section">
+      <div class="agent-section-head agent-section-head--dark">
+        <p class="agent-showcase-eyebrow">Task Flow</p>
+        <h2>一次任务从输入到落地，会经过这些步骤</h2>
+      </div>
+
+      <ol class="agent-process-list">
+        <li v-for="item in taskFlow" :key="item.title">
+          <span>{{ item.step }}</span>
+          <div>
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.description }}</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="systems" class="agent-showcase-section agent-showcase-section--systems">
+      <div class="agent-section-head">
+        <p class="agent-showcase-eyebrow">System Design</p>
+        <h2>它背后不是单个接口，而是一套可扩展的 Agent 系统</h2>
+      </div>
+
+      <div class="agent-system-board">
+        <article v-for="item in systemBlocks" :key="item.title">
+          <small>{{ item.tag }}</small>
           <h3>{{ item.title }}</h3>
           <p>{{ item.description }}</p>
           <ul>
@@ -111,54 +141,16 @@ Changed: src/components/...</pre>
       </div>
     </section>
 
-    <section class="agent-case-flow-section">
-      <div class="agent-case-flow-copy">
-        <p class="agent-case-eyebrow">Execution Flow</p>
-        <h2>一次任务从输入到落地，会经过这些环节</h2>
+    <section class="agent-showcase-section agent-showcase-section--tools">
+      <div class="agent-section-head">
+        <p class="agent-showcase-eyebrow">Tool Layer</p>
+        <h2>内置工具让 Agent 可以处理真实工作区</h2>
         <p>
-          完整执行链路由目标输入、上下文组装、工具决策和结果回写组成。Agent 不只返回一段文字，
-          还会把文件、消息、审计和用量沉淀到同一个会话中。
+          工具只在受控工作区内运行，命令执行和写入行为由后端策略限制。页面只展示能力范围，不暴露任何真实凭据、路径或内部配置。
         </p>
       </div>
 
-      <ol class="agent-case-flow">
-        <li v-for="item in executionFlow" :key="item.title">
-          <span>{{ item.index }}</span>
-          <div>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.description }}</p>
-          </div>
-        </li>
-      </ol>
-    </section>
-
-    <section id="agent-features" class="agent-case-section">
-      <div class="agent-case-section__head">
-        <p class="agent-case-eyebrow">Capability Map</p>
-        <h2>核心能力模块</h2>
-      </div>
-
-      <div class="agent-case-matrix">
-        <article v-for="item in featureMatrix" :key="item.title">
-          <div>
-            <span>{{ item.group }}</span>
-            <h3>{{ item.title }}</h3>
-          </div>
-          <p>{{ item.description }}</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="agent-tools" class="agent-case-section agent-case-section--tools">
-      <div class="agent-case-section__head">
-        <p class="agent-case-eyebrow">Workspace Tools</p>
-        <h2>后端已经接入的本地工作区工具</h2>
-        <p>
-          工具链让它从普通问答走向任务执行：在受限工作区里查看文件、定位内容、运行允许的命令，并在策略允许时写入修改。
-        </p>
-      </div>
-
-      <div class="agent-case-tools">
+      <div class="agent-tool-grid">
         <article v-for="tool in localTools" :key="tool.name">
           <code>{{ tool.name }}</code>
           <p>{{ tool.description }}</p>
@@ -166,32 +158,14 @@ Changed: src/components/...</pre>
       </div>
     </section>
 
-    <section class="agent-case-section agent-case-section--settings">
-      <div class="agent-case-section__head">
-        <p class="agent-case-eyebrow">Settings Center</p>
-        <h2>设置中心承载扩展与复盘能力</h2>
-      </div>
-
-      <div class="agent-case-settings-grid">
-        <article v-for="item in settingsPanels" :key="item.title">
-          <strong>{{ item.title }}</strong>
-          <p>{{ item.description }}</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="agent-boundary" class="agent-case-boundary">
+    <section class="agent-showcase-footer">
       <div>
-        <p class="agent-case-eyebrow">Access Scope</p>
-        <h2>工程展示边界</h2>
+        <p class="agent-showcase-eyebrow">Scope</p>
+        <h2>这个展示页只说明项目能力</h2>
       </div>
-
-      <div class="agent-case-boundary__grid">
-        <article v-for="item in boundaries" :key="item.title">
-          <strong>{{ item.title }}</strong>
-          <p>{{ item.description }}</p>
-        </article>
-      </div>
+      <p>
+        页面中的会话、文件名和工具输出都是脱敏示例。真实的模型配置、API Key、数据库信息、MCP 凭据和服务器路径不会在展示页出现。
+      </p>
     </section>
   </main>
 </template>
@@ -199,379 +173,340 @@ Changed: src/components/...</pre>
 <script setup>
 import { RouterLink } from 'vue-router'
 
-const stats = [
-  { value: '6', label: '工作区工具' },
-  { value: '7', label: '设置中心模块' },
-  { value: '4', label: '上下文来源' },
-  { value: '1', label: '连续任务工作台' }
+const heroSummary = [
+  { value: '会话级', label: '独立工作区' },
+  { value: '6 类', label: '内置工具' },
+  { value: 'RAG', label: '知识库检索' },
+  { value: 'MCP', label: '外部工具扩展' }
 ]
 
-const mockSessions = [
-  '优化图片加载模块',
-  '排查接口 403 问题',
-  '在线简历编辑 demo'
+const previewSessions = ['图片加载优化', '接口 403 排查', '简历编辑器 demo']
+
+const previewToolCalls = [
+  { step: '01', name: 'list_files', description: '先读取当前会话工作区结构' },
+  { step: '02', name: 'search_text', description: '搜索组件、接口和关键实现' },
+  { step: '03', name: 'read_file', description: '打开目标文件确认上下文' },
+  { step: '04', name: 'apply_patch', description: '按最小范围修改代码' }
 ]
 
-const mockToolFlow = [
-  { step: '01', name: 'list_files', description: '先看当前会话工作区结构' },
-  { step: '02', name: 'search_text', description: '定位相关组件和关键字符串' },
-  { step: '03', name: 'read_file', description: '读取目标文件确认上下文' },
-  { step: '04', name: 'apply_patch', description: '对已有文件做精确修改' }
-]
+const previewFiles = ['src/components/ImagePanel.vue', 'src/utils/http.js', 'notes/optimization.md']
 
-const mockFiles = [
-  'src/components/ImageModule.vue',
-  'src/utils/http.js',
-  'report/optimization-notes.md'
-]
-
-const architecture = [
-  {
-    index: 'Frontend',
-    title: 'Vue 工作台界面',
-    description: '前端不是简单输入框，而是完整工作台：左侧会话，中间对话，右侧文件预览，设置中心承接扩展能力。',
-    points: ['多会话列表和新建对话', '任务状态、运行模式和模型用量', 'Markdown、代码块、工具调用卡片', '当前会话文件和 HTML 预览']
-  },
-  {
-    index: 'API',
-    title: '独立 Agent API',
-    description: '后端提供会话、聊天、文件预览、能力列表、RAG、审计、Skills、工具详情等接口，把 Agent 逻辑从主站拆开。',
-    points: ['会话创建、详情、删除和任务停止', '工作区文件内容读取和预览令牌', '工具、Skills、MCP 能力读取', 'RAG 文档、集合、检索和重建']
-  },
-  {
-    index: 'Runner',
-    title: '模型决策与工具执行循环',
-    description: 'Agent Runner 会把用户目标、会话记忆、工具说明、技能说明和知识库上下文组织成一次可执行任务。',
-    points: ['模型回复和工具调用分离', '工具执行结果进入下一步观察', '失败信息转成可读提示', '任务过程写回当前会话']
-  },
-  {
-    index: 'Memory',
-    title: '短期会话记忆和长期画像',
-    description: '长会话会被压缩成摘要，稳定偏好可以进入长期个人画像，减少每次都重新解释上下文。',
-    points: ['会话级 memory summary', '长期 user profile', '避免保存临时任务和敏感凭据', '设置页可查看个人画像']
-  }
-]
-
-const executionFlow = [
+const capabilities = [
   {
     index: '01',
-    title: '用户给出目标',
-    description: '输入区支持普通任务、代码任务和临时附件；前端会根据当前选择带上模型、Skills、MCP 和知识库信息。'
+    title: '多会话任务管理',
+    description: '每个目标都有独立会话、标题、消息、任务状态和工作区，适合把不同问题拆开持续推进。'
   },
   {
     index: '02',
-    title: '后端组装上下文',
-    description: '会话历史、短期摘要、长期画像、工作区文件列表、RAG 检索结果和技能说明会被整理给 Agent。'
+    title: '会话级文件工作区',
+    description: 'Agent 可以读取、创建和修改当前会话下的文件，右侧可以查看文件列表、代码内容和 HTML 预览。'
   },
   {
     index: '03',
-    title: 'Agent 决定是否调用工具',
-    description: '如果需要证据或要改文件，它会调用 list_files、read_file、search_text、run_command、write_file 或 apply_patch。'
+    title: '工具调用过程可视化',
+    description: '文件读取、文本搜索、命令执行和补丁写入会以工具卡片形式出现在对话中，方便理解它做了什么。'
   },
   {
     index: '04',
-    title: '结果回写到工作台',
-    description: '模型消息、工具卡片、任务状态、文件列表、审计事件和模型用量都会回到页面，后续会话还能接着做。'
+    title: 'Skills 行为扩展',
+    description: '通过本地 Markdown 技能文件给 Agent 增加不同任务习惯，例如编码质量、前端检查、MCP 接入等。'
+  },
+  {
+    index: '05',
+    title: 'MCP 外部工具接入',
+    description: 'MCP 服务贡献的工具会进入同一套工具目录，Agent 可以按会话选择需要接入的外部能力。'
+  },
+  {
+    index: '06',
+    title: 'RAG 知识库增强',
+    description: '支持知识集合、文档上传、向量化、检索和上下文注入，让项目资料参与本轮任务回答。'
+  },
+  {
+    index: '07',
+    title: '模型和 Embedding 配置',
+    description: '聊天模型和向量模型可以在设置中心维护，并在会话中按任务选择，不把配置写死在页面里。'
+  },
+  {
+    index: '08',
+    title: '审计与用量复盘',
+    description: '可查看会话中的工具调用、RAG 检索、MCP 调用、错误事件和 token 使用情况。'
   }
 ]
 
-const featureMatrix = [
+const taskFlow = [
   {
-    group: '会话',
-    title: '多会话任务管理',
-    description: '每个目标有独立 session、标题、消息、任务状态和工作区，不同任务之间不会混在一起。'
+    step: '1',
+    title: '输入目标',
+    description: '用户描述要完成的任务，并选择模型、Skills、MCP 服务、RAG 集合或临时附件。'
   },
   {
-    group: '文件',
-    title: '会话级文件工作区',
-    description: 'Agent 生成或修改的文件可以在右侧打开，支持文本预览、代码复制和 HTML 运行预览。'
+    step: '2',
+    title: '组装上下文',
+    description: '后端读取会话历史、工作区文件、技能说明、知识库检索结果和长期偏好，整理成可执行上下文。'
   },
   {
-    group: '上下文',
-    title: '会话附加信息选择',
-    description: '本轮任务可以选择 Skills、MCP 服务、RAG 知识库、Embedding 配置和临时附件。'
+    step: '3',
+    title: '决策与工具调用',
+    description: '模型判断下一步要回答、读取文件、搜索文本、运行命令，还是生成补丁修改文件。'
   },
   {
-    group: '知识库',
-    title: 'RAG 文档管理',
-    description: '支持集合、文档上传、手动写入、向量重建和检索，让项目资料参与回答。'
+    step: '4',
+    title: '结果回写',
+    description: '最终回复、工具事件、文件变化、审计记录和用量信息都会回到同一个会话中，便于继续追问。'
+  }
+]
+
+const systemBlocks = [
+  {
+    tag: 'Frontend',
+    title: 'Vue 工作台',
+    description: '前端负责登录、会话列表、聊天区域、文件预览、设置中心和工具过程展示。',
+    points: ['多会话切换', '流式消息展示', '工具卡片', '文件与代码预览']
   },
   {
-    group: '扩展',
-    title: 'Skills 和 MCP',
-    description: 'Skills 用 Markdown 文件扩展行为；MCP 用来接入外部工具，并统一进入工具调用链路。'
+    tag: 'Backend',
+    title: '独立 Agent API',
+    description: '后端承接会话、聊天、工具、RAG、Skills、MCP、审计和 token 统计。',
+    points: ['会话持久化', '任务中断', '工作区隔离', '接口鉴权']
   },
   {
-    group: '复盘',
-    title: '审计和用量分析',
-    description: '按会话查看模型决策、工具调用、RAG 检索、MCP 调用、错误事件和模型用量情况。'
+    tag: 'Runner',
+    title: 'Agent 执行循环',
+    description: 'Runner 负责模型交互、结构化动作解析、工具结果回传和最终回答生成。',
+    points: ['上下文裁剪', '工具目录注入', '失败提示转换', '结果持续写回']
+  },
+  {
+    tag: 'Knowledge',
+    title: '知识库与记忆',
+    description: 'RAG 负责项目资料检索，记忆机制负责减少重复说明和维护稳定偏好。',
+    points: ['PostgreSQL + pgvector', '文档切块', 'Embedding 检索', '会话摘要']
   }
 ]
 
 const localTools = [
   { name: 'list_files', description: '列出工作区文件和目录，用来先理解项目结构。' },
-  { name: 'read_file', description: '读取工作区文本文件，给后续判断提供真实上下文。' },
-  { name: 'search_text', description: '在工作区搜索字符串、符号和用法，快速定位修改点。' },
-  { name: 'run_command', description: '执行允许范围内的命令，用于构建、检查、测试或查看仓库状态。' },
-  { name: 'write_file', description: '在策略允许时创建或整体替换文本文件。' },
-  { name: 'apply_patch', description: '对已有文件做精确编辑，更适合小范围修复和局部重构。' }
-]
-
-const settingsPanels = [
-  { title: 'AI 配置', description: '维护模型配置和模型版本，展示层只说明配置能力，不展示真实配置值。' },
-  { title: 'MCP', description: '查看已接入的 MCP 服务、状态、工具前缀和工具数量。' },
-  { title: 'Skills', description: '浏览 skills 目录下的技能说明，并按任务选择需要的技能。' },
-  { title: '知识库', description: '管理 RAG 集合、文档、上传、检索和向量重建。' },
-  { title: '工具', description: '展示当前 Agent 可用工具，以及每个工具对应的实现入口和说明。' },
-  { title: '审计监控', description: '按会话查看工具调用、RAG 检索、MCP 调用、错误和系统事件。' },
-  { title: '数据分析', description: '按模型和配置统计输入、输出、总量和使用占比。' }
-]
-
-const boundaries = [
-  {
-    title: '访问边界',
-    description: '当前页面只介绍项目设计，不连接实际工作台，也不承接任何线上操作。'
-  },
-  {
-    title: '使用脱敏示例',
-    description: '首屏工作台、会话名称、文件路径和工具结果都是示意内容，不展示真实任务数据。'
-  },
-  {
-    title: '隐藏内部配置',
-    description: '模型、知识库和外部工具只展示模块设计，不展示配置值、凭据或内部部署细节。'
-  },
-  {
-    title: '强调可控执行',
-    description: '文件修改、命令执行和外部工具调用都受工作区范围、后端策略和确认流程约束。'
-  }
+  { name: 'read_file', description: '读取文本文件内容，给后续判断提供真实上下文。' },
+  { name: 'search_text', description: '在工作区搜索关键词、函数名和组件名，快速定位修改点。' },
+  { name: 'run_command', description: '执行允许范围内的命令，例如构建、检查或查看状态。' },
+  { name: 'write_file', description: '在策略允许时创建或整体写入文件。' },
+  { name: 'apply_patch', description: '对已有文件做精确补丁修改，更适合小范围修复。' }
 ]
 </script>
 
 <style scoped>
-.agent-case-page {
+.agent-showcase-page {
   min-height: 100dvh;
   width: 100%;
-  background: #ffffff;
-  color: #161616;
+  background: #fff;
+  color: #151515;
 }
 
-.agent-case-topbar {
+.agent-showcase-topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  min-height: 66px;
+  min-height: 68px;
   padding: 12px 28px;
-  border-bottom: 1px solid #e9e9e9;
+  border-bottom: 1px solid #e8e8e8;
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
 }
 
-.agent-case-brand,
-.agent-case-nav,
-.agent-case-actions {
+.agent-showcase-brand,
+.agent-showcase-nav {
   display: flex;
   align-items: center;
 }
 
-.agent-case-brand {
+.agent-showcase-brand {
   min-width: 0;
   gap: 12px;
-  color: inherit;
+  color: #151515;
   text-decoration: none;
 }
 
-.agent-case-brand span {
+.agent-showcase-brand span {
   display: grid;
   place-items: center;
   width: 38px;
   height: 38px;
-  border-radius: 11px;
-  background: #171717;
-  color: #ffffff;
+  border-radius: 10px;
+  background: #151515;
+  color: #fff;
+  font-size: 0.86rem;
   font-weight: 900;
 }
 
-.agent-case-brand strong {
-  min-width: 0;
+.agent-showcase-brand strong {
   overflow: hidden;
+  font-size: 0.96rem;
+  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-case-nav {
-  gap: 10px;
+.agent-showcase-nav {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
-.agent-case-nav a,
-.agent-case-button {
+.agent-showcase-nav a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  border: 1px solid #d8d8d8;
-  border-radius: 12px;
-  padding: 0 16px;
-  background: #ffffff;
-  color: #171717;
-  font-weight: 800;
+  min-height: 38px;
+  border: 1px solid #dedede;
+  border-radius: 10px;
+  padding: 0 13px;
+  background: #fff;
+  color: #252525;
+  font-size: 0.86rem;
+  font-weight: 850;
   text-decoration: none;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
-    color 160ms ease,
     transform 160ms ease;
 }
 
-.agent-case-nav a:hover,
-.agent-case-button:hover {
-  border-color: #171717;
+.agent-showcase-nav a:hover {
+  border-color: #151515;
+  background: #f7f7f7;
   transform: translateY(-1px);
 }
 
-.agent-case-button--primary {
-  border-color: #171717;
-  background: #171717;
-  color: #ffffff;
-}
-
-.agent-case-hero {
+.agent-showcase-hero {
   display: grid;
-  grid-template-columns: minmax(0, 0.82fr) minmax(640px, 1.08fr);
-  gap: 34px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(620px, 1.06fr);
+  gap: 36px;
   align-items: center;
-  min-height: calc(100dvh - 66px);
-  padding: 42px 28px 56px;
-  border-bottom: 1px solid #ebebeb;
+  min-height: calc(100dvh - 68px);
+  padding: 44px 28px 58px;
+  border-bottom: 1px solid #ececec;
 }
 
-.agent-case-hero__copy {
+.agent-showcase-hero__copy {
   min-width: 0;
 }
 
-.agent-case-eyebrow {
+.agent-showcase-eyebrow {
   margin: 0 0 12px;
-  color: #777777;
-  font-size: 0.76rem;
+  color: #737373;
+  font-size: 0.75rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.agent-case-hero h1,
-.agent-case-section h2,
-.agent-case-flow-copy h2,
-.agent-case-boundary h2 {
+.agent-showcase-hero h1,
+.agent-showcase-section h2,
+.agent-process-section h2,
+.agent-showcase-footer h2 {
   margin: 0;
   letter-spacing: 0;
 }
 
-.agent-case-hero h1 {
-  max-width: 820px;
-  font-size: clamp(3.2rem, 7vw, 7.2rem);
-  line-height: 0.94;
+.agent-showcase-hero h1 {
+  max-width: 780px;
+  font-size: clamp(3.3rem, 6.7vw, 7rem);
+  line-height: 0.95;
 }
 
-.agent-case-hero__lead,
-.agent-case-section__head > p:not(.agent-case-eyebrow),
-.agent-case-flow-copy > p {
-  max-width: 820px;
+.agent-showcase-hero__lead,
+.agent-section-head > p:not(.agent-showcase-eyebrow),
+.agent-showcase-footer > p {
+  max-width: 860px;
   margin: 24px 0 0;
   color: #4f4f4f;
   font-size: 1.04rem;
   line-height: 1.9;
 }
 
-.agent-case-actions {
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 30px;
-}
-
-.agent-case-stats {
+.agent-showcase-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin: 32px 0 0;
+  margin-top: 32px;
 }
 
-.agent-case-stats div {
+.agent-showcase-summary article {
   min-width: 0;
   border: 1px solid #e5e5e5;
-  border-radius: 16px;
-  background: #f8f8f8;
+  border-radius: 14px;
+  background: #fafafa;
   padding: 14px;
 }
 
-.agent-case-stats dt,
-.agent-case-stats dd {
-  margin: 0;
+.agent-showcase-summary strong,
+.agent-showcase-summary span {
+  display: block;
 }
 
-.agent-case-stats dt {
-  color: #171717;
-  font-size: 1.8rem;
-  font-weight: 900;
-  line-height: 1;
+.agent-showcase-summary strong {
+  color: #151515;
+  font-size: 1.4rem;
+  line-height: 1.1;
 }
 
-.agent-case-stats dd {
+.agent-showcase-summary span {
   margin-top: 6px;
-  color: #666666;
+  color: #686868;
   font-size: 0.82rem;
   font-weight: 800;
 }
 
-.agent-case-workbench {
+.agent-workbench-preview {
   min-width: 0;
   overflow: hidden;
   border: 1px solid #dcdcdc;
-  border-radius: 24px;
-  background: #ffffff;
-  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.12);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.12);
 }
 
-.agent-case-workbench__top {
+.agent-window-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
+  min-height: 46px;
   padding: 0 16px;
   border-bottom: 1px solid #ededed;
-  background: #fafafa;
+  background: #f8f8f8;
 }
 
-.agent-case-workbench__top span {
+.agent-window-bar span {
   width: 10px;
   height: 10px;
-  border-radius: 999px;
-  background: #d3d3d3;
+  border-radius: 50%;
+  background: #cfcfcf;
 }
 
-.agent-case-workbench__top strong {
+.agent-window-bar strong {
   margin-left: 8px;
-  color: #444444;
+  color: #3d3d3d;
   font-size: 0.9rem;
 }
 
-.agent-case-workbench__layout {
+.agent-preview-layout {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr) 230px;
-  min-height: 600px;
-  background: #ffffff;
+  min-height: 590px;
 }
 
-.agent-case-workbench__sidebar,
-.agent-case-workbench__chat,
-.agent-case-workbench__files {
+.agent-preview-sessions,
+.agent-preview-chat,
+.agent-preview-files {
   min-width: 0;
   padding: 16px;
 }
 
-.agent-case-workbench__sidebar {
+.agent-preview-sessions {
   display: grid;
   align-content: start;
   gap: 8px;
@@ -579,134 +514,132 @@ const boundaries = [
   background: #f7f7f8;
 }
 
-.agent-case-workbench__sidebar button {
+.agent-preview-sessions button {
   min-height: 40px;
   border: 0;
-  border-radius: 11px;
-  background: #171717;
-  color: #ffffff;
+  border-radius: 10px;
+  background: #151515;
+  color: #fff;
   cursor: default;
   font: inherit;
-  font-weight: 800;
+  font-weight: 900;
 }
 
-.agent-case-workbench__sidebar p,
-.agent-case-workbench__files p {
+.agent-preview-sessions p,
+.agent-preview-files p {
   margin: 12px 0 4px;
-  color: #8a8a8a;
+  color: #828282;
   font-size: 0.74rem;
   font-weight: 900;
 }
 
-.agent-case-workbench__sidebar article {
+.agent-preview-sessions article {
   overflow: hidden;
   min-height: 38px;
   border-radius: 10px;
   padding: 10px;
-  color: #333333;
-  font-size: 0.88rem;
-  font-weight: 700;
+  color: #333;
+  font-size: 0.86rem;
+  font-weight: 750;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-case-workbench__sidebar article.is-active {
+.agent-preview-sessions article.is-active {
   background: #e7e7e7;
 }
 
-.agent-case-workbench__chat {
+.agent-preview-chat {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: #ffffff;
 }
 
-.agent-case-workbench__chat header {
+.agent-preview-chat header {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
   justify-content: flex-end;
+  gap: 8px;
 }
 
-.agent-case-workbench__chat header span {
+.agent-preview-chat header span {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #e6e6e6;
   border-radius: 999px;
-  background: #f7f7f7;
-  color: #555555;
+  background: #f8f8f8;
+  color: #555;
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 850;
   padding: 0 10px;
 }
 
-.agent-case-message {
+.agent-preview-message {
   width: fit-content;
-  max-width: 82%;
-  border: 1px solid #e9e9e9;
-  border-radius: 18px;
+  max-width: 84%;
+  border: 1px solid #e8e8e8;
+  border-radius: 17px;
   background: #f8f8f8;
   color: #2f2f2f;
   padding: 13px 15px;
   line-height: 1.7;
 }
 
-.agent-case-message--user {
+.agent-preview-message--user {
   align-self: flex-end;
-  background: #171717;
-  color: #ffffff;
+  background: #151515;
+  color: #fff;
 }
 
-.agent-case-tool-stack {
+.agent-preview-tools {
   display: grid;
   gap: 10px;
   width: min(100%, 520px);
 }
 
-.agent-case-tool-card {
+.agent-preview-tools article {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
-  border: 1px solid #e7e7e7;
-  border-radius: 16px;
-  background: #ffffff;
+  border: 1px solid #e8e8e8;
+  border-radius: 15px;
+  background: #fff;
   padding: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.04);
 }
 
-.agent-case-tool-card > span {
+.agent-preview-tools article > span {
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 12px;
-  background: #171717;
-  color: #ffffff;
+  border-radius: 11px;
+  background: #151515;
+  color: #fff;
   font-size: 0.78rem;
   font-weight: 900;
 }
 
-.agent-case-tool-card strong,
-.agent-case-tool-card p {
+.agent-preview-tools strong,
+.agent-preview-tools p {
   margin: 0;
 }
 
-.agent-case-tool-card strong {
-  color: #171717;
+.agent-preview-tools strong {
   font-family: Consolas, "SFMono-Regular", Menlo, monospace;
   font-size: 0.92rem;
 }
 
-.agent-case-tool-card p {
+.agent-preview-tools p {
   margin-top: 4px;
-  color: #666666;
+  color: #666;
   font-size: 0.86rem;
   line-height: 1.6;
 }
 
-.agent-case-workbench__files {
+.agent-preview-files {
   display: grid;
   align-content: start;
   gap: 9px;
@@ -714,39 +647,39 @@ const boundaries = [
   background: #fafafa;
 }
 
-.agent-case-workbench__files article {
+.agent-preview-files article {
   display: grid;
-  grid-template-columns: 9px minmax(0, 1fr);
+  grid-template-columns: 8px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   min-height: 34px;
   border-radius: 10px;
-  background: #ffffff;
+  background: #fff;
   padding: 8px;
 }
 
-.agent-case-workbench__files article span {
+.agent-preview-files article span {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
-  background: #171717;
+  border-radius: 50%;
+  background: #151515;
 }
 
-.agent-case-workbench__files article strong {
+.agent-preview-files article strong {
   overflow: hidden;
-  color: #2f2f2f;
+  color: #303030;
   font-size: 0.8rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-case-workbench__files pre {
+.agent-preview-files pre {
   overflow: hidden;
   min-height: 160px;
   margin: 8px 0 0;
   border: 1px solid #ededed;
   border-radius: 14px;
-  background: #ffffff;
+  background: #fff;
   color: #4b5563;
   font-size: 0.76rem;
   line-height: 1.7;
@@ -754,84 +687,147 @@ const boundaries = [
   white-space: pre-wrap;
 }
 
-.agent-case-section,
-.agent-case-flow-section,
-.agent-case-boundary {
+.agent-showcase-section,
+.agent-process-section,
+.agent-showcase-footer {
   padding: 72px 28px;
 }
 
-.agent-case-section__head {
-  max-width: 960px;
+.agent-section-head {
+  max-width: 980px;
 }
 
-.agent-case-section h2,
-.agent-case-flow-copy h2,
-.agent-case-boundary h2 {
-  max-width: 980px;
+.agent-showcase-section h2,
+.agent-process-section h2,
+.agent-showcase-footer h2 {
+  max-width: 1050px;
   font-size: clamp(2rem, 4vw, 4.6rem);
   line-height: 1.06;
 }
 
-.agent-case-architecture,
-.agent-case-matrix,
-.agent-case-tools,
-.agent-case-settings-grid,
-.agent-case-boundary__grid {
+.agent-capability-grid,
+.agent-system-board,
+.agent-tool-grid {
   display: grid;
   gap: 14px;
   margin-top: 34px;
 }
 
-.agent-case-architecture {
+.agent-capability-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.agent-case-architecture article,
-.agent-case-matrix article,
-.agent-case-tools article,
-.agent-case-settings-grid article,
-.agent-case-boundary__grid article {
+.agent-capability-grid article,
+.agent-system-board article,
+.agent-tool-grid article {
   border: 1px solid #e8e8e8;
-  border-radius: 20px;
+  border-radius: 18px;
   background: #fafafa;
   padding: 20px;
 }
 
-.agent-case-architecture article {
+.agent-capability-grid article {
   display: grid;
   align-content: start;
   gap: 14px;
-  min-height: 360px;
+  min-height: 245px;
 }
 
-.agent-case-architecture article > span,
-.agent-case-matrix span {
-  color: #777777;
-  font-size: 0.76rem;
+.agent-capability-grid span,
+.agent-system-board small {
+  color: #777;
+  font-size: 0.75rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.agent-case-architecture h3,
-.agent-case-matrix h3,
-.agent-case-settings-grid strong,
-.agent-case-boundary__grid strong {
+.agent-capability-grid h3,
+.agent-system-board h3 {
   margin: 0;
-  color: #171717;
+  color: #151515;
+  font-size: 1.18rem;
 }
 
-.agent-case-architecture p,
-.agent-case-matrix p,
-.agent-case-tools p,
-.agent-case-settings-grid p,
-.agent-case-boundary__grid p {
+.agent-capability-grid p,
+.agent-system-board p,
+.agent-tool-grid p {
   margin: 0;
   color: #5f5f5f;
   line-height: 1.75;
 }
 
-.agent-case-architecture ul {
+.agent-process-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(440px, 0.66fr);
+  gap: 38px;
+  align-items: start;
+  border-top: 1px solid #ededed;
+  border-bottom: 1px solid #ededed;
+  background: #151515;
+  color: #fff;
+}
+
+.agent-section-head--dark .agent-showcase-eyebrow,
+.agent-section-head--dark > p:not(.agent-showcase-eyebrow) {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.agent-process-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-process-list li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 18px;
+}
+
+.agent-process-list li > span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #fff;
+  color: #151515;
+  font-weight: 900;
+}
+
+.agent-process-list strong {
+  color: #fff;
+}
+
+.agent-process-list p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.75;
+}
+
+.agent-showcase-section--systems {
+  border-bottom: 1px solid #ededed;
+}
+
+.agent-system-board {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.agent-system-board article {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 340px;
+}
+
+.agent-system-board ul {
   display: grid;
   gap: 8px;
   margin: 0;
@@ -839,7 +835,7 @@ const boundaries = [
   list-style: none;
 }
 
-.agent-case-architecture li {
+.agent-system-board li {
   position: relative;
   padding-left: 16px;
   color: #3f3f3f;
@@ -847,222 +843,125 @@ const boundaries = [
   line-height: 1.55;
 }
 
-.agent-case-architecture li::before {
+.agent-system-board li::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0.68em;
   width: 6px;
   height: 6px;
-  border-radius: 999px;
-  background: #171717;
+  border-radius: 50%;
+  background: #151515;
 }
 
-.agent-case-flow-section {
-  display: grid;
-  grid-template-columns: minmax(0, 0.74fr) minmax(440px, 0.62fr);
-  gap: 38px;
-  align-items: start;
-  border-top: 1px solid #ededed;
-  border-bottom: 1px solid #ededed;
-  background: #171717;
-  color: #ffffff;
-}
-
-.agent-case-flow-section .agent-case-eyebrow,
-.agent-case-flow-copy > p {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.agent-case-flow {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.agent-case-flow li {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 18px;
-}
-
-.agent-case-flow li > span {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #171717;
-  font-weight: 900;
-}
-
-.agent-case-flow strong {
-  color: #ffffff;
-}
-
-.agent-case-flow p {
-  margin: 8px 0 0;
-  color: rgba(255, 255, 255, 0.72);
-  line-height: 1.75;
-}
-
-.agent-case-matrix {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.agent-case-matrix article {
-  display: grid;
-  gap: 18px;
-  min-height: 200px;
-}
-
-.agent-case-matrix article > div {
-  display: grid;
-  gap: 8px;
-}
-
-.agent-case-tools {
+.agent-tool-grid {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
-.agent-case-tools article {
+.agent-tool-grid article {
   display: grid;
+  align-content: start;
   gap: 12px;
-  min-height: 170px;
+  min-height: 168px;
 }
 
-.agent-case-tools code {
+.agent-tool-grid code {
   width: fit-content;
   border: 1px solid #d9d9d9;
   border-radius: 999px;
-  background: #ffffff;
-  color: #171717;
+  background: #fff;
+  color: #151515;
   font-size: 0.78rem;
   font-weight: 900;
   padding: 7px 10px;
 }
 
-.agent-case-section--settings {
-  border-top: 1px solid #ededed;
-}
-
-.agent-case-settings-grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-}
-
-.agent-case-settings-grid article {
+.agent-showcase-footer {
   display: grid;
-  gap: 10px;
-  min-height: 170px;
-}
-
-.agent-case-boundary {
-  display: grid;
-  grid-template-columns: minmax(0, 0.74fr) minmax(520px, 0.82fr);
+  grid-template-columns: minmax(0, 0.72fr) minmax(440px, 0.7fr);
   gap: 38px;
   align-items: start;
   border-top: 1px solid #ededed;
 }
 
-.agent-case-boundary__grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.agent-showcase-footer > p {
   margin-top: 0;
 }
 
-.agent-case-boundary__grid article {
-  display: grid;
-  gap: 10px;
-  min-height: 170px;
-}
-
 @media (max-width: 1380px) {
-  .agent-case-hero {
+  .agent-showcase-hero {
     grid-template-columns: 1fr;
   }
 
-  .agent-case-architecture {
+  .agent-capability-grid,
+  .agent-system-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .agent-case-tools,
-  .agent-case-settings-grid {
+  .agent-tool-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1060px) {
-  .agent-case-workbench__layout {
+  .agent-preview-layout {
     grid-template-columns: 170px minmax(0, 1fr);
   }
 
-  .agent-case-workbench__files {
+  .agent-preview-files {
     display: none;
   }
 
-  .agent-case-flow-section,
-  .agent-case-boundary {
+  .agent-process-section,
+  .agent-showcase-footer {
     grid-template-columns: 1fr;
-  }
-
-  .agent-case-matrix {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 760px) {
-  .agent-case-topbar {
+  .agent-showcase-topbar {
     align-items: stretch;
     flex-direction: column;
     padding: 14px 16px;
   }
 
-  .agent-case-nav {
+  .agent-showcase-nav {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
   }
 
-  .agent-case-hero,
-  .agent-case-section,
-  .agent-case-flow-section,
-  .agent-case-boundary {
+  .agent-showcase-hero,
+  .agent-showcase-section,
+  .agent-process-section,
+  .agent-showcase-footer {
     padding: 42px 16px;
   }
 
-  .agent-case-hero h1 {
+  .agent-showcase-hero h1 {
     font-size: 3rem;
   }
 
-  .agent-case-stats,
-  .agent-case-architecture,
-  .agent-case-matrix,
-  .agent-case-tools,
-  .agent-case-settings-grid,
-  .agent-case-boundary__grid {
+  .agent-showcase-summary,
+  .agent-capability-grid,
+  .agent-system-board,
+  .agent-tool-grid {
     grid-template-columns: 1fr;
   }
 
-  .agent-case-workbench__layout {
+  .agent-preview-layout {
     grid-template-columns: 1fr;
     min-height: auto;
   }
 
-  .agent-case-workbench__sidebar {
+  .agent-preview-sessions {
     border-right: 0;
     border-bottom: 1px solid #ededed;
   }
 
-  .agent-case-architecture article,
-  .agent-case-matrix article,
-  .agent-case-tools article,
-  .agent-case-settings-grid article,
-  .agent-case-boundary__grid article {
+  .agent-capability-grid article,
+  .agent-system-board article,
+  .agent-tool-grid article {
     min-height: auto;
   }
 }
