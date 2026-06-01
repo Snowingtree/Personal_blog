@@ -10,9 +10,9 @@
       </RouterLink>
 
       <nav class="agent-intro-nav" aria-label="页面导航">
-        <a href="#capabilities">能力</a>
-        <a href="#workflow">流程</a>
-        <a href="#architecture">架构</a>
+        <a href="#capabilities" @click.prevent="scrollToSection('capabilities')">能力</a>
+        <a href="#workflow" @click.prevent="scrollToSection('workflow')">流程</a>
+        <a href="#architecture" @click.prevent="scrollToSection('architecture')">架构</a>
         <RouterLink class="agent-intro-nav__home" to="/">返回主页</RouterLink>
       </nav>
     </header>
@@ -108,7 +108,7 @@
       </aside>
     </section>
 
-    <section class="agent-intro-proof">
+    <section v-reveal class="agent-intro-proof agent-reveal">
       <p>从自然语言目标到工作区变更，任务过程可以被看见、被检查、被继续。</p>
       <div>
         <span>会话隔离</span>
@@ -119,7 +119,7 @@
       </div>
     </section>
 
-    <section id="capabilities" class="agent-intro-section agent-intro-section--capabilities">
+    <section id="capabilities" v-reveal class="agent-intro-section agent-intro-section--capabilities agent-reveal">
       <div class="agent-intro-section__head">
         <p class="agent-intro-kicker">WHAT IT DOES</p>
         <h2>不是聊天壳，而是一套任务工作台</h2>
@@ -140,7 +140,7 @@
       </div>
     </section>
 
-    <section id="workflow" class="agent-intro-section agent-intro-section--workflow">
+    <section id="workflow" v-reveal class="agent-intro-section agent-intro-section--workflow agent-reveal">
       <div class="agent-intro-section__head agent-intro-section__head--dark">
         <p class="agent-intro-kicker">TASK FLOW</p>
         <h2>一次任务如何落地</h2>
@@ -160,7 +160,7 @@
       </ol>
     </section>
 
-    <section class="agent-intro-section agent-intro-section--context">
+    <section v-reveal class="agent-intro-section agent-intro-section--context agent-reveal">
       <div class="agent-intro-section__head">
         <p class="agent-intro-kicker">CONTEXT LAYER</p>
         <h2>按任务组合上下文能力</h2>
@@ -178,7 +178,7 @@
       </div>
     </section>
 
-    <section id="architecture" class="agent-intro-section agent-intro-section--architecture">
+    <section id="architecture" v-reveal class="agent-intro-section agent-intro-section--architecture agent-reveal">
       <div class="agent-intro-section__head">
         <p class="agent-intro-kicker">SYSTEM DESIGN</p>
         <h2>前端工作台与独立 Agent API</h2>
@@ -200,7 +200,7 @@
       </div>
     </section>
 
-    <section class="agent-intro-section agent-intro-section--tools">
+    <section v-reveal class="agent-intro-section agent-intro-section--tools agent-reveal">
       <div class="agent-intro-section__head">
         <p class="agent-intro-kicker">BUILT-IN TOOLS</p>
         <h2>内置工具负责把判断变成动作</h2>
@@ -217,7 +217,7 @@
       </div>
     </section>
 
-    <section class="agent-intro-observability">
+    <section v-reveal class="agent-intro-observability agent-reveal">
       <div>
         <p class="agent-intro-kicker">OBSERVABILITY</p>
         <h2>过程可追踪，结果可复盘</h2>
@@ -230,7 +230,7 @@
       </div>
     </section>
 
-    <footer class="agent-intro-footer">
+    <footer v-reveal class="agent-intro-footer agent-reveal">
       <div>
         <span class="agent-intro-brand__mark">AI</span>
         <strong>Agent Workspace</strong>
@@ -244,7 +244,74 @@
 </template>
 
 <script setup>
+import { onBeforeUnmount, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+
+const SCROLL_SNAP_CLASS = 'agent-intro-scroll-snap'
+
+onMounted(() => {
+  document.documentElement.classList.add(SCROLL_SNAP_CLASS)
+})
+
+onBeforeUnmount(() => {
+  document.documentElement.classList.remove(SCROLL_SNAP_CLASS)
+})
+
+function scrollToSection(sectionId) {
+  const target = document.getElementById(sectionId)
+
+  if (!target) {
+    return
+  }
+
+  const topbarHeight = document.querySelector('.agent-intro-topbar')?.offsetHeight || 0
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  let targetTop = 0
+  let currentElement = target
+
+  while (currentElement) {
+    targetTop += currentElement.offsetTop
+    currentElement = currentElement.offsetParent
+  }
+
+  window.history.replaceState(null, '', `#${sectionId}`)
+  window.scrollTo({
+    top: Math.max(0, targetTop - topbarHeight - 12),
+    behavior: prefersReducedMotion ? 'auto' : 'smooth'
+  })
+}
+
+const vReveal = {
+  mounted(element) {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (prefersReducedMotion || !('IntersectionObserver' in window)) {
+      element.classList.add('is-revealed')
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) {
+          return
+        }
+
+        element.classList.add('is-revealed')
+        observer.disconnect()
+      },
+      {
+        rootMargin: '0px 0px -4% 0px',
+        threshold: 0.1
+      }
+    )
+
+    observer.observe(element)
+    element.__agentRevealObserver = observer
+  },
+  unmounted(element) {
+    element.__agentRevealObserver?.disconnect()
+  }
+}
 
 const heroFacts = [
   { value: '6', label: '内置工作区工具' },
@@ -412,6 +479,12 @@ const observability = [
 </script>
 
 <style scoped>
+:global(html.agent-intro-scroll-snap) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+  scroll-snap-type: y proximity;
+}
+
 .agent-intro-page {
   --ink: #15171a;
   --copy: #50545b;
@@ -420,9 +493,29 @@ const observability = [
   --soft: #f6f7f8;
   min-height: 100dvh;
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
   background: #fff;
   color: var(--ink);
+}
+
+.agent-intro-hero,
+.agent-intro-section,
+.agent-intro-observability {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.agent-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 620ms ease,
+    transform 720ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.agent-reveal.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .agent-intro-topbar {
@@ -540,14 +633,20 @@ const observability = [
 .agent-intro-hero h1 {
   max-width: 720px;
   margin: 16px 0 0;
+  animation: agent-hero-rise 720ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
   font-size: clamp(4rem, 6.5vw, 7.2rem);
   letter-spacing: 0;
   line-height: 0.97;
 }
 
+.agent-intro-hero .agent-intro-kicker {
+  animation: agent-hero-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .agent-intro-hero__lead {
   max-width: 710px;
   margin: 26px 0 0;
+  animation: agent-hero-rise 720ms 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   color: var(--copy);
   font-size: 1.08rem;
   line-height: 1.9;
@@ -562,6 +661,7 @@ const observability = [
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--line);
+  animation: agent-hero-rise 720ms 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .agent-intro-hero__facts article {
@@ -593,6 +693,7 @@ const observability = [
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 26px 76px rgba(25, 28, 34, 0.13);
+  animation: agent-workbench-enter 820ms 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .agent-workbench__bar {
@@ -614,6 +715,7 @@ const observability = [
   color: #4c6958;
   font-size: 0.72rem;
   font-weight: 900;
+  animation: agent-soft-pulse 2.4s ease-in-out infinite;
 }
 
 .agent-workbench__dots {
@@ -626,6 +728,15 @@ const observability = [
   height: 9px;
   border-radius: 50%;
   background: #d2d5d9;
+  animation: agent-dot-wave 2.4s ease-in-out infinite;
+}
+
+.agent-workbench__dots span:nth-child(2) {
+  animation-delay: 180ms;
+}
+
+.agent-workbench__dots span:nth-child(3) {
+  animation-delay: 360ms;
 }
 
 .agent-workbench__body {
@@ -686,6 +797,7 @@ const observability = [
 
 .agent-workbench__sessions article.is-active span {
   background: var(--ink);
+  animation: agent-active-dot 1.8s ease-in-out infinite;
 }
 
 .agent-workbench__sessions article strong {
@@ -724,6 +836,7 @@ const observability = [
   font-size: 0.66rem;
   font-weight: 900;
   padding: 5px 8px;
+  animation: agent-streaming 2.2s ease-in-out infinite;
 }
 
 .agent-preview-message {
@@ -758,6 +871,15 @@ const observability = [
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px;
+  animation: agent-timeline-enter 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.agent-preview-timeline article:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.agent-preview-timeline article:nth-child(3) {
+  animation-delay: 280ms;
 }
 
 .agent-preview-timeline__step {
@@ -903,6 +1025,60 @@ const observability = [
   min-height: 270px;
   background: #fff;
   padding: 24px;
+}
+
+.agent-capability-grid article,
+.agent-context-board article,
+.agent-architecture article,
+.agent-tool-list article,
+.agent-observability-grid article,
+.agent-flow-list li {
+  transition:
+    opacity 520ms ease,
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.agent-reveal:not(.is-revealed) .agent-capability-grid article,
+.agent-reveal:not(.is-revealed) .agent-context-board article,
+.agent-reveal:not(.is-revealed) .agent-architecture article,
+.agent-reveal:not(.is-revealed) .agent-tool-list article,
+.agent-reveal:not(.is-revealed) .agent-observability-grid article,
+.agent-reveal:not(.is-revealed) .agent-flow-list li {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.agent-reveal.is-revealed .agent-capability-grid article,
+.agent-reveal.is-revealed .agent-context-board article,
+.agent-reveal.is-revealed .agent-architecture article,
+.agent-reveal.is-revealed .agent-tool-list article,
+.agent-reveal.is-revealed .agent-observability-grid article,
+.agent-reveal.is-revealed .agent-flow-list li {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.agent-reveal.is-revealed article:nth-child(2) {
+  transition-delay: 70ms;
+}
+
+.agent-reveal.is-revealed article:nth-child(3) {
+  transition-delay: 140ms;
+}
+
+.agent-reveal.is-revealed article:nth-child(4) {
+  transition-delay: 210ms;
+}
+
+.agent-reveal.is-revealed article:nth-child(5) {
+  transition-delay: 280ms;
+}
+
+.agent-reveal.is-revealed article:nth-child(6) {
+  transition-delay: 350ms;
 }
 
 .agent-capability-grid span,
@@ -1163,6 +1339,106 @@ const observability = [
   border-color: #d7d9dd;
 }
 
+@media (hover: hover) {
+  .agent-capability-grid article:hover,
+  .agent-context-board article:hover,
+  .agent-tool-list article:hover,
+  .agent-observability-grid article:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 16px 36px rgba(26, 29, 34, 0.08);
+  }
+
+  .agent-capability-grid article:hover,
+  .agent-tool-list article:hover,
+  .agent-observability-grid article:hover {
+    background: #fbfbfc;
+  }
+}
+
+@keyframes agent-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes agent-workbench-enter {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes agent-timeline-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes agent-dot-wave {
+  0%,
+  100% {
+    opacity: 0.46;
+    transform: scale(0.86);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes agent-active-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(21, 23, 26, 0.24);
+  }
+
+  50% {
+    box-shadow: 0 0 0 4px rgba(21, 23, 26, 0);
+  }
+}
+
+@keyframes agent-streaming {
+  0%,
+  100% {
+    border-color: #d8e1dc;
+    background: #f2f7f4;
+  }
+
+  50% {
+    border-color: #b9cfc3;
+    background: #e8f2ed;
+  }
+}
+
+@keyframes agent-soft-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 1420px) {
   .agent-intro-hero {
     grid-template-columns: 1fr;
@@ -1302,6 +1578,21 @@ const observability = [
   .agent-capability-grid article,
   .agent-context-board article {
     min-height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html.agent-intro-scroll-snap) {
+    scroll-behavior: auto;
+  }
+
+  .agent-intro-page *,
+  .agent-intro-page *::before,
+  .agent-intro-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>
