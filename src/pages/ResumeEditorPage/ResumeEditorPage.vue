@@ -2489,8 +2489,9 @@ onMounted(() => {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(17, 20, 26, 0.48);
-  backdrop-filter: blur(8px);
+  background: rgba(17, 20, 26, 0.4);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .resume-module-dialog__panel {

@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="resume-module-dialog">
-      <div v-if="open && section" class="resume-module-dialog" @click.self="closeDialog">
+      <div v-if="open && section" class="resume-module-dialog">
         <section class="resume-module-dialog__panel" role="dialog" aria-modal="true">
           <header class="resume-module-dialog__head">
             <div>
