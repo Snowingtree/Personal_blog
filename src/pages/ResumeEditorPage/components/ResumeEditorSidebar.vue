@@ -100,10 +100,20 @@
         <button type="button" class="editor-btn" @click="$emit('add-experience')">实习</button>
       </div>
     </section>
+
+    <RouterLink class="resume-sidebar-home-link" to="/">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M15 18l-6-6 6-6" />
+        <path d="M9 12h10" />
+      </svg>
+      <span>返回主页</span>
+    </RouterLink>
   </aside>
 </template>
 
 <script setup>
+import { RouterLink } from 'vue-router'
+
 const props = defineProps({
   activeBlock: {
     type: Object,

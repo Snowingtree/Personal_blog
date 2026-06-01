@@ -1,9 +1,9 @@
 <template>
   <header class="resume-editor-toolbar">
-    <a class="resume-editor-brand" href="/">
+    <div class="resume-editor-brand">
       <span class="resume-editor-brand__mark">CV</span>
       <span>在线简历编辑</span>
-    </a>
+    </div>
 
     <div class="resume-editor-toolbar__center">
       <button type="button" class="editor-btn" :disabled="!canUndo" @click="$emit('undo')">

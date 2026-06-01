@@ -1782,6 +1782,46 @@ onMounted(() => {
   overflow-y: auto;
 }
 
+.resume-sidebar-home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 44px;
+  margin-top: auto;
+  border: 1px solid var(--editor-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--editor-ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.resume-sidebar-home-link svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.resume-sidebar-home-link:hover {
+  border-color: rgba(23, 26, 32, 0.24);
+  background: #171a20;
+  box-shadow: 0 12px 24px rgba(23, 26, 32, 0.1);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
 .editor-panel {
   border: 1px solid var(--editor-line);
   border-radius: 16px;
