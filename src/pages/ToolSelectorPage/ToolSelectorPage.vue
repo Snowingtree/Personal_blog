@@ -1,5 +1,9 @@
 <template>
-  <main v-if="privateAppAvailable" class="tool-selector-page">
+  <main
+    v-if="privateAppAvailable"
+    class="tool-selector-page"
+    :class="{ 'tool-selector-page--leaving': openingOptionKey }"
+  >
     <header class="tool-selector-topbar" aria-label="工具入口操作">
       <button type="button" class="tool-selector-logout" aria-label="退出登录" title="退出登录" @click="handleLogout">
         <span aria-hidden="true"></span>
@@ -16,9 +20,17 @@
         v-for="option in toolOptions"
         :key="option.key"
         class="poker-card"
-        :class="[`poker-card--${option.key}`, { 'poker-card--pending': option.pending }]"
+        :class="[
+          `poker-card--${option.key}`,
+          {
+            'poker-card--pending': option.pending,
+            'poker-card--opening': openingOptionKey === option.key,
+            'poker-card--receding': openingOptionKey && openingOptionKey !== option.key
+          }
+        ]"
         :to="option.to || undefined"
         :aria-disabled="option.pending ? 'true' : undefined"
+        @click="handleOptionClick($event, option)"
       >
         <span class="poker-card__corner poker-card__corner--top">
           <span>{{ option.rank }}</span>
@@ -44,7 +56,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import {
@@ -60,6 +72,8 @@ import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const TOOL_SELECTOR_BACKGROUND_CLASS = 'is-tool-selector-page'
+const openingOptionKey = ref('')
+let navigationTimer = 0
 
 const toolOptions = [
   {
@@ -109,6 +123,24 @@ function handleLogout() {
   router.push('/notes-login')
 }
 
+function handleOptionClick(event, option) {
+  if (!option.to || option.pending || openingOptionKey.value) {
+    event.preventDefault()
+    return
+  }
+
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return
+  }
+
+  event.preventDefault()
+  openingOptionKey.value = option.key
+  navigationTimer = window.setTimeout(() => {
+    navigationTimer = 0
+    router.push(option.to)
+  }, 280)
+}
+
 function syncToolSelectorBackground(enabled) {
   if (typeof document === 'undefined') {
     return
@@ -123,6 +155,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (navigationTimer) {
+    window.clearTimeout(navigationTimer)
+  }
+
   syncToolSelectorBackground(false)
 })
 </script>
@@ -146,6 +182,9 @@ onBeforeUnmount(() => {
   min-height: 64px;
   margin-bottom: 44px;
   padding: 12px 0;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
 }
 
 .tool-selector-logout {
@@ -253,7 +292,34 @@ onBeforeUnmount(() => {
   transition:
     transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 280ms ease,
-    border-color 280ms ease;
+    border-color 280ms ease,
+    opacity 220ms ease;
+}
+
+.tool-selector-page--leaving .tool-selector-topbar {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.tool-selector-page--leaving .tool-selector-table {
+  pointer-events: none;
+}
+
+.poker-card--opening,
+.poker-card--opening:hover,
+.poker-card--opening:focus-visible {
+  z-index: 2;
+  border-color: rgba(31, 41, 51, 0.24);
+  box-shadow:
+    0 42px 78px rgba(15, 23, 32, 0.22),
+    inset 0 0 0 8px #ffffff,
+    inset 0 0 0 10px rgba(31, 41, 51, 0.1);
+  transform: translate3d(0, -22px, 0) rotate(var(--card-hover-rotate)) scale(1.055);
+}
+
+.poker-card--receding {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0) rotate(var(--card-rotate)) scale(0.965);
 }
 
 .poker-card--tools {
@@ -393,6 +459,13 @@ onBeforeUnmount(() => {
 @media (min-width: 981px) and (max-width: 1160px) {
   .tool-selector-table {
     grid-template-columns: repeat(2, minmax(260px, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-selector-topbar,
+  .poker-card {
+    transition-duration: 1ms;
   }
 }
 </style>
