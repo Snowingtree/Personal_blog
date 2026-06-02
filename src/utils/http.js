@@ -17,6 +17,7 @@ const PRIVATE_ROUTE_PREFIXES = [
   '/login',
   '/display',
   '/internship',
+  '/thoughts',
   '/tools',
   '/notes',
   '/notes-login',

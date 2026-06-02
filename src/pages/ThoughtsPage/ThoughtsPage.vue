@@ -1,16 +1,5 @@
 <template>
   <main v-if="privateAppAvailable" class="thoughts-page">
-    <header class="thoughts-topbar">
-      <div class="thoughts-topbar__brand">
-        <span aria-hidden="true">10♠</span>
-        <div>
-          <h1>碎碎念</h1>
-          <p>记录日常、灵感和没有必要展开的小事</p>
-        </div>
-      </div>
-      <button type="button" class="thoughts-back" @click="handleBackToTools">返回</button>
-    </header>
-
     <div class="thoughts-layout">
       <aside class="thoughts-profile">
         <div class="thoughts-profile__cover"></div>
@@ -24,51 +13,12 @@
               <dd>{{ posts.length }}</dd>
             </div>
             <div>
-              <dt>获赞</dt>
-              <dd>{{ totalLikes }}</dd>
-            </div>
-            <div>
               <dt>评论</dt>
               <dd>{{ totalComments }}</dd>
             </div>
           </dl>
         </div>
-      </aside>
-
-      <section class="thoughts-stream" aria-label="碎碎念动态">
-        <ThoughtComposer @publish="publishPost" @notice="notify" />
-
-        <nav class="thoughts-tabs" aria-label="动态筛选">
-          <button type="button" :class="{ 'is-active': activeFilter === 'all' }" @click="activeFilter = 'all'">
-            全部动态
-          </button>
-          <button type="button" :class="{ 'is-active': activeFilter === 'liked' }" @click="activeFilter = 'liked'">
-            我的点赞
-          </button>
-        </nav>
-
-        <div class="thoughts-feed">
-          <ThoughtFeedItem
-            v-for="post in filteredPosts"
-            :key="post.id"
-            :post="post"
-            :time-label="formatRelativeTime(post.createdAt)"
-            @toggle-like="togglePostLike(post.id)"
-            @add-comment="addPostComment(post.id, $event)"
-            @remove-comment="removePostComment(post.id, $event)"
-            @remove="removePost(post.id)"
-            @preview-image="previewImage = $event"
-          />
-
-          <section v-if="!filteredPosts.length" class="thoughts-empty">
-            <strong>{{ activeFilter === 'liked' ? '还没有点赞的动态' : '暂时没有碎碎念' }}</strong>
-            <p>{{ activeFilter === 'liked' ? '点赞后的动态会集中显示在这里。' : '在上方写下第一条动态。' }}</p>
-          </section>
-        </div>
-      </section>
-
-      <aside class="thoughts-archive">
-        <section>
+        <section class="thoughts-profile__archive">
           <h2>动态归档</h2>
           <ol>
             <li v-for="archive in archives" :key="archive.label">
@@ -77,11 +27,32 @@
             </li>
           </ol>
         </section>
-        <section>
-          <h2>记录方式</h2>
-          <p>短句、图片和随手评论都会保存在当前浏览器中。</p>
-        </section>
+        <button type="button" class="thoughts-back" @click="handleBackToTools">返回</button>
       </aside>
+
+      <section class="thoughts-stream" aria-label="碎碎念动态">
+        <ThoughtComposer :publishing="isPublishing" @publish="publishPost" @notice="notify" />
+
+        <div class="thoughts-feed">
+          <ThoughtFeedItem
+            v-for="post in posts"
+            :key="post.id"
+            :post="post"
+            :time-label="formatRelativeTime(post.createdAt)"
+            @add-comment="addPostComment(post.id, $event)"
+            @remove-comment="removePostComment(post.id, $event)"
+            @remove="removePost(post.id)"
+            @preview-image="previewImage = $event"
+          />
+
+          <section v-if="isLoadingPosts || !posts.length" class="thoughts-empty">
+            <strong>{{ emptyState.title }}</strong>
+            <p>{{ emptyState.description }}</p>
+          </section>
+        </div>
+
+        <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
+      </section>
     </div>
 
     <Transition name="thought-preview">
@@ -102,26 +73,34 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createMessage } from 'snowingress-my-components'
 import { useRouter } from 'vue-router'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
-import { THOUGHTS_POSTS_KEY } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
+import http from '../../utils/http'
 import ThoughtComposer from './components/ThoughtComposer/ThoughtComposer.vue'
 import ThoughtFeedItem from './components/ThoughtFeedItem/ThoughtFeedItem.vue'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const THOUGHTS_BACKGROUND_CLASS = 'is-thoughts-page'
-const activeFilter = ref('all')
+const LEGACY_THOUGHTS_POSTS_KEY = 'vibe-coding-thoughts-posts'
 const previewImage = ref('')
-const posts = ref(readStoredPosts())
+const posts = ref([])
+const isLoadingPosts = ref(false)
+const isPublishing = ref(false)
 
-const filteredPosts = computed(() => (
-  activeFilter.value === 'liked'
-    ? posts.value.filter((post) => post.liked)
-    : posts.value
-))
-
-const totalLikes = computed(() => posts.value.reduce((sum, post) => sum + post.likeCount, 0))
 const totalComments = computed(() => posts.value.reduce((sum, post) => sum + post.comments.length, 0))
+const emptyState = computed(() => {
+  if (isLoadingPosts.value) {
+    return {
+      title: '正在读取动态',
+      description: '正在从数据库同步碎碎念。'
+    }
+  }
+
+  return {
+    title: '暂时没有碎碎念',
+    description: '在上方写下第一条动态。'
+  }
+})
 const archives = computed(() => {
   const archiveMap = new Map()
 
@@ -134,9 +113,14 @@ const archives = computed(() => {
   return [...archiveMap.entries()].map(([label, count]) => ({ label, count }))
 })
 
-watch(posts, persistPosts, { deep: true })
+watch(privateAppAvailable, (available) => {
+  if (available) {
+    loadPosts()
+  }
+}, { immediate: true })
 
 onMounted(() => {
+  removeLegacyStoredPosts()
   syncThoughtsBackground(true)
 })
 
@@ -148,22 +132,6 @@ function createId() {
   return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function createInitialPosts() {
-  return [
-    {
-      id: createId(),
-      author: 'Liu An',
-      authorInitials: 'LA',
-      content: '碎碎念页面开始搭建。这里适合放一些不需要写成长文章，但以后可能会想再翻看的记录。',
-      images: [],
-      liked: false,
-      likeCount: 0,
-      comments: [],
-      createdAt: new Date().toISOString()
-    }
-  ]
 }
 
 function normalizeImages(images) {
@@ -215,110 +183,139 @@ function normalizePost(post) {
     authorInitials: typeof post.authorInitials === 'string' ? post.authorInitials : 'LA',
     content: post.content,
     images: normalizeImages(post.images),
-    liked: Boolean(post.liked),
-    likeCount: Number.isFinite(post.likeCount) ? Math.max(0, post.likeCount) : 0,
     comments: normalizeComments(post.comments),
     createdAt: typeof post.createdAt === 'string' ? post.createdAt : new Date().toISOString()
   }
 }
 
-function readStoredPosts() {
-  const storedValue = localStorage.getItem(THOUGHTS_POSTS_KEY)
-
-  if (!storedValue) {
-    return createInitialPosts()
+async function loadPosts() {
+  if (isLoadingPosts.value) {
+    return
   }
 
+  isLoadingPosts.value = true
+
   try {
-    const parsedValue = JSON.parse(storedValue)
+    const data = await http.get('/api/thoughts/posts')
+    posts.value = Array.isArray(data.posts)
+      ? data.posts.reduce((validPosts, post) => {
+          const normalizedPost = normalizePost(post)
 
-    if (Array.isArray(parsedValue)) {
-      return parsedValue.reduce((validPosts, post) => {
-        const normalizedPost = normalizePost(post)
+          if (normalizedPost) {
+            validPosts.push(normalizedPost)
+          }
 
-        if (normalizedPost) {
-          validPosts.push(normalizedPost)
-        }
-
-        return validPosts
-      }, [])
-    }
-  } catch {
-    localStorage.removeItem(THOUGHTS_POSTS_KEY)
-  }
-
-  return createInitialPosts()
-}
-
-function persistPosts(nextPosts) {
-  try {
-    localStorage.setItem(THOUGHTS_POSTS_KEY, JSON.stringify(nextPosts))
-  } catch {
-    notify('浏览器存储空间不足，请减少单条动态中的图片大小', 'danger')
+          return validPosts
+        }, [])
+      : []
+  } catch (error) {
+    notify(getErrorMessage(error, '动态读取失败'), 'danger')
+  } finally {
+    isLoadingPosts.value = false
   }
 }
 
-function publishPost(payload) {
-  posts.value = [
-    {
-      id: createId(),
-      author: 'Liu An',
-      authorInitials: 'LA',
+function createPostUpdateBody(post, overrides = {}) {
+  return {
+    content: post.content,
+    comments: post.comments,
+    ...overrides
+  }
+}
+
+function replacePost(nextPost) {
+  const normalizedPost = normalizePost(nextPost)
+
+  if (!normalizedPost) {
+    return
+  }
+
+  posts.value = posts.value.map((post) => (
+    post.id === normalizedPost.id ? normalizedPost : post
+  ))
+}
+
+async function publishPost(payload) {
+  if (isPublishing.value) {
+    return
+  }
+
+  isPublishing.value = true
+
+  try {
+    const data = await http.post('/api/thoughts/posts', {
       content: payload.content,
-      images: payload.images,
-      liked: false,
-      likeCount: 0,
-      comments: [],
-      createdAt: new Date().toISOString()
-    },
-    ...posts.value
-  ]
-  activeFilter.value = 'all'
-  notify('发布成功')
+      images: payload.images
+    })
+    const post = normalizePost(data.post)
+
+    if (post) {
+      posts.value = [post, ...posts.value]
+    }
+
+    payload.reset?.()
+    notify('发布成功')
+  } catch (error) {
+    notify(getErrorMessage(error, '发布失败'), 'danger')
+  } finally {
+    isPublishing.value = false
+  }
 }
 
-function togglePostLike(postId) {
-  posts.value = posts.value.map((post) => (
-    post.id === postId
-      ? {
-          ...post,
-          liked: !post.liked,
-          likeCount: Math.max(0, post.likeCount + (post.liked ? -1 : 1))
+async function addPostComment(postId, content) {
+  const post = posts.value.find((item) => item.id === postId)
+
+  if (!post) {
+    return
+  }
+
+  try {
+    const data = await http.put(`/api/thoughts/posts/${encodeURIComponent(postId)}`, createPostUpdateBody(post, {
+      comments: [
+        ...post.comments,
+        {
+          id: createId(),
+          author: 'Liu An',
+          content,
+          createdAt: new Date().toISOString()
         }
-      : post
-  ))
+      ]
+    }))
+    replacePost(data.post)
+  } catch (error) {
+    notify(getErrorMessage(error, '评论保存失败'), 'danger')
+  }
 }
 
-function addPostComment(postId, content) {
-  posts.value = posts.value.map((post) => (
-    post.id === postId
-      ? {
-          ...post,
-          comments: [
-            ...post.comments,
-            {
-              id: createId(),
-              author: 'Liu An',
-              content,
-              createdAt: new Date().toISOString()
-            }
-          ]
-        }
-      : post
-  ))
+async function removePostComment(postId, commentId) {
+  const post = posts.value.find((item) => item.id === postId)
+
+  if (!post) {
+    return
+  }
+
+  try {
+    const data = await http.put(`/api/thoughts/posts/${encodeURIComponent(postId)}`, createPostUpdateBody(post, {
+      comments: post.comments.filter((comment) => comment.id !== commentId)
+    }))
+    replacePost(data.post)
+  } catch (error) {
+    notify(getErrorMessage(error, '评论删除失败'), 'danger')
+  }
 }
 
-function removePostComment(postId, commentId) {
-  posts.value = posts.value.map((post) => (
-    post.id === postId
-      ? { ...post, comments: post.comments.filter((comment) => comment.id !== commentId) }
-      : post
-  ))
+async function removePost(postId) {
+  try {
+    await http.delete(`/api/thoughts/posts/${encodeURIComponent(postId)}`)
+    posts.value = posts.value.filter((post) => post.id !== postId)
+    notify('动态已删除')
+  } catch (error) {
+    notify(getErrorMessage(error, '动态删除失败'), 'danger')
+  }
 }
 
-function removePost(postId) {
-  posts.value = posts.value.filter((post) => post.id !== postId)
-  notify('动态已删除')
+function getErrorMessage(error, fallbackMessage) {
+  return error instanceof Error && error.message ? error.message : fallbackMessage
 }
 
 function formatRelativeTime(value) {
@@ -355,6 +352,14 @@ function syncThoughtsBackground(enabled) {
   document.body.classList.toggle(THOUGHTS_BACKGROUND_CLASS, enabled)
 }
 
+function removeLegacyStoredPosts() {
+  try {
+    localStorage.removeItem(LEGACY_THOUGHTS_POSTS_KEY)
+  } catch {
+    // The page can still use the API when browser storage is unavailable.
+  }
+}
+
 function handleBackToTools() {
   router.push('/tools')
 }
@@ -368,61 +373,14 @@ function handleBackToTools() {
   color: #273142;
 }
 
-.thoughts-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  min-height: 72px;
-  border-bottom: 1px solid #e2e5e9;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 11px max(18px, calc((100vw - 1180px) / 2));
-}
-
-.thoughts-topbar__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.thoughts-topbar__brand > span {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 8px;
-  background: #253246;
-  color: #ffffff;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.thoughts-topbar h1,
-.thoughts-topbar p,
 .thoughts-profile h2,
 .thoughts-profile p,
-.thoughts-profile dl,
-.thoughts-archive h2,
-.thoughts-archive p {
+.thoughts-profile dl {
   margin: 0;
 }
 
-.thoughts-topbar h1 {
-  color: #253246;
-  font-size: 1.04rem;
-}
-
-.thoughts-topbar p {
-  margin-top: 2px;
-  color: #9299a4;
-  font-size: 0.76rem;
-}
-
-.thoughts-back {
+.thoughts-back,
+.thoughts-mobile-back {
   border: 1px solid #dfe3e8;
   border-radius: 5px;
   background: #ffffff;
@@ -433,24 +391,33 @@ function handleBackToTools() {
   padding: 9px 15px;
 }
 
-.thoughts-back:hover {
+.thoughts-back:hover,
+.thoughts-mobile-back:hover {
   background: #f5f6f8;
+}
+
+.thoughts-back {
+  width: calc(100% - 30px);
+  margin: 0 15px 15px;
+}
+
+.thoughts-mobile-back {
+  display: none;
 }
 
 .thoughts-layout {
   display: grid;
   width: min(1180px, calc(100% - 36px));
-  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
   margin: 0 auto;
   padding: 22px 0 48px;
 }
 
-.thoughts-profile,
-.thoughts-archive {
+.thoughts-profile {
   position: sticky;
-  top: 94px;
+  top: 22px;
 }
 
 .thoughts-profile {
@@ -499,7 +466,7 @@ function handleBackToTools() {
 
 .thoughts-profile dl {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   margin-top: 16px;
   border-top: 1px solid #edf0f2;
   padding-top: 12px;
@@ -518,46 +485,47 @@ function handleBackToTools() {
   font-weight: 800;
 }
 
+.thoughts-profile__archive {
+  margin: 0 15px 15px;
+  border-top: 1px solid #edf0f2;
+  padding-top: 14px;
+}
+
+.thoughts-profile__archive h2 {
+  margin: 0;
+  color: #3d4a5f;
+  font-size: 0.88rem;
+}
+
+.thoughts-profile__archive ol {
+  display: grid;
+  gap: 10px;
+  margin: 13px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thoughts-profile__archive li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #7c8490;
+  font-size: 0.76rem;
+}
+
+.thoughts-profile__archive strong {
+  color: #4f5f75;
+}
+
 .thoughts-stream {
   min-width: 0;
-}
-
-.thoughts-tabs {
-  display: flex;
-  gap: 20px;
-  margin-top: 18px;
-  border-bottom: 1px solid #dfe3e8;
-}
-
-.thoughts-tabs button {
-  position: relative;
-  border: 0;
-  background: transparent;
-  color: #8b929d;
-  cursor: pointer;
-  font-size: 0.84rem;
-  font-weight: 700;
-  padding: 0 2px 11px;
-}
-
-.thoughts-tabs button.is-active {
-  color: #34435a;
-}
-
-.thoughts-tabs button.is-active::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  background: #34435a;
 }
 
 .thoughts-feed {
   display: grid;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 18px;
 }
 
 .thoughts-empty {
@@ -576,51 +544,6 @@ function handleBackToTools() {
   margin: 7px 0 0;
   color: #a0a6af;
   font-size: 0.8rem;
-}
-
-.thoughts-archive {
-  display: grid;
-  gap: 12px;
-}
-
-.thoughts-archive section {
-  border: 1px solid #e2e5e9;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 15px;
-}
-
-.thoughts-archive h2 {
-  color: #3d4a5f;
-  font-size: 0.88rem;
-}
-
-.thoughts-archive ol {
-  display: grid;
-  gap: 10px;
-  margin: 13px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.thoughts-archive li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #7c8490;
-  font-size: 0.76rem;
-}
-
-.thoughts-archive strong {
-  color: #4f5f75;
-}
-
-.thoughts-archive p {
-  margin-top: 9px;
-  color: #9199a4;
-  font-size: 0.76rem;
-  line-height: 1.7;
 }
 
 .thoughts-preview {
@@ -662,7 +585,7 @@ function handleBackToTools() {
 
 @media (max-width: 980px) {
   .thoughts-layout {
-    grid-template-columns: minmax(0, 1fr) 210px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .thoughts-profile {
@@ -671,33 +594,17 @@ function handleBackToTools() {
 }
 
 @media (max-width: 720px) {
-  .thoughts-topbar {
-    min-height: 64px;
-    padding: 10px 14px;
-  }
-
-  .thoughts-topbar p {
-    display: none;
-  }
-
-  .thoughts-topbar__brand > span {
-    width: 40px;
-    height: 40px;
-  }
-
   .thoughts-layout {
     width: min(100% - 20px, 680px);
     grid-template-columns: 1fr;
     padding-top: 12px;
   }
 
-  .thoughts-archive {
-    position: static;
-    grid-row: 2;
+  .thoughts-mobile-back {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
   }
 
-  .thoughts-archive section:last-child {
-    display: none;
-  }
 }
 </style>

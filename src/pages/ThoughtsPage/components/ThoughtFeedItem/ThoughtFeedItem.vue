@@ -28,12 +28,6 @@
     </div>
 
     <footer class="thought-feed-item__actions">
-      <button type="button" :class="{ 'is-active': post.liked }" @click="$emit('toggle-like')">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M7 10v10H4V10h3Zm4-1 3-5c1.2.2 2 1.2 2 2.4V9h4l-1 11H9V9h2Z" />
-        </svg>
-        <span>{{ post.likeCount ? `${post.likeCount} 赞` : '赞' }}</span>
-      </button>
       <button type="button" @click="focusCommentInput">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 5h14v10H9l-4 4V5Z" />
@@ -57,7 +51,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 
 const props = defineProps({
   post: {
@@ -70,7 +64,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['toggle-like', 'add-comment', 'remove-comment', 'remove', 'preview-image'])
+const emit = defineEmits(['add-comment', 'remove-comment', 'remove', 'preview-image'])
 const commentDraft = ref('')
 const commentInput = ref(null)
 
@@ -227,14 +221,6 @@ function submitComment() {
   cursor: pointer;
   font-size: 0.78rem;
   padding: 3px 0;
-}
-
-.thought-feed-item__actions button.is-active {
-  color: #d2574b;
-}
-
-.thought-feed-item__actions button.is-active svg {
-  fill: rgba(210, 87, 75, 0.14);
 }
 
 .thought-feed-item__comments {

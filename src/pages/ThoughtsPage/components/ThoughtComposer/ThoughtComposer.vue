@@ -56,7 +56,9 @@
 
       <div class="thought-composer__publish">
         <span>{{ content.length }}/500</span>
-        <button type="button" :disabled="!canPublish" @click="publish">发布</button>
+        <button type="button" :disabled="!canPublish || publishing" @click="publish">
+          {{ publishing ? '保存中' : '发布' }}
+        </button>
       </div>
     </footer>
   </section>
@@ -66,6 +68,12 @@
 import { computed, ref } from 'vue'
 
 const emit = defineEmits(['publish', 'notice'])
+defineProps({
+  publishing: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const MAX_IMAGES = 4
 const MAX_IMAGE_SIZE = 1.4 * 1024 * 1024
@@ -153,9 +161,12 @@ function publish() {
 
   emit('publish', {
     content: content.value.trim(),
-    images: images.value.map((image) => ({ ...image }))
+    images: images.value.map((image) => ({ ...image })),
+    reset
   })
+}
 
+function reset() {
   content.value = ''
   images.value = []
 }

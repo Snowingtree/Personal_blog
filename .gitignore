@@ -2,6 +2,7 @@ node_modules
 dist
 .DS_Store
 .tmp_xiao_tu_xian_build
+data/thought-images/
 .env
 .env.local
 .env.*.local

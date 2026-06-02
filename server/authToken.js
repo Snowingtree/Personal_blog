@@ -210,13 +210,18 @@ export function verifyAuthRefreshToken(token, env = process.env) {
 export function createProtectedApiMiddleware(env = process.env) {
   return (req, res, next) => {
     const requestPath = req.url || ''
+    const isSignedThoughtsImageRequest = requestPath.startsWith('/api/thoughts/images/')
 
     if (
-      !requestPath.startsWith('/api/anime')
-      && !requestPath.startsWith('/api/notes')
-      && !requestPath.startsWith('/api/ai')
-      && !requestPath.startsWith('/api/agent')
-      && !requestPath.startsWith('/api/internship')
+      (
+        !requestPath.startsWith('/api/anime')
+        && !requestPath.startsWith('/api/notes')
+        && !requestPath.startsWith('/api/ai')
+        && !requestPath.startsWith('/api/agent')
+        && !requestPath.startsWith('/api/internship')
+        && !requestPath.startsWith('/api/thoughts')
+      )
+      || isSignedThoughtsImageRequest
     ) {
       next()
       return
