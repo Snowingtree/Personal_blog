@@ -12,6 +12,7 @@ const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPag
 const AgentIntroPage = () => import('../pages/AgentIntroPage/AgentIntroPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
 const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
+const ThoughtsPage = () => import('../pages/ThoughtsPage/ThoughtsPage.vue')
 import {
   AUTH_KEY,
   AUTH_REFRESH_TOKEN_KEY,
@@ -118,6 +119,17 @@ const router = createRouter({
       path: '/internship',
       name: 'internship',
       component: InternshipPage,
+      meta: {
+        followSiteTheme: false,
+        privateNetworkOnly: true,
+        requiresAuth: true,
+        authScope: 'tools'
+      }
+    },
+    {
+      path: '/thoughts',
+      name: 'thoughts',
+      component: ThoughtsPage,
       meta: {
         followSiteTheme: false,
         privateNetworkOnly: true,

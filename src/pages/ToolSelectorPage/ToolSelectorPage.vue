@@ -11,12 +11,14 @@
     </header>
 
     <section class="tool-selector-table" aria-label="选择入口">
-      <RouterLink
+      <component
+        :is="option.to ? RouterLink : 'article'"
         v-for="option in toolOptions"
         :key="option.key"
         class="poker-card"
-        :class="`poker-card--${option.key}`"
-        :to="option.to"
+        :class="[`poker-card--${option.key}`, { 'poker-card--pending': option.pending }]"
+        :to="option.to || undefined"
+        :aria-disabled="option.pending ? 'true' : undefined"
       >
         <span class="poker-card__corner poker-card__corner--top">
           <span>{{ option.rank }}</span>
@@ -26,14 +28,13 @@
         <span class="poker-card__center">
           <span class="poker-card__suit">{{ option.suit }}</span>
           <span class="poker-card__title">{{ option.title }}</span>
-          <span class="poker-card__action">{{ option.actionLabel }}</span>
         </span>
 
         <span class="poker-card__corner poker-card__corner--bottom">
           <span>{{ option.rank }}</span>
           <span>{{ option.suit }}</span>
         </span>
-      </RouterLink>
+      </component>
     </section>
   </main>
 
@@ -66,7 +67,6 @@ const toolOptions = [
     rank: 'A',
     suit: '\u2660',
     title: '\u5DE5\u5177',
-    actionLabel: '\u6253\u5F00\u5DE5\u5177',
     to: '/notes'
   },
   {
@@ -74,7 +74,6 @@ const toolOptions = [
     rank: 'K',
     suit: '\u2665',
     title: '\u52A8\u6F2B',
-    actionLabel: '\u6253\u5F00\u52A8\u6F2B',
     to: '/display'
   },
   {
@@ -82,7 +81,6 @@ const toolOptions = [
     rank: 'Q',
     suit: '\u2666',
     title: '\u5B9E\u4E60',
-    actionLabel: '\u8BB0\u5F55\u5B9E\u4E60',
     to: '/internship'
   },
   {
@@ -90,8 +88,14 @@ const toolOptions = [
     rank: 'J',
     suit: '\u2663',
     title: '\u8003\u516C',
-    actionLabel: '\u5373\u5C06\u5F00\u653E',
-    to: '/tools'
+    pending: true
+  },
+  {
+    key: 'thoughts',
+    rank: '10',
+    suit: '\u2660',
+    title: '\u788E\u788E\u5FF5',
+    to: '/thoughts'
   }
 ]
 
@@ -131,6 +135,8 @@ onBeforeUnmount(() => {
   padding: 28px max(16px, calc((100vw - 1280px) / 2)) 52px;
   color: #1f2933;
   background: #ffffff;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .tool-selector-topbar {
@@ -214,7 +220,7 @@ onBeforeUnmount(() => {
 
 .tool-selector-table {
   display: grid;
-  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
   gap: clamp(18px, 3vw, 38px);
   align-items: center;
   justify-items: center;
@@ -274,6 +280,23 @@ onBeforeUnmount(() => {
   --card-hover-rotate: 0.75deg;
 }
 
+.poker-card--thoughts {
+  --card-accent: #1f2933;
+  --card-rotate: -2deg;
+  --card-hover-rotate: -0.5deg;
+}
+
+.poker-card--pending {
+  --card-accent: #a7adb5;
+  border-color: rgba(107, 114, 128, 0.1);
+  background: linear-gradient(135deg, rgba(252, 252, 252, 0.9), rgba(246, 247, 248, 0.86));
+  box-shadow:
+    0 18px 36px rgba(15, 23, 32, 0.08),
+    inset 0 0 0 8px rgba(255, 255, 255, 0.88),
+    inset 0 0 0 10px rgba(107, 114, 128, 0.06);
+  cursor: default;
+}
+
 .poker-card:hover,
 .poker-card:focus-visible {
   transform: translate3d(0, -14px, 0) rotate(var(--card-hover-rotate)) scale(1.025);
@@ -282,6 +305,15 @@ onBeforeUnmount(() => {
     0 36px 70px rgba(15, 23, 32, 0.2),
     inset 0 0 0 8px #ffffff,
     inset 0 0 0 10px rgba(31, 41, 51, 0.1);
+}
+
+.poker-card--pending:hover {
+  transform: translate3d(0, -6px, 0) rotate(var(--card-hover-rotate)) scale(1.008);
+  border-color: rgba(107, 114, 128, 0.14);
+  box-shadow:
+    0 22px 42px rgba(15, 23, 32, 0.1),
+    inset 0 0 0 8px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 10px rgba(107, 114, 128, 0.07);
 }
 
 .poker-card:focus-visible {
@@ -330,18 +362,6 @@ onBeforeUnmount(() => {
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 800;
   letter-spacing: 0;
-}
-
-.poker-card__action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 9px 14px;
-  color: #ffffff;
-  background: var(--card-accent);
-  font-size: 0.92rem;
-  font-weight: 700;
 }
 
 @media (max-width: 760px) {

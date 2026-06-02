@@ -3,10 +3,7 @@
   line-height: 1.5;
   font-weight: 400;
   color: #12344e;
-  background:
-    radial-gradient(circle at top left, rgba(215, 242, 255, 0.95), transparent 28%),
-    radial-gradient(circle at top right, rgba(131, 209, 255, 0.55), transparent 24%),
-    linear-gradient(180deg, #dff5ff 0%, #bfe7ff 50%, #98d7ff 100%);
+  background: #ffffff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -21,9 +18,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(227, 247, 255, 0.95), transparent 30%),
-    linear-gradient(180deg, #dff5ff 0%, #c3ebff 48%, #98d7ff 100%);
+  background: #ffffff;
 }
 
 html.is-tool-selector-page,
@@ -36,6 +31,12 @@ html.is-internship-page,
 html.is-internship-page body,
 html.is-internship-page #app {
   background: #f7f8fa;
+}
+
+html.is-thoughts-page,
+html.is-thoughts-page body,
+html.is-thoughts-page #app {
+  background: #f4f5f7;
 }
 
 button,
