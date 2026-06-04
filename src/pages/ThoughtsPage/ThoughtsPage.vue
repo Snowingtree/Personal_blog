@@ -191,12 +191,17 @@
       <button
         type="button"
         class="thoughts-create-button"
-        aria-label="添加碎碎念"
-        title="添加碎碎念"
-        @click="openComposerDialog"
+        :class="{ 'thoughts-create-button--showcase': !isFeedView }"
+        :aria-label="isFeedView ? '添加碎碎念' : '返回动态展示'"
+        :title="isFeedView ? '添加碎碎念' : '返回动态展示'"
+        @click="handlePrimaryAction"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
+        <svg v-if="isFeedView" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 5v14M5 12h14" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 5h16v14H4V5Z" />
+          <path d="M8 9h8M8 13h5" />
         </svg>
       </button>
       <button
@@ -316,6 +321,7 @@ const isRestoringPost = ref(false)
 
 const isManagingPosts = computed(() => activeThoughtsView.value === 'manager')
 const isTrashOpen = computed(() => activeThoughtsView.value === 'trash')
+const isFeedView = computed(() => activeThoughtsView.value === 'feed')
 const totalComments = computed(() => posts.value.reduce((sum, post) => sum + post.comments.length, 0))
 const totalImages = computed(() => posts.value.reduce((sum, post) => sum + post.images.length, 0))
 const trashTotalComments = computed(() => trashPosts.value.reduce((sum, post) => sum + post.comments.length, 0))
@@ -590,6 +596,15 @@ function openRemovePostDialog(postId, mode = 'soft') {
 
 function openComposerDialog() {
   isComposerOpen.value = true
+}
+
+function handlePrimaryAction() {
+  if (isFeedView.value) {
+    openComposerDialog()
+    return
+  }
+
+  activeThoughtsView.value = 'feed'
 }
 
 function toggleManagementView() {
