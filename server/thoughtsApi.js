@@ -235,7 +235,8 @@ function normalizePostPayload(body, existingPayload = null) {
     authorInitials: 'LA',
     content,
     images,
-    comments: normalizeComments(body?.comments)
+    comments: normalizeComments(body?.comments),
+    deletedAt: existingPayload?.deletedAt || ''
   }
 }
 
@@ -262,7 +263,8 @@ function mapPostForResponse(post, env) {
       src: createImageUrl(image, env)
     })),
     createdAt: post.createdAt,
-    updatedAt: post.updatedAt
+    updatedAt: post.updatedAt,
+    deletedAt: post.payload.deletedAt || ''
   }
 }
 
@@ -274,7 +276,8 @@ function parseStoredPayload(value, env) {
     authorInitials: 'LA',
     content: typeof payload?.content === 'string' ? payload.content : '',
     images: normalizeStoredImages(payload?.images),
-    comments: normalizeComments(payload?.comments)
+    comments: normalizeComments(payload?.comments),
+    deletedAt: payload?.deletedAt ? normalizeIsoDateTime(payload.deletedAt, '') : ''
   }
 }
 
@@ -341,7 +344,7 @@ function createMysqlStorage(env) {
   return {
     mode: 'mysql',
     table: config.table,
-    async listPosts() {
+    async listPosts(options = {}) {
       return withConnection(async (connection) => {
         const [rows] = await connection.query(
           `SELECT post_id, payload_cipher, created_at, updated_at
@@ -349,7 +352,21 @@ function createMysqlStorage(env) {
            ORDER BY created_at DESC`
         )
 
-        return rows.map(mapRowToPost)
+        return rows
+          .map(mapRowToPost)
+          .filter((post) => {
+            const isDeleted = Boolean(post.payload.deletedAt)
+
+            if (options.onlyDeleted) {
+              return isDeleted
+            }
+
+            if (options.includeDeleted) {
+              return true
+            }
+
+            return !isDeleted
+          })
       })
     },
     async getPost(postId) {
@@ -424,6 +441,18 @@ function createMysqlStorage(env) {
 
         return Number(result?.affectedRows || 0) > 0
       })
+    },
+    async softDeletePost(postId, payload) {
+      return this.updatePost(postId, {
+        ...payload,
+        deletedAt: new Date().toISOString()
+      })
+    },
+    async restorePost(postId, payload) {
+      return this.updatePost(postId, {
+        ...payload,
+        deletedAt: ''
+      })
     }
   }
 }
@@ -480,19 +509,55 @@ export function createThoughtsApiMiddleware(env = process.env) {
         return
       }
 
+      const restoreMatch = requestUrl.pathname.match(
+        /^\/api\/thoughts\/posts\/([A-Za-z0-9_-]{1,64})\/restore$/
+      )
       const postMatch = requestUrl.pathname.match(
         /^\/api\/thoughts\/posts(?:\/([A-Za-z0-9_-]{1,64}))?$/
       )
 
-      if (!postMatch) {
+      if (!postMatch && !restoreMatch) {
         writeJson(res, 404, { message: 'Not found' })
         return
       }
 
-      const postId = postMatch[1] || ''
+      if (restoreMatch) {
+        if (req.method !== 'POST') {
+          writeJson(res, 405, { message: 'Method not allowed' })
+          return
+        }
+
+        const restorePostId = restoreMatch[1]
+        const existingPost = await storage.getPost(restorePostId)
+
+        if (!existingPost) {
+          writeJson(res, 404, { message: 'Thought not found.' })
+          return
+        }
+
+        const post = await storage.restorePost(restorePostId, existingPost.payload)
+
+        if (!post) {
+          writeJson(res, 404, { message: 'Thought not found.' })
+          return
+        }
+
+        writeJson(res, 200, {
+          post: mapPostForResponse({
+            ...post,
+            createdAt: existingPost.createdAt
+          }, env),
+          source: storage.mode
+        })
+        return
+      }
+
+      const postId = postMatch?.[1] || ''
 
       if (req.method === 'GET' && !postId) {
-        const posts = await storage.listPosts()
+        const posts = await storage.listPosts({
+          onlyDeleted: requestUrl.searchParams.get('view') === 'trash'
+        })
         writeJson(res, 200, {
           posts: posts.map((post) => mapPostForResponse(post, env)),
           source: storage.mode,
@@ -554,10 +619,22 @@ export function createThoughtsApiMiddleware(env = process.env) {
           return
         }
 
-        await storage.deletePost(postId)
-        await imageStorage.deleteImages(existingPost.payload.images)
+        if (requestUrl.searchParams.get('force') === 'true') {
+          await storage.deletePost(postId)
+          await imageStorage.deleteImages(existingPost.payload.images)
+          writeJson(res, 200, {
+            ok: true,
+            deleted: true,
+            source: storage.mode
+          })
+          return
+        }
+
+        await storage.softDeletePost(postId, existingPost.payload)
         writeJson(res, 200, {
           ok: true,
+          deleted: false,
+          movedToTrash: true,
           source: storage.mode
         })
         return

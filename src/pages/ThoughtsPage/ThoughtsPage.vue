@@ -35,7 +35,7 @@
       </div>
 
       <Transition name="thought-view" mode="out-in">
-        <section v-if="!isManagingPosts" key="feed" class="thoughts-stream" aria-label="碎碎念动态">
+        <section v-if="activeThoughtsView === 'feed'" key="feed" class="thoughts-stream" aria-label="碎碎念动态">
           <div class="thoughts-feed">
             <ThoughtFeedItem
               v-for="post in posts"
@@ -57,7 +57,7 @@
           <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
         </section>
 
-        <section v-else key="manager" class="thoughts-stream thoughts-manager" aria-label="动态管理">
+        <section v-else-if="isManagingPosts" key="manager" class="thoughts-stream thoughts-manager" aria-label="动态管理">
           <header class="thoughts-manager__head">
             <div>
               <p>THOUGHTS MANAGER</p>
@@ -113,6 +113,77 @@
 
           <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
         </section>
+
+        <section v-else key="trash" class="thoughts-stream thoughts-manager thoughts-trash" aria-label="回收站">
+          <header class="thoughts-manager__head">
+            <div>
+              <p>RECYCLE BIN</p>
+              <h1>回收站</h1>
+            </div>
+          </header>
+
+          <dl class="thoughts-manager__summary">
+            <div>
+              <dt>回收站</dt>
+              <dd>{{ trashPosts.length }}</dd>
+            </div>
+            <div>
+              <dt>图片</dt>
+              <dd>{{ trashTotalImages }}</dd>
+            </div>
+            <div>
+              <dt>评论</dt>
+              <dd>{{ trashTotalComments }}</dd>
+            </div>
+          </dl>
+
+          <section class="thoughts-manager__list" aria-label="回收站动态列表">
+            <header>
+              <strong>已删除动态</strong>
+              <span>{{ trashPosts.length }} 条记录</span>
+            </header>
+
+            <ol v-if="trashPosts.length">
+              <li v-for="(post, index) in trashPosts" :key="post.id">
+                <span class="thoughts-manager__index">{{ String(index + 1).padStart(2, '0') }}</span>
+                <div class="thoughts-manager__content">
+                  <time :datetime="post.deletedAt || post.updatedAt">
+                    {{ post.deletedAt ? `删除于 ${formatManagementTime(post.deletedAt)}` : formatManagementTime(post.updatedAt) }}
+                  </time>
+                  <p>{{ getPostExcerpt(post.content) }}</p>
+                  <small>{{ post.images.length }} 张图片 · {{ post.comments.length }} 条评论</small>
+                </div>
+                <div class="thoughts-manager__actions">
+                  <button
+                    type="button"
+                    class="thoughts-manager__restore"
+                    :disabled="isRestoringPost"
+                    @click="restorePost(post.id)"
+                  >
+                    恢复
+                  </button>
+                  <button
+                    type="button"
+                    class="thoughts-manager__remove"
+                    aria-label="彻底删除动态"
+                    title="彻底删除动态"
+                    @click="openRemovePostDialog(post.id, 'force')"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+                    </svg>
+                  </button>
+                </div>
+              </li>
+            </ol>
+
+            <div v-else class="thoughts-manager__empty">
+              {{ isLoadingTrash ? '正在读取回收站...' : '回收站为空' }}
+            </div>
+          </section>
+
+          <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
+        </section>
       </Transition>
     </div>
 
@@ -142,6 +213,19 @@
           <circle cx="15" cy="7" r="2" />
           <circle cx="9" cy="12" r="2" />
           <circle cx="15" cy="17" r="2" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="thoughts-trash-button"
+        :class="{ 'is-active': isTrashOpen }"
+        :aria-pressed="isTrashOpen"
+        aria-label="回收站"
+        title="回收站"
+        @click="toggleTrashView"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
         </svg>
       </button>
     </div>
@@ -183,14 +267,14 @@
     <Transition name="thought-dialog">
       <div v-if="removingPostId" class="thoughts-dialog-mask" @click.self="closeRemovePostDialog">
         <section class="thoughts-dialog" role="dialog" aria-modal="true" aria-labelledby="thoughts-remove-title">
-          <h2 id="thoughts-remove-title">删除动态</h2>
-          <p>确认删除这条碎碎念吗？删除后无法恢复。</p>
+          <h2 id="thoughts-remove-title">{{ removeDialogCopy.title }}</h2>
+          <p>{{ removeDialogCopy.description }}</p>
           <footer>
             <button type="button" class="thoughts-dialog__cancel" :disabled="isRemovingPost" @click="closeRemovePostDialog">
               取消
             </button>
             <button type="button" class="thoughts-dialog__confirm" :disabled="isRemovingPost" @click="confirmRemovePost">
-              {{ isRemovingPost ? '删除中' : '删除' }}
+              {{ isRemovingPost ? removeDialogCopy.pendingText : removeDialogCopy.confirmText }}
             </button>
           </footer>
         </section>
@@ -219,15 +303,40 @@ const THOUGHTS_BACKGROUND_CLASS = 'is-thoughts-page'
 const LEGACY_THOUGHTS_POSTS_KEY = 'vibe-coding-thoughts-posts'
 const previewImage = ref('')
 const isComposerOpen = ref(false)
-const isManagingPosts = ref(false)
+const activeThoughtsView = ref('feed')
 const removingPostId = ref('')
+const removingPostMode = ref('soft')
 const posts = ref([])
+const trashPosts = ref([])
 const isLoadingPosts = ref(false)
+const isLoadingTrash = ref(false)
 const isPublishing = ref(false)
 const isRemovingPost = ref(false)
+const isRestoringPost = ref(false)
 
+const isManagingPosts = computed(() => activeThoughtsView.value === 'manager')
+const isTrashOpen = computed(() => activeThoughtsView.value === 'trash')
 const totalComments = computed(() => posts.value.reduce((sum, post) => sum + post.comments.length, 0))
 const totalImages = computed(() => posts.value.reduce((sum, post) => sum + post.images.length, 0))
+const trashTotalComments = computed(() => trashPosts.value.reduce((sum, post) => sum + post.comments.length, 0))
+const trashTotalImages = computed(() => trashPosts.value.reduce((sum, post) => sum + post.images.length, 0))
+const removeDialogCopy = computed(() => {
+  if (removingPostMode.value === 'force') {
+    return {
+      title: '彻底删除动态',
+      description: '确认彻底删除这条碎碎念吗？数据库记录和图片文件都会被删除，删除后无法恢复。',
+      confirmText: '彻底删除',
+      pendingText: '删除中'
+    }
+  }
+
+  return {
+    title: '移入回收站',
+    description: '确认把这条碎碎念移入回收站吗？之后可以在回收站里恢复或彻底删除。',
+    confirmText: '移入',
+    pendingText: '移动中'
+  }
+})
 const emptyState = computed(() => {
   if (isLoadingPosts.value) {
     return {
@@ -324,7 +433,9 @@ function normalizePost(post) {
     content: post.content,
     images: normalizeImages(post.images),
     comments: normalizeComments(post.comments),
-    createdAt: typeof post.createdAt === 'string' ? post.createdAt : new Date().toISOString()
+    createdAt: typeof post.createdAt === 'string' ? post.createdAt : new Date().toISOString(),
+    updatedAt: typeof post.updatedAt === 'string' ? post.updatedAt : new Date().toISOString(),
+    deletedAt: typeof post.deletedAt === 'string' ? post.deletedAt : ''
   }
 }
 
@@ -352,6 +463,33 @@ async function loadPosts() {
     notify(getErrorMessage(error, '动态读取失败'), 'danger')
   } finally {
     isLoadingPosts.value = false
+  }
+}
+
+async function loadTrashPosts() {
+  if (isLoadingTrash.value) {
+    return
+  }
+
+  isLoadingTrash.value = true
+
+  try {
+    const data = await http.get('/api/thoughts/posts?view=trash')
+    trashPosts.value = Array.isArray(data.posts)
+      ? data.posts.reduce((validPosts, post) => {
+          const normalizedPost = normalizePost(post)
+
+          if (normalizedPost) {
+            validPosts.push(normalizedPost)
+          }
+
+          return validPosts
+        }, [])
+      : []
+  } catch (error) {
+    notify(getErrorMessage(error, '回收站读取失败'), 'danger')
+  } finally {
+    isLoadingTrash.value = false
   }
 }
 
@@ -445,8 +583,9 @@ async function removePostComment(postId, commentId) {
   }
 }
 
-function openRemovePostDialog(postId) {
+function openRemovePostDialog(postId, mode = 'soft') {
   removingPostId.value = postId
+  removingPostMode.value = mode
 }
 
 function openComposerDialog() {
@@ -454,7 +593,15 @@ function openComposerDialog() {
 }
 
 function toggleManagementView() {
-  isManagingPosts.value = !isManagingPosts.value
+  activeThoughtsView.value = isManagingPosts.value ? 'feed' : 'manager'
+}
+
+function toggleTrashView() {
+  activeThoughtsView.value = isTrashOpen.value ? 'feed' : 'trash'
+
+  if (isTrashOpen.value) {
+    loadTrashPosts()
+  }
 }
 
 function closeComposerDialog() {
@@ -466,6 +613,32 @@ function closeComposerDialog() {
 function closeRemovePostDialog() {
   if (!isRemovingPost.value) {
     removingPostId.value = ''
+    removingPostMode.value = 'soft'
+  }
+}
+
+async function restorePost(postId) {
+  if (!postId || isRestoringPost.value) {
+    return
+  }
+
+  isRestoringPost.value = true
+
+  try {
+    const data = await http.post(`/api/thoughts/posts/${encodeURIComponent(postId)}/restore`)
+    const restoredPost = normalizePost(data.post)
+
+    trashPosts.value = trashPosts.value.filter((post) => post.id !== postId)
+
+    if (restoredPost) {
+      posts.value = [restoredPost, ...posts.value.filter((post) => post.id !== postId)]
+    }
+
+    notify('动态已恢复')
+  } catch (error) {
+    notify(getErrorMessage(error, '动态恢复失败'), 'danger')
+  } finally {
+    isRestoringPost.value = false
   }
 }
 
@@ -479,10 +652,20 @@ async function confirmRemovePost() {
   isRemovingPost.value = true
 
   try {
-    await http.delete(`/api/thoughts/posts/${encodeURIComponent(postId)}`)
-    posts.value = posts.value.filter((post) => post.id !== postId)
+    const isForceDelete = removingPostMode.value === 'force'
+    await http.delete(`/api/thoughts/posts/${encodeURIComponent(postId)}${isForceDelete ? '?force=true' : ''}`)
+
+    if (isForceDelete) {
+      trashPosts.value = trashPosts.value.filter((post) => post.id !== postId)
+      notify('动态已彻底删除')
+    } else {
+      posts.value = posts.value.filter((post) => post.id !== postId)
+      loadTrashPosts()
+      notify('动态已移入回收站')
+    }
+
     removingPostId.value = ''
-    notify('动态已删除')
+    removingPostMode.value = 'soft'
   } catch (error) {
     notify(getErrorMessage(error, '动态删除失败'), 'danger')
   } finally {
@@ -885,6 +1068,34 @@ function handleBackToTools() {
   white-space: nowrap;
 }
 
+.thoughts-manager__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.thoughts-manager__restore {
+  border: 1px solid #dce1e7;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #526073;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 7px 10px;
+}
+
+.thoughts-manager__restore:hover {
+  border-color: #b9c2cf;
+  background: #f5f6f8;
+}
+
+.thoughts-manager__restore:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .thoughts-manager__remove {
   display: grid;
   width: 32px;
@@ -943,7 +1154,8 @@ function handleBackToTools() {
 }
 
 .thoughts-create-button,
-.thoughts-manage-button {
+.thoughts-manage-button,
+.thoughts-trash-button {
   display: grid;
   width: 54px;
   height: 54px;
@@ -971,7 +1183,8 @@ function handleBackToTools() {
   transform: scale(1.06);
 }
 
-.thoughts-manage-button {
+.thoughts-manage-button,
+.thoughts-trash-button {
   border: 1px solid #dce1e7;
   background: #ffffff;
   box-shadow: 0 10px 22px rgba(37, 50, 70, 0.12);
@@ -979,7 +1192,9 @@ function handleBackToTools() {
 }
 
 .thoughts-manage-button:hover,
-.thoughts-manage-button.is-active {
+.thoughts-manage-button.is-active,
+.thoughts-trash-button:hover,
+.thoughts-trash-button.is-active {
   border-color: #253246;
   background: #253246;
   color: #ffffff;
@@ -987,7 +1202,8 @@ function handleBackToTools() {
 }
 
 .thoughts-create-button svg,
-.thoughts-manage-button svg {
+.thoughts-manage-button svg,
+.thoughts-trash-button svg {
   width: 23px;
   height: 23px;
   fill: none;
@@ -1224,14 +1440,17 @@ function handleBackToTools() {
   }
 
   .thoughts-create-button,
-  .thoughts-manage-button {
+  .thoughts-manage-button,
+  .thoughts-trash-button {
     width: 50px;
     height: 50px;
   }
 
   .thoughts-create-button:hover,
   .thoughts-manage-button:hover,
-  .thoughts-manage-button.is-active {
+  .thoughts-manage-button.is-active,
+  .thoughts-trash-button:hover,
+  .thoughts-trash-button.is-active {
     transform: scale(1.06);
   }
 
