@@ -39,6 +39,11 @@ html.is-thoughts-page #app {
   background: #f4f5f7;
 }
 
+html.is-thoughts-page {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 button,
 input,
 textarea {
