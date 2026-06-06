@@ -54,6 +54,19 @@
           <span>图片</span>
         </button>
         <span>{{ images.length }}/{{ MAX_IMAGES }}</span>
+        <button
+          type="button"
+          class="thought-composer__image-button thought-composer__tag-button"
+          aria-label="选择标签"
+          title="选择标签"
+          @click="openTagPicker"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6v5.2c0 .6.2 1.1.6 1.5l6.7 6.7c.8.8 2 .8 2.8 0l5.3-5.3c.8-.8.8-2 0-2.8L12.7 4.6c-.4-.4-.9-.6-1.5-.6H6c-1.1 0-2 .9-2 2Z" />
+            <circle cx="8.5" cy="8.5" r="1.4" />
+          </svg>
+          <span>标签</span>
+        </button>
       </div>
 
       <div class="thought-composer__publish">
@@ -63,6 +76,41 @@
         </button>
       </div>
     </footer>
+
+    <Transition name="thought-composer-tag-dialog">
+      <div v-if="isTagPickerOpen" class="thought-composer__tag-mask" @click.self="closeTagPicker">
+        <section class="thought-composer__tag-dialog" role="dialog" aria-modal="true" aria-labelledby="thought-composer-tag-title">
+          <header>
+            <h3 id="thought-composer-tag-title">选择标签</h3>
+            <button type="button" aria-label="关闭标签选择" title="关闭" @click="closeTagPicker">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </header>
+
+          <div v-if="tagOptions.length" class="thought-composer__tag-options" aria-label="可选标签">
+            <button
+              v-for="tag in tagOptions"
+              :key="tag"
+              type="button"
+              :class="{ 'is-selected': isTagSelected(tag) }"
+              :aria-pressed="isTagSelected(tag)"
+              @click="toggleTag(tag)"
+            >
+              <span>{{ tag }}</span>
+            </button>
+          </div>
+
+          <p v-else class="thought-composer__tag-empty">暂无标签</p>
+
+          <footer>
+            <span>{{ selectedTags.length }} 个已选</span>
+            <button type="button" @click="closeTagPicker">完成</button>
+          </footer>
+        </section>
+      </div>
+    </Transition>
   </section>
 </template>
 
@@ -71,6 +119,10 @@ import { computed, ref } from 'vue'
 
 const emit = defineEmits(['publish', 'notice', 'dismiss'])
 const props = defineProps({
+  availableTags: {
+    type: Array,
+    default: () => []
+  },
   publishing: {
     type: Boolean,
     default: false
@@ -78,14 +130,34 @@ const props = defineProps({
 })
 
 const MAX_IMAGES = 4
+const MAX_TAGS = 10
 const MAX_IMAGE_SIZE = 1.4 * 1024 * 1024
 const MAX_TOTAL_IMAGE_SIZE = 3.4 * 1024 * 1024
 const content = ref('')
 const images = ref([])
+const selectedTags = ref([])
+const isTagPickerOpen = ref(false)
 const imageInput = ref(null)
 const handledEnterKeydown = ref(false)
 
 const canPublish = computed(() => Boolean(content.value.trim() || images.value.length))
+const tagOptions = computed(() => {
+  const seenTags = new Set()
+  const nextTags = []
+
+  props.availableTags.forEach((tag) => {
+    const normalizedTag = normalizeComposerTag(tag)
+    const tagKey = normalizedTag.toLowerCase()
+
+    if (normalizedTag && !seenTags.has(tagKey)) {
+      seenTags.add(tagKey)
+      nextTags.push(normalizedTag)
+    }
+  })
+
+  return nextTags
+})
+const selectedTagKeys = computed(() => new Set(selectedTags.value.map((tag) => tag.toLowerCase())))
 
 function createId() {
   return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -157,6 +229,46 @@ function removeImage(index) {
   images.value = images.value.filter((_, imageIndex) => imageIndex !== index)
 }
 
+function normalizeComposerTag(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24)
+}
+
+function openTagPicker() {
+  isTagPickerOpen.value = true
+}
+
+function closeTagPicker() {
+  isTagPickerOpen.value = false
+}
+
+function isTagSelected(tag) {
+  return selectedTagKeys.value.has(normalizeComposerTag(tag).toLowerCase())
+}
+
+function toggleTag(tag) {
+  const normalizedTag = normalizeComposerTag(tag)
+  const tagKey = normalizedTag.toLowerCase()
+
+  if (!normalizedTag) {
+    return
+  }
+
+  if (selectedTagKeys.value.has(tagKey)) {
+    selectedTags.value = selectedTags.value.filter((item) => item.toLowerCase() !== tagKey)
+    return
+  }
+
+  if (selectedTags.value.length >= MAX_TAGS) {
+    emit('notice', `最多选择 ${MAX_TAGS} 个标签`)
+    return
+  }
+
+  selectedTags.value = [...selectedTags.value, normalizedTag]
+}
+
 function isPlainEnterKey(event) {
   return (
     event.key === 'Enter' &&
@@ -218,6 +330,7 @@ function publish() {
   emit('publish', {
     content: content.value.trim(),
     images: images.value.map((image) => ({ ...image })),
+    tags: [...selectedTags.value],
     reset
   })
 }
@@ -225,6 +338,8 @@ function publish() {
 function reset() {
   content.value = ''
   images.value = []
+  selectedTags.value = []
+  isTagPickerOpen.value = false
 }
 </script>
 
@@ -369,6 +484,155 @@ textarea::placeholder {
   font-size: 0.86rem;
   font-weight: 700;
   padding: 5px 0;
+}
+
+.thought-composer__tag-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: rgba(17, 24, 39, 0.34);
+  padding: 20px;
+}
+
+.thought-composer__tag-dialog {
+  width: min(100%, 420px);
+  border: 1px solid #e1e5ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(17, 24, 39, 0.2);
+  padding: 18px;
+}
+
+.thought-composer__tag-dialog header,
+.thought-composer__tag-dialog footer,
+.thought-composer__tag-dialog header > button,
+.thought-composer__tag-dialog footer > button,
+.thought-composer__tag-options button {
+  display: flex;
+  align-items: center;
+}
+
+.thought-composer__tag-dialog header,
+.thought-composer__tag-dialog footer {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.thought-composer__tag-dialog h3,
+.thought-composer__tag-empty {
+  margin: 0;
+}
+
+.thought-composer__tag-dialog h3 {
+  color: #273142;
+  font-size: 1rem;
+}
+
+.thought-composer__tag-dialog header > button {
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  border: 1px solid #e1e5ea;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #718096;
+  cursor: pointer;
+  padding: 0;
+}
+
+.thought-composer__tag-dialog header > button:hover {
+  background: #f5f6f8;
+}
+
+.thought-composer__tag-dialog svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.thought-composer__tag-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.thought-composer__tag-options button {
+  min-height: 34px;
+  border: 1px solid #dce1e7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4a5568;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0 13px;
+}
+
+.thought-composer__tag-options button.is-selected {
+  border-color: #253246;
+  background: #253246;
+  color: #ffffff;
+}
+
+.thought-composer__tag-empty {
+  margin-top: 18px;
+  color: #8a929e;
+  font-size: 0.82rem;
+}
+
+.thought-composer__tag-dialog footer {
+  margin-top: 18px;
+  border-top: 1px solid #eef1f5;
+  padding-top: 14px;
+}
+
+.thought-composer__tag-dialog footer span {
+  color: #8a929e;
+  font-size: 0.8rem;
+}
+
+.thought-composer__tag-dialog footer > button {
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: #253246;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 8px 16px;
+}
+
+.thought-composer-tag-dialog-enter-active,
+.thought-composer-tag-dialog-leave-active {
+  transition: opacity 170ms ease;
+}
+
+.thought-composer-tag-dialog-enter-active .thought-composer__tag-dialog,
+.thought-composer-tag-dialog-leave-active .thought-composer__tag-dialog {
+  transition:
+    opacity 170ms ease,
+    transform 170ms ease;
+}
+
+.thought-composer-tag-dialog-enter-from,
+.thought-composer-tag-dialog-leave-to,
+.thought-composer-tag-dialog-enter-from .thought-composer__tag-dialog,
+.thought-composer-tag-dialog-leave-to .thought-composer__tag-dialog {
+  opacity: 0;
+}
+
+.thought-composer-tag-dialog-enter-from .thought-composer__tag-dialog,
+.thought-composer-tag-dialog-leave-to .thought-composer__tag-dialog {
+  transform: scale(0.97) translateY(5px);
 }
 
 .thought-composer__publish button {

@@ -11,6 +11,8 @@ const MAX_REQUEST_BODY_SIZE = 6 * 1024 * 1024
 const MAX_CONTENT_LENGTH = 500
 const MAX_COMMENT_LENGTH = 120
 const MAX_COMMENTS = 100
+const MAX_TAGS = 10
+const MAX_TAG_LENGTH = 24
 const supportedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 function normalizeEnvValue(value) {
@@ -195,6 +197,31 @@ function normalizeComments(value) {
   }, [])
 }
 
+function normalizeTags(value, fallbackValue = []) {
+  const sourceTags = Array.isArray(value) ? value : fallbackValue
+
+  if (!Array.isArray(sourceTags)) {
+    return []
+  }
+
+  const seenTags = new Set()
+  const tags = []
+
+  sourceTags.forEach((tag) => {
+    const normalizedTag = typeof tag === 'string'
+      ? tag.replace(/\s+/g, ' ').trim().slice(0, MAX_TAG_LENGTH)
+      : ''
+    const tagKey = normalizedTag.toLowerCase()
+
+    if (normalizedTag && !seenTags.has(tagKey) && tags.length < MAX_TAGS) {
+      seenTags.add(tagKey)
+      tags.push(normalizedTag)
+    }
+  })
+
+  return tags
+}
+
 function normalizeStoredImages(value) {
   if (!Array.isArray(value)) {
     return []
@@ -235,6 +262,7 @@ function normalizePostPayload(body, existingPayload = null) {
     authorInitials: 'LA',
     content,
     images,
+    tags: normalizeTags(body?.tags, existingPayload?.tags || []),
     comments: normalizeComments(body?.comments),
     deletedAt: existingPayload?.deletedAt || ''
   }
@@ -276,6 +304,7 @@ function parseStoredPayload(value, env) {
     authorInitials: 'LA',
     content: typeof payload?.content === 'string' ? payload.content : '',
     images: normalizeStoredImages(payload?.images),
+    tags: normalizeTags(payload?.tags),
     comments: normalizeComments(payload?.comments),
     deletedAt: payload?.deletedAt ? normalizeIsoDateTime(payload.deletedAt, '') : ''
   }

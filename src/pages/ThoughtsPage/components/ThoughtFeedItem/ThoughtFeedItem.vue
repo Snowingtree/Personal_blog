@@ -6,7 +6,17 @@
         <strong>{{ post.author }}</strong>
         <time :datetime="post.createdAt">{{ timeLabel }}</time>
       </div>
-      <button type="button" class="thought-feed-item__remove" aria-label="删除动态" title="删除动态" @click="$emit('remove')">
+      <ul v-if="post.tags.length" class="thought-feed-item__tags" aria-label="动态标签">
+        <li v-for="tag in post.tags" :key="tag">{{ tag }}</li>
+      </ul>
+      <button
+        type="button"
+        class="thought-feed-item__remove"
+        :class="{ 'thought-feed-item__remove--solo': !post.tags.length }"
+        aria-label="删除动态"
+        title="删除动态"
+        @click="$emit('remove')"
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
         </svg>
@@ -136,7 +146,6 @@ function submitComment() {
   display: grid;
   width: 30px;
   height: 30px;
-  margin-left: auto;
   place-items: center;
   border: 0;
   border-radius: 4px;
@@ -145,9 +154,45 @@ function submitComment() {
   cursor: pointer;
 }
 
+.thought-feed-item__remove--solo {
+  margin-left: auto;
+}
+
 .thought-feed-item__remove:hover {
   background: #f5f6f8;
   color: #c94a4a;
+}
+
+.thought-feed-item__tags {
+  display: flex;
+  max-width: min(48%, 340px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.thought-feed-item__tags li {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid #253246;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 6px 9px;
+}
+
+.thought-feed-item__tags li:nth-child(odd) {
+  background: #253246;
+  color: #ffffff;
+}
+
+.thought-feed-item__tags li:nth-child(even) {
+  background: #ffffff;
+  color: #253246;
 }
 
 .thought-feed-item__remove svg,

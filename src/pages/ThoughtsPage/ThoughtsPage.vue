@@ -90,7 +90,12 @@
               <li v-for="(post, index) in posts" :key="post.id">
                 <span class="thoughts-manager__index">{{ String(index + 1).padStart(2, '0') }}</span>
                 <div class="thoughts-manager__content">
-                  <time :datetime="post.createdAt">{{ formatManagementTime(post.createdAt) }}</time>
+                  <div class="thoughts-manager__meta">
+                    <time :datetime="post.createdAt">{{ formatManagementTime(post.createdAt) }}</time>
+                    <ul v-if="post.tags.length" class="thoughts-manager__tags" aria-label="动态标签">
+                      <li v-for="tag in post.tags" :key="tag">{{ tag }}</li>
+                    </ul>
+                  </div>
                   <p>{{ getPostExcerpt(post.content) }}</p>
                   <small>{{ post.images.length }} 张图片 · {{ post.comments.length }} 条评论</small>
                 </div>
@@ -109,6 +114,48 @@
             </ol>
 
             <div v-else class="thoughts-manager__empty">暂无可管理的动态</div>
+          </section>
+
+          <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
+        </section>
+
+        <section v-else-if="isManagingTags" key="tags" class="thoughts-stream thoughts-manager thoughts-tags" aria-label="标签管理">
+          <header class="thoughts-manager__head">
+            <div>
+              <p>ARTICLE TAGS</p>
+              <h1>标签管理</h1>
+            </div>
+          </header>
+
+          <section class="thoughts-manager__list thoughts-tag-manager" aria-label="博客标签列表">
+            <header>
+              <strong>全部标签</strong>
+              <span>{{ blogTags.length }} 个标签</span>
+            </header>
+
+            <form class="thoughts-tag-manager__form" @submit.prevent="addBlogTag">
+              <input
+                v-model="tagDraft"
+                type="text"
+                maxlength="24"
+                placeholder="标签名称"
+                aria-label="标签名称"
+              />
+              <button type="submit" :disabled="!normalizedTagDraft">添加</button>
+            </form>
+
+            <ul v-if="blogTags.length" class="thoughts-tag-manager__tags" aria-label="博客标签列表">
+              <li v-for="tag in blogTags" :key="tag">
+                <span>{{ tag }}</span>
+                <button type="button" :aria-label="`删除标签 ${tag}`" :title="`删除标签 ${tag}`" @click="removeBlogTag(tag)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </li>
+            </ul>
+
+            <div v-else class="thoughts-manager__empty">暂无标签</div>
           </section>
 
           <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
@@ -147,9 +194,14 @@
               <li v-for="(post, index) in trashPosts" :key="post.id">
                 <span class="thoughts-manager__index">{{ String(index + 1).padStart(2, '0') }}</span>
                 <div class="thoughts-manager__content">
-                  <time :datetime="post.deletedAt || post.updatedAt">
-                    {{ post.deletedAt ? `删除于 ${formatManagementTime(post.deletedAt)}` : formatManagementTime(post.updatedAt) }}
-                  </time>
+                  <div class="thoughts-manager__meta">
+                    <time :datetime="post.deletedAt || post.updatedAt">
+                      {{ post.deletedAt ? `删除于 ${formatManagementTime(post.deletedAt)}` : formatManagementTime(post.updatedAt) }}
+                    </time>
+                    <ul v-if="post.tags.length" class="thoughts-manager__tags" aria-label="动态标签">
+                      <li v-for="tag in post.tags" :key="tag">{{ tag }}</li>
+                    </ul>
+                  </div>
                   <p>{{ getPostExcerpt(post.content) }}</p>
                   <small>{{ post.images.length }} 张图片 · {{ post.comments.length }} 条评论</small>
                 </div>
@@ -222,6 +274,20 @@
       </button>
       <button
         type="button"
+        class="thoughts-tag-button"
+        :class="{ 'is-active': isManagingTags }"
+        :aria-pressed="isManagingTags"
+        aria-label="管理标签"
+        title="管理标签"
+        @click="toggleTagView"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 6v5.2c0 .6.2 1.1.6 1.5l6.7 6.7c.8.8 2 .8 2.8 0l5.3-5.3c.8-.8.8-2 0-2.8L12.7 4.6c-.4-.4-.9-.6-1.5-.6H6c-1.1 0-2 .9-2 2Z" />
+          <circle cx="8.5" cy="8.5" r="1.4" />
+        </svg>
+      </button>
+      <button
+        type="button"
         class="thoughts-trash-button"
         :class="{ 'is-active': isTrashOpen }"
         :aria-pressed="isTrashOpen"
@@ -265,6 +331,7 @@
             </button>
           </header>
           <ThoughtComposer
+            :available-tags="blogTags"
             :publishing="isPublishing"
             @publish="publishPost"
             @notice="notify"
@@ -311,6 +378,8 @@ const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const THOUGHTS_BACKGROUND_CLASS = 'is-thoughts-page'
 const LEGACY_THOUGHTS_POSTS_KEY = 'vibe-coding-thoughts-posts'
+const BLOG_TAGS_KEY = 'vibe-coding-blog-tags'
+const DEFAULT_BLOG_TAGS = ['前端', 'Vue', 'JavaScript', 'AI', '工作流']
 const previewImage = ref('')
 const isComposerOpen = ref(false)
 const activeThoughtsView = ref('feed')
@@ -318,6 +387,8 @@ const removingPostId = ref('')
 const removingPostMode = ref('soft')
 const posts = ref([])
 const trashPosts = ref([])
+const blogTags = ref([])
+const tagDraft = ref('')
 const isLoadingPosts = ref(false)
 const isLoadingTrash = ref(false)
 const isPublishing = ref(false)
@@ -325,12 +396,14 @@ const isRemovingPost = ref(false)
 const isRestoringPost = ref(false)
 
 const isManagingPosts = computed(() => activeThoughtsView.value === 'manager')
+const isManagingTags = computed(() => activeThoughtsView.value === 'tags')
 const isTrashOpen = computed(() => activeThoughtsView.value === 'trash')
 const isFeedView = computed(() => activeThoughtsView.value === 'feed')
 const totalComments = computed(() => posts.value.reduce((sum, post) => sum + post.comments.length, 0))
 const totalImages = computed(() => posts.value.reduce((sum, post) => sum + post.images.length, 0))
 const trashTotalComments = computed(() => trashPosts.value.reduce((sum, post) => sum + post.comments.length, 0))
 const trashTotalImages = computed(() => trashPosts.value.reduce((sum, post) => sum + post.images.length, 0))
+const normalizedTagDraft = computed(() => normalizeBlogTag(tagDraft.value))
 const removeDialogCopy = computed(() => {
   if (removingPostMode.value === 'force') {
     return {
@@ -381,6 +454,7 @@ watch(privateAppAvailable, (available) => {
 
 onMounted(() => {
   removeLegacyStoredPosts()
+  loadBlogTags()
   syncThoughtsBackground(true)
 })
 
@@ -432,6 +506,14 @@ function normalizeComments(comments) {
   }, [])
 }
 
+function normalizePostTags(tags) {
+  if (!Array.isArray(tags)) {
+    return []
+  }
+
+  return dedupeBlogTags(tags).slice(0, 10)
+}
+
 function normalizePost(post) {
   if (!post || typeof post.id !== 'string' || typeof post.content !== 'string') {
     return null
@@ -443,6 +525,7 @@ function normalizePost(post) {
     authorInitials: typeof post.authorInitials === 'string' ? post.authorInitials : 'LA',
     content: post.content,
     images: normalizeImages(post.images),
+    tags: normalizePostTags(post.tags),
     comments: normalizeComments(post.comments),
     createdAt: typeof post.createdAt === 'string' ? post.createdAt : new Date().toISOString(),
     updatedAt: typeof post.updatedAt === 'string' ? post.updatedAt : new Date().toISOString(),
@@ -507,6 +590,7 @@ async function loadTrashPosts() {
 function createPostUpdateBody(post, overrides = {}) {
   return {
     content: post.content,
+    tags: post.tags,
     comments: post.comments,
     ...overrides
   }
@@ -534,7 +618,8 @@ async function publishPost(payload) {
   try {
     const data = await http.post('/api/thoughts/posts', {
       content: payload.content,
-      images: payload.images
+      images: payload.images,
+      tags: payload.tags
     })
     const post = normalizePost(data.post)
 
@@ -610,14 +695,22 @@ function handlePrimaryAction() {
   }
 
   activeThoughtsView.value = 'feed'
+  tagDraft.value = ''
 }
 
 function toggleManagementView() {
   activeThoughtsView.value = isManagingPosts.value ? 'feed' : 'manager'
+  tagDraft.value = ''
+}
+
+function toggleTagView() {
+  activeThoughtsView.value = isManagingTags.value ? 'feed' : 'tags'
+  tagDraft.value = ''
 }
 
 function toggleTrashView() {
   activeThoughtsView.value = isTrashOpen.value ? 'feed' : 'trash'
+  tagDraft.value = ''
 
   if (isTrashOpen.value) {
     loadTrashPosts()
@@ -628,6 +721,82 @@ function closeComposerDialog() {
   if (!isPublishing.value) {
     isComposerOpen.value = false
   }
+}
+
+function normalizeBlogTag(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24)
+}
+
+function dedupeBlogTags(tags) {
+  const seenTags = new Set()
+  const nextTags = []
+
+  tags.forEach((tag) => {
+    const normalizedTag = normalizeBlogTag(tag)
+    const tagKey = normalizedTag.toLowerCase()
+
+    if (normalizedTag && !seenTags.has(tagKey)) {
+      seenTags.add(tagKey)
+      nextTags.push(normalizedTag)
+    }
+  })
+
+  return nextTags
+}
+
+function loadBlogTags() {
+  try {
+    const storedTags = JSON.parse(localStorage.getItem(BLOG_TAGS_KEY) || '[]')
+    const normalizedTags = Array.isArray(storedTags) ? dedupeBlogTags(storedTags) : []
+    blogTags.value = normalizedTags.length ? normalizedTags : DEFAULT_BLOG_TAGS
+    persistBlogTags()
+  } catch {
+    blogTags.value = DEFAULT_BLOG_TAGS
+    persistBlogTags()
+  }
+}
+
+function persistBlogTags() {
+  try {
+    localStorage.setItem(BLOG_TAGS_KEY, JSON.stringify(blogTags.value))
+  } catch {
+    notify('标签保存失败', 'danger')
+  }
+}
+
+function addBlogTag() {
+  const nextTag = normalizedTagDraft.value
+
+  if (!nextTag) {
+    return
+  }
+
+  const hasExistingTag = blogTags.value.some((tag) => tag.toLowerCase() === nextTag.toLowerCase())
+
+  if (hasExistingTag) {
+    tagDraft.value = ''
+    return
+  }
+
+  blogTags.value = [...blogTags.value, nextTag]
+  tagDraft.value = ''
+  persistBlogTags()
+  notify('标签已添加')
+}
+
+function removeBlogTag(tag) {
+  const tagKey = normalizeBlogTag(tag).toLowerCase()
+
+  if (!tagKey) {
+    return
+  }
+
+  blogTags.value = blogTags.value.filter((item) => item.toLowerCase() !== tagKey)
+  persistBlogTags()
+  notify('标签已删除')
 }
 
 function closeRemovePostDialog() {
@@ -1073,12 +1242,23 @@ function handleBackToTools() {
   flex: 1;
 }
 
+.thoughts-manager__meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 .thoughts-manager__content time {
+  flex: 0 0 auto;
   color: #87909e;
   font-size: 0.72rem;
 }
 
 .thoughts-manager__content p {
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   margin: 4px 0;
   color: #445168;
@@ -1086,6 +1266,48 @@ function handleBackToTools() {
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.thoughts-manager__tags {
+  display: flex;
+  min-width: 0;
+  max-width: min(55%, 360px);
+  flex-wrap: nowrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin: 0;
+  margin-left: auto;
+  overflow: hidden;
+  padding: 0;
+  list-style: none;
+}
+
+.thoughts-manager__tags li {
+  display: inline-flex;
+  max-width: 120px;
+  flex: 0 1 auto;
+  align-items: center;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #253246;
+  border-radius: 999px;
+  color: #253246;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 5px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thoughts-manager__tags li:nth-child(odd) {
+  background: #253246;
+  color: #ffffff;
+}
+
+.thoughts-manager__tags li:nth-child(even) {
+  background: #ffffff;
+  color: #253246;
 }
 
 .thoughts-manager__actions {
@@ -1175,6 +1397,7 @@ function handleBackToTools() {
 
 .thoughts-create-button,
 .thoughts-manage-button,
+.thoughts-tag-button,
 .thoughts-trash-button {
   display: grid;
   width: 54px;
@@ -1204,6 +1427,7 @@ function handleBackToTools() {
 }
 
 .thoughts-manage-button,
+.thoughts-tag-button,
 .thoughts-trash-button {
   border: 1px solid #dce1e7;
   background: #ffffff;
@@ -1213,6 +1437,8 @@ function handleBackToTools() {
 
 .thoughts-manage-button:hover,
 .thoughts-manage-button.is-active,
+.thoughts-tag-button:hover,
+.thoughts-tag-button.is-active,
 .thoughts-trash-button:hover,
 .thoughts-trash-button.is-active {
   border-color: #253246;
@@ -1223,6 +1449,7 @@ function handleBackToTools() {
 
 .thoughts-create-button svg,
 .thoughts-manage-button svg,
+.thoughts-tag-button svg,
 .thoughts-trash-button svg {
   width: 23px;
   height: 23px;
@@ -1287,6 +1514,122 @@ function handleBackToTools() {
   background: #ffffff;
   box-shadow: 0 24px 60px rgba(17, 24, 39, 0.2);
   padding: 22px;
+}
+
+.thoughts-tag-manager__form,
+.thoughts-tag-manager__tags li {
+  display: flex;
+  align-items: center;
+}
+
+.thoughts-tag-manager__form {
+  gap: 10px;
+  border-bottom: 1px solid #eef1f5;
+  padding: 16px 18px;
+}
+
+.thoughts-tag-manager__form input {
+  min-width: 0;
+  flex: 1;
+  height: 40px;
+  border: 1px solid #dce1e7;
+  border-radius: 5px;
+  background: #f8fafc;
+  color: #273142;
+  font: inherit;
+  padding: 0 12px;
+}
+
+.thoughts-tag-manager__form input:focus {
+  border-color: #253246;
+  outline: 0;
+  background: #ffffff;
+}
+
+.thoughts-tag-manager__form button {
+  height: 40px;
+  border: 0;
+  border-radius: 5px;
+  background: #253246;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 0 16px;
+}
+
+.thoughts-tag-manager__form button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.thoughts-tag-manager__tags {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 10px 12px 12px;
+  list-style: none;
+}
+
+.thoughts-tag-manager__tags li {
+  position: relative;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #364256;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0 11px 0 14px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.thoughts-tag-manager__tags li:nth-child(odd) {
+  background: #f7f8fa;
+}
+
+.thoughts-tag-manager__tags li:nth-child(even) {
+  background: #ffffff;
+}
+
+.thoughts-tag-manager__tags li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.thoughts-tag-manager__tags button {
+  box-sizing: border-box;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #e1e5ea;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #718096;
+  cursor: pointer;
+  line-height: 0;
+  padding: 0;
+}
+
+.thoughts-tag-manager__tags button:hover {
+  background: #253246;
+  color: #ffffff;
+}
+
+.thoughts-tag-manager__tags svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .thoughts-composer-dialog {
@@ -1461,6 +1804,7 @@ function handleBackToTools() {
 
   .thoughts-create-button,
   .thoughts-manage-button,
+  .thoughts-tag-button,
   .thoughts-trash-button {
     width: 50px;
     height: 50px;
@@ -1469,6 +1813,8 @@ function handleBackToTools() {
   .thoughts-create-button:hover,
   .thoughts-manage-button:hover,
   .thoughts-manage-button.is-active,
+  .thoughts-tag-button:hover,
+  .thoughts-tag-button.is-active,
   .thoughts-trash-button:hover,
   .thoughts-trash-button.is-active {
     transform: scale(1.06);
