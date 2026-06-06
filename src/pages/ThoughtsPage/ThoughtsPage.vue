@@ -749,9 +749,16 @@ function dedupeBlogTags(tags) {
 
 function loadBlogTags() {
   try {
-    const storedTags = JSON.parse(localStorage.getItem(BLOG_TAGS_KEY) || '[]')
-    const normalizedTags = Array.isArray(storedTags) ? dedupeBlogTags(storedTags) : []
-    blogTags.value = normalizedTags.length ? normalizedTags : DEFAULT_BLOG_TAGS
+    const storedTagsValue = localStorage.getItem(BLOG_TAGS_KEY)
+
+    if (storedTagsValue === null) {
+      blogTags.value = DEFAULT_BLOG_TAGS
+      persistBlogTags()
+      return
+    }
+
+    const storedTags = JSON.parse(storedTagsValue)
+    blogTags.value = Array.isArray(storedTags) ? dedupeBlogTags(storedTags) : DEFAULT_BLOG_TAGS
     persistBlogTags()
   } catch {
     blogTags.value = DEFAULT_BLOG_TAGS
