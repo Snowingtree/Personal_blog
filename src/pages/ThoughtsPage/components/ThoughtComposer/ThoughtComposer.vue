@@ -12,6 +12,8 @@
       v-model="content"
       rows="4"
       maxlength="500"
+      @keydown="handleTextareaKeydown"
+      @keyup="handleTextareaKeyup"
       placeholder="分享此刻的想法..."
       aria-label="动态内容"
     ></textarea>
@@ -67,8 +69,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 
-const emit = defineEmits(['publish', 'notice'])
-defineProps({
+const emit = defineEmits(['publish', 'notice', 'dismiss'])
+const props = defineProps({
   publishing: {
     type: Boolean,
     default: false
@@ -81,6 +83,7 @@ const MAX_TOTAL_IMAGE_SIZE = 3.4 * 1024 * 1024
 const content = ref('')
 const images = ref([])
 const imageInput = ref(null)
+const handledEnterKeydown = ref(false)
 
 const canPublish = computed(() => Boolean(content.value.trim() || images.value.length))
 
@@ -154,8 +157,61 @@ function removeImage(index) {
   images.value = images.value.filter((_, imageIndex) => imageIndex !== index)
 }
 
+function isPlainEnterKey(event) {
+  return (
+    event.key === 'Enter' &&
+    !event.shiftKey &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  )
+}
+
+function handleTextareaKeydown(event) {
+  handledEnterKeydown.value = false
+
+  if (!isPlainEnterKey(event)) {
+    return
+  }
+
+  if (event.isComposing || event.keyCode === 229) {
+    return
+  }
+
+  event.preventDefault()
+  handledEnterKeydown.value = true
+  submitFromEnter()
+}
+
+function handleTextareaKeyup(event) {
+  if (!isPlainEnterKey(event)) {
+    return
+  }
+
+  if (handledEnterKeydown.value) {
+    handledEnterKeydown.value = false
+    return
+  }
+
+  event.preventDefault()
+  submitFromEnter()
+}
+
+function submitFromEnter() {
+  if (props.publishing) {
+    return
+  }
+
+  if (canPublish.value) {
+    publish()
+    return
+  }
+
+  emit('dismiss')
+}
+
 function publish() {
-  if (!canPublish.value) {
+  if (!canPublish.value || props.publishing) {
     return
   }
 

@@ -264,7 +264,12 @@
               </svg>
             </button>
           </header>
-          <ThoughtComposer :publishing="isPublishing" @publish="publishPost" @notice="notify" />
+          <ThoughtComposer
+            :publishing="isPublishing"
+            @publish="publishPost"
+            @notice="notify"
+            @dismiss="closeComposerDialog"
+          />
         </section>
       </div>
     </Transition>
