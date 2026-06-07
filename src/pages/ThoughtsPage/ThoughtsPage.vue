@@ -174,73 +174,65 @@
 
             <article class="thoughts-statistics__card thoughts-contributions">
               <header>
-                <strong>{{ selectedContributionYear }} 年动态</strong>
-                <span>{{ contributionTotal }} 条动态</span>
+                <strong>年度动态</strong>
+                <span>{{ contributionTotal }} contributions</span>
               </header>
 
-              <div class="thoughts-contributions__layout">
-                <div class="thoughts-contributions__chart" :style="{ '--week-count': contributionWeeks.length }">
-                  <div class="thoughts-contributions__months" aria-hidden="true">
-                    <span
-                      v-for="month in contributionMonthLabels"
-                      :key="month.key"
-                      :style="{ gridColumn: `${month.weekIndex + 1} / span ${month.span}` }"
-                    >
-                      {{ month.label }}
-                    </span>
-                  </div>
+              <div class="thoughts-contributions__years-list">
+                <section v-for="yearStats in contributionYears" :key="yearStats.year" class="thoughts-contributions__year">
+                  <header class="thoughts-contributions__year-head">
+                    <strong>{{ yearStats.year }}</strong>
+                    <span>{{ yearStats.total }} contributions</span>
+                  </header>
 
-                  <div class="thoughts-contributions__body">
-                    <div class="thoughts-contributions__weekdays" aria-hidden="true">
-                      <span></span>
-                      <span>周一</span>
-                      <span></span>
-                      <span>周三</span>
-                      <span></span>
-                      <span>周五</span>
-                      <span></span>
+                  <div class="thoughts-contributions__chart" :style="{ '--week-count': yearStats.weeks.length }">
+                    <div class="thoughts-contributions__months" aria-hidden="true">
+                      <span
+                        v-for="month in yearStats.monthLabels"
+                        :key="month.key"
+                        :style="{ gridColumn: `${month.weekIndex + 1} / span ${month.span}` }"
+                      >
+                        {{ month.label }}
+                      </span>
                     </div>
 
-                    <div class="thoughts-contributions__weeks" aria-label="年度动态热力图">
-                      <div v-for="week in contributionWeeks" :key="week.key" class="thoughts-contributions__week">
-                        <span
-                          v-for="day in week.days"
-                          :key="day.key"
-                          class="thoughts-contributions__day"
-                          :class="{ 'is-outside-range': !day.isInRange }"
-                          :data-level="day.level"
-                          :title="day.title"
-                          :aria-label="day.title"
-                        ></span>
+                    <div class="thoughts-contributions__body">
+                      <div class="thoughts-contributions__weekdays" aria-hidden="true">
+                        <span></span>
+                        <span>Mon</span>
+                        <span></span>
+                        <span>Wed</span>
+                        <span></span>
+                        <span>Fri</span>
+                        <span></span>
+                      </div>
+
+                      <div class="thoughts-contributions__weeks" aria-label="年度动态热力图">
+                        <div v-for="week in yearStats.weeks" :key="week.key" class="thoughts-contributions__week">
+                          <span
+                            v-for="day in week.days"
+                            :key="day.key"
+                            class="thoughts-contributions__day"
+                            :class="{ 'is-outside-range': !day.isInRange }"
+                            :data-level="day.level"
+                            :data-tooltip="day.tooltip"
+                            :aria-label="day.title"
+                          ></span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div class="thoughts-contributions__legend" aria-hidden="true">
-                    <span>少</span>
-                    <i data-level="0"></i>
-                    <i data-level="1"></i>
-                    <i data-level="2"></i>
-                    <i data-level="3"></i>
-                    <i data-level="4"></i>
-                    <span>多</span>
+                    <div class="thoughts-contributions__legend" aria-hidden="true">
+                      <span>Less</span>
+                      <i data-level="0"></i>
+                      <i data-level="1"></i>
+                      <i data-level="2"></i>
+                      <i data-level="3"></i>
+                      <i data-level="4"></i>
+                      <span>More</span>
+                    </div>
                   </div>
-                </div>
-
-                <div class="thoughts-contributions__years" aria-label="选择年份">
-                  <button
-                    v-for="yearOption in contributionYearOptions"
-                    :key="yearOption.year"
-                    type="button"
-                    :class="{ 'is-active': yearOption.year === selectedContributionYear }"
-                    :disabled="!yearOption.count"
-                    :title="yearOption.title"
-                    :aria-pressed="yearOption.year === selectedContributionYear"
-                    @click="selectContributionYear(yearOption.year)"
-                  >
-                    {{ yearOption.year }}
-                  </button>
-                </div>
+                </section>
               </div>
             </article>
           </section>
@@ -630,7 +622,6 @@ const isComposerOpen = ref(false)
 const activeThoughtsView = ref('feed')
 const isManagementMenuOpen = ref(false)
 const isManagementMenuHovering = ref(false)
-const selectedContributionYear = ref(new Date().getFullYear())
 const removingPostId = ref('')
 const removingPostMode = ref('soft')
 const posts = ref([])
@@ -658,12 +649,8 @@ const trashTotalComments = computed(() => trashPosts.value.reduce((sum, post) =>
 const trashTotalImages = computed(() => trashPosts.value.reduce((sum, post) => sum + post.images.length, 0))
 const normalizedTagDraft = computed(() => normalizeBlogTag(tagDraft.value))
 const exportFileBaseName = computed(() => `thoughts-${formatExportTimestamp(new Date())}`)
-const contributionYearOptions = computed(() => createContributionYearOptions(posts.value))
-const contributionWeeks = computed(() => createContributionWeeks(posts.value, selectedContributionYear.value))
-const contributionTotal = computed(() => contributionWeeks.value.reduce((total, week) => (
-  total + week.days.reduce((weekTotal, day) => weekTotal + day.count, 0)
-), 0))
-const contributionMonthLabels = computed(() => createContributionMonthLabels(contributionWeeks.value))
+const contributionYears = computed(() => createContributionYears(posts.value))
+const contributionTotal = computed(() => contributionYears.value.reduce((total, yearStats) => total + yearStats.total, 0))
 const topPostTags = computed(() => {
   const tagMap = new Map()
 
@@ -1031,16 +1018,6 @@ function toggleExportView() {
   tagDraft.value = ''
 }
 
-function selectContributionYear(year) {
-  const yearOption = contributionYearOptions.value.find((option) => option.year === year)
-
-  if (!yearOption?.count) {
-    return
-  }
-
-  selectedContributionYear.value = year
-}
-
 function closeComposerDialog() {
   if (!isPublishing.value) {
     isComposerOpen.value = false
@@ -1075,10 +1052,10 @@ function dedupeBlogTags(tags) {
   return nextTags
 }
 
-function createContributionYearOptions(sourcePosts) {
+function createContributionYears(sourcePosts) {
   const currentYear = new Date().getFullYear()
   const yearCounts = new Map()
-  let earliestYear = currentYear - 4
+  let earliestYear = currentYear
 
   sourcePosts.forEach((post) => {
     const createdAt = new Date(post.createdAt)
@@ -1092,27 +1069,22 @@ function createContributionYearOptions(sourcePosts) {
     yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
   })
 
-  const finalYear = Math.min(currentYear - 4, earliestYear)
-  const years = []
+  return Array.from({ length: currentYear - earliestYear + 1 }, (_, index) => {
+    const year = currentYear - index
+    const weeks = createContributionWeeks(sourcePosts, year)
 
-  for (let year = currentYear; year >= finalYear; year -= 1) {
-    const count = yearCounts.get(year) || 0
-
-    years.push({
+    return {
       year,
-      count,
-      title: count ? `${year} 年 ${count} 条动态` : `${year} 年暂无动态`
-    })
-  }
-
-  return years
+      total: yearCounts.get(year) || 0,
+      weeks,
+      monthLabels: createContributionMonthLabels(weeks)
+    }
+  })
 }
 
 function createContributionWeeks(sourcePosts, selectedYear) {
-  const today = startOfLocalDay(new Date())
   const rangeStart = startOfLocalDay(new Date(selectedYear, 0, 1))
-  const yearEnd = startOfLocalDay(new Date(selectedYear, 11, 31))
-  const rangeEnd = selectedYear === today.getFullYear() ? today : yearEnd
+  const rangeEnd = startOfLocalDay(new Date(selectedYear, 11, 31))
   const calendarStart = addLocalDays(rangeStart, -rangeStart.getDay())
   const calendarEnd = addLocalDays(rangeEnd, 6 - rangeEnd.getDay())
   const postCounts = new Map()
@@ -1139,6 +1111,8 @@ function createContributionWeeks(sourcePosts, selectedYear) {
       const dateKey = getLocalDateKey(date)
       const count = isInRange ? postCounts.get(dateKey) || 0 : 0
       const dateLabel = formatContributionDate(date)
+      const tooltipDateLabel = formatContributionTooltipDate(date)
+      const tooltipCountLabel = count === 1 ? '1 contribution' : `${count} contributions`
 
       days.push({
         key: dateKey,
@@ -1146,7 +1120,8 @@ function createContributionWeeks(sourcePosts, selectedYear) {
         isInRange,
         level: isInRange ? getContributionLevel(count) : 0,
         monthKey: `${date.getFullYear()}-${date.getMonth()}`,
-        monthLabel: `${date.getMonth() + 1}月`,
+        monthLabel: getContributionMonthLabel(date),
+        tooltip: `${tooltipCountLabel} on ${tooltipDateLabel}.`,
         title: count ? `${dateLabel}：${count} 条动态` : `${dateLabel}：无动态`
       })
     }
@@ -1224,6 +1199,36 @@ function getContributionLevel(count) {
   }
 
   return 4
+}
+
+function getContributionMonthLabel(value) {
+  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][value.getMonth()]
+}
+
+function formatContributionTooltipDate(value) {
+  const monthLabel = getContributionMonthLabel(value)
+  const day = value.getDate()
+  return `${monthLabel} ${day}${getOrdinalSuffix(day)}`
+}
+
+function getOrdinalSuffix(value) {
+  if (value % 100 >= 11 && value % 100 <= 13) {
+    return 'th'
+  }
+
+  if (value % 10 === 1) {
+    return 'st'
+  }
+
+  if (value % 10 === 2) {
+    return 'nd'
+  }
+
+  if (value % 10 === 3) {
+    return 'rd'
+  }
+
+  return 'th'
 }
 
 function formatContributionDate(value) {
@@ -2007,6 +2012,10 @@ function handleBackToTools() {
   background: #ffffff;
 }
 
+.thoughts-statistics__card.thoughts-contributions {
+  overflow: visible;
+}
+
 .thoughts-statistics__card > header {
   display: flex;
   align-items: center;
@@ -2030,13 +2039,35 @@ function handleBackToTools() {
   white-space: nowrap;
 }
 
-.thoughts-contributions__layout {
+.thoughts-contributions__years-list {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px;
+  gap: 0;
+}
+
+.thoughts-contributions__year + .thoughts-contributions__year {
+  border-top: 1px solid #edf0f2;
+}
+
+.thoughts-contributions__year-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px 0;
+}
+
+.thoughts-contributions__year-head strong {
+  color: #253246;
+  font-size: 1rem;
+}
+
+.thoughts-contributions__year-head span {
+  color: #87909e;
+  font-size: 0.76rem;
 }
 
 .thoughts-contributions__chart {
-  overflow: hidden;
+  overflow: visible;
   padding: 15px 18px 14px;
 }
 
@@ -2087,6 +2118,7 @@ function handleBackToTools() {
   flex: 1;
   grid-template-columns: repeat(var(--week-count), minmax(0, 1fr));
   gap: 2px;
+  position: relative;
 }
 
 .thoughts-contributions__week {
@@ -2103,6 +2135,54 @@ function handleBackToTools() {
   border-radius: 3px;
   background: #ebedf0;
   box-shadow: inset 0 0 0 1px rgba(27, 31, 36, 0.04);
+}
+
+.thoughts-contributions__day {
+  position: relative;
+  cursor: default;
+}
+
+.thoughts-contributions__day::before,
+.thoughts-contributions__day::after {
+  position: absolute;
+  left: 50%;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.thoughts-contributions__day::before {
+  bottom: calc(100% + 9px);
+  max-width: 240px;
+  border-radius: 6px;
+  background: #24292f;
+  color: #ffffff;
+  content: attr(data-tooltip);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 8px 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.thoughts-contributions__day::after {
+  bottom: calc(100% + 4px);
+  border: 5px solid transparent;
+  border-top-color: #24292f;
+  content: "";
+}
+
+.thoughts-contributions__day:hover::before,
+.thoughts-contributions__day:hover::after,
+.thoughts-contributions__day:focus-visible::before,
+.thoughts-contributions__day:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .thoughts-contributions__legend i {
@@ -2146,49 +2226,6 @@ function handleBackToTools() {
   margin-left: 40px;
   color: #677386;
   font-size: 0.72rem;
-}
-
-.thoughts-contributions__years {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  border-left: 1px solid #edf0f2;
-  padding: 14px;
-}
-
-.thoughts-contributions__years button {
-  width: 100%;
-  height: 40px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: #677386;
-  cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 800;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.thoughts-contributions__years button:hover {
-  background: #eef2f7;
-  color: #253246;
-}
-
-.thoughts-contributions__years button.is-active {
-  background: #253246;
-  color: #ffffff;
-}
-
-.thoughts-contributions__years button:disabled,
-.thoughts-contributions__years button:disabled:hover,
-.thoughts-contributions__years button:disabled.is-active {
-  border-color: #edf0f2;
-  background: #f3f4f6;
-  color: #b7bec8;
-  cursor: not-allowed;
 }
 
 .thoughts-statistics__ranking,
@@ -2889,24 +2926,6 @@ function handleBackToTools() {
   .thoughts-composer-dialog {
     max-height: calc(100vh - 24px);
     padding: 14px;
-  }
-
-  .thoughts-contributions__layout {
-    grid-template-columns: 1fr;
-  }
-
-  .thoughts-contributions__years {
-    display: flex;
-    overflow-x: auto;
-    border-top: 1px solid #edf0f2;
-    border-left: 0;
-    padding: 10px 14px;
-  }
-
-  .thoughts-contributions__years button {
-    width: auto;
-    min-width: 76px;
-    flex: 0 0 auto;
   }
 
   .thoughts-statistics__bars li {
