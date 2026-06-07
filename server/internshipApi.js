@@ -206,7 +206,8 @@ function normalizeIncomingRecord(body, fallbackId = '') {
 }
 
 function mapRowToRecord(row, env) {
-  return {
+  const deletedAt = row.deleted_at ? fromMysqlDateTime(row.deleted_at) : ''
+  const record = {
     id: String(row.record_id ?? ''),
     title: decryptInternshipValue(String(row.title_cipher ?? ''), env),
     content: decryptInternshipValue(String(row.content_cipher ?? ''), env),
@@ -216,6 +217,12 @@ function mapRowToRecord(row, env) {
     createdAt: fromMysqlDateTime(row.created_at),
     updatedAt: fromMysqlDateTime(row.updated_at)
   }
+
+  if (deletedAt) {
+    record.deletedAt = deletedAt
+  }
+
+  return record
 }
 
 function createMysqlStorage(env) {
@@ -236,11 +243,23 @@ function createMysqlStorage(env) {
         status VARCHAR(32) NOT NULL,
         created_at DATETIME(3) NOT NULL,
         updated_at DATETIME(3) NOT NULL,
+        deleted_at DATETIME(3) NULL,
         UNIQUE KEY uniq_user_record (user_key, record_id),
         KEY idx_user_record_date (user_key, record_date),
-        KEY idx_user_updated_at (user_key, updated_at)
+        KEY idx_user_updated_at (user_key, updated_at),
+        KEY idx_user_deleted_at (user_key, deleted_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
     )
+
+    const [deletedAtColumns] = await connection.query(`SHOW COLUMNS FROM ${tableName} LIKE 'deleted_at'`)
+
+    if (!deletedAtColumns.length) {
+      await connection.query(
+        `ALTER TABLE ${tableName}
+         ADD COLUMN deleted_at DATETIME(3) NULL,
+         ADD KEY idx_user_deleted_at (user_key, deleted_at)`
+      )
+    }
   }
 
   async function getPool() {
@@ -278,14 +297,15 @@ function createMysqlStorage(env) {
   return {
     mode: 'mysql',
     table: config.table,
-    async listRecords(userKey) {
+    async listRecords(userKey, options = {}) {
       return withConnection(async (connection) => {
+        const showDeletedRecords = Boolean(options.deleted)
         const [rows] = await connection.query(
           `SELECT record_id, title_cipher, content_cipher, DATE_FORMAT(record_date, '%Y-%m-%d') AS record_date,
-                  category, status, created_at, updated_at
+                  category, status, created_at, updated_at, deleted_at
            FROM ${tableName}
-           WHERE user_key = ?
-           ORDER BY record_date DESC, updated_at DESC`,
+           WHERE user_key = ? AND deleted_at IS ${showDeletedRecords ? 'NOT NULL' : 'NULL'}
+           ORDER BY ${showDeletedRecords ? 'deleted_at DESC, updated_at DESC' : 'record_date DESC, updated_at DESC'}`,
           [userKey]
         )
 
@@ -320,7 +340,9 @@ function createMysqlStorage(env) {
     async updateRecord(userKey, recordId, record) {
       return withConnection(async (connection) => {
         const [existingRows] = await connection.query(
-          `SELECT created_at FROM ${tableName} WHERE user_key = ? AND record_id = ? LIMIT 1`,
+          `SELECT created_at FROM ${tableName}
+           WHERE user_key = ? AND record_id = ? AND deleted_at IS NULL
+           LIMIT 1`,
           [userKey, recordId]
         )
 
@@ -338,7 +360,7 @@ function createMysqlStorage(env) {
         await connection.query(
           `UPDATE ${tableName}
            SET title_cipher = ?, content_cipher = ?, record_date = ?, category = ?, status = ?, updated_at = ?
-           WHERE user_key = ? AND record_id = ?`,
+           WHERE user_key = ? AND record_id = ? AND deleted_at IS NULL`,
           [
             encryptInternshipValue(nextRecord.title, env),
             encryptInternshipValue(nextRecord.content, env),
@@ -354,14 +376,91 @@ function createMysqlStorage(env) {
         return nextRecord
       })
     },
-    async deleteRecord(userKey, recordId) {
+    async deleteRecord(userKey, recordId, options = {}) {
       return withConnection(async (connection) => {
-        const [result] = await connection.query(
-          `DELETE FROM ${tableName} WHERE user_key = ? AND record_id = ?`,
+        if (options.permanent) {
+          const [result] = await connection.query(
+            `DELETE FROM ${tableName}
+             WHERE user_key = ? AND record_id = ? AND deleted_at IS NOT NULL`,
+            [userKey, recordId]
+          )
+
+          return Number(result?.affectedRows || 0) > 0
+        }
+
+        const [existingRows] = await connection.query(
+          `SELECT record_id, title_cipher, content_cipher, DATE_FORMAT(record_date, '%Y-%m-%d') AS record_date,
+                  category, status, created_at, updated_at, deleted_at
+           FROM ${tableName}
+           WHERE user_key = ? AND record_id = ? AND deleted_at IS NULL
+           LIMIT 1`,
           [userKey, recordId]
         )
 
-        return Number(result?.affectedRows || 0) > 0
+        if (!existingRows.length) {
+          return null
+        }
+
+        const deletedAt = new Date().toISOString()
+        const mysqlDeletedAt = toMysqlDateTime(deletedAt)
+        const [result] = await connection.query(
+          `UPDATE ${tableName}
+           SET deleted_at = ?, updated_at = ?
+           WHERE user_key = ? AND record_id = ? AND deleted_at IS NULL`,
+          [mysqlDeletedAt, mysqlDeletedAt, userKey, recordId]
+        )
+
+        if (Number(result?.affectedRows || 0) <= 0) {
+          return null
+        }
+
+        return mapRowToRecord(
+          {
+            ...existingRows[0],
+            updated_at: mysqlDeletedAt,
+            deleted_at: mysqlDeletedAt
+          },
+          env
+        )
+      })
+    },
+    async restoreRecord(userKey, recordId) {
+      return withConnection(async (connection) => {
+        const [existingRows] = await connection.query(
+          `SELECT record_id, title_cipher, content_cipher, DATE_FORMAT(record_date, '%Y-%m-%d') AS record_date,
+                  category, status, created_at, updated_at, deleted_at
+           FROM ${tableName}
+           WHERE user_key = ? AND record_id = ? AND deleted_at IS NOT NULL
+           LIMIT 1`,
+          [userKey, recordId]
+        )
+
+        if (!existingRows.length) {
+          return null
+        }
+
+        const restoredAt = new Date().toISOString()
+        const mysqlRestoredAt = toMysqlDateTime(restoredAt)
+
+        const [result] = await connection.query(
+          `UPDATE ${tableName}
+           SET deleted_at = NULL, updated_at = ?
+           WHERE user_key = ? AND record_id = ? AND deleted_at IS NOT NULL`,
+          [mysqlRestoredAt, userKey, recordId]
+        )
+
+        if (Number(result?.affectedRows || 0) <= 0) {
+          return null
+        }
+
+        return mapRowToRecord(
+          {
+            ...existingRows[0],
+            updated_at: mysqlRestoredAt,
+            deleted_at: null
+          },
+          env
+        )
       })
     }
   }
@@ -377,7 +476,9 @@ export function createInternshipApiMiddleware(env = process.env) {
     }
 
     const requestUrl = new URL(req.url, 'http://127.0.0.1')
-    const recordMatch = requestUrl.pathname.match(/^\/api\/internship\/records(?:\/([A-Za-z0-9_-]{1,64}))?$/)
+    const recordMatch = requestUrl.pathname.match(
+      /^\/api\/internship\/records(?:\/([A-Za-z0-9_-]{1,64})(?:\/(restore))?)?$/
+    )
 
     if (!recordMatch) {
       writeJson(res, 404, { message: 'Not found' })
@@ -387,11 +488,16 @@ export function createInternshipApiMiddleware(env = process.env) {
     try {
       const userKey = normalizeUserKey(req)
       const recordId = recordMatch[1] || ''
+      const recordAction = recordMatch[2] || ''
 
       if (req.method === 'GET' && !recordId) {
-        const records = await storage.listRecords(userKey)
+        const showDeletedRecords =
+          requestUrl.searchParams.get('scope') === 'trash' ||
+          requestUrl.searchParams.get('deleted') === '1'
+        const records = await storage.listRecords(userKey, { deleted: showDeletedRecords })
         writeJson(res, 200, {
           records,
+          scope: showDeletedRecords ? 'trash' : 'records',
           source: storage.mode,
           table: storage.table
         })
@@ -409,7 +515,22 @@ export function createInternshipApiMiddleware(env = process.env) {
         return
       }
 
-      if (req.method === 'PUT' && recordId) {
+      if (req.method === 'PATCH' && recordId && recordAction === 'restore') {
+        const savedRecord = await storage.restoreRecord(userKey, recordId)
+
+        if (!savedRecord) {
+          writeJson(res, 404, { message: 'Record not found in trash.' })
+          return
+        }
+
+        writeJson(res, 200, {
+          record: savedRecord,
+          source: storage.mode
+        })
+        return
+      }
+
+      if (req.method === 'PUT' && recordId && !recordAction) {
         const body = await readJsonBody(req)
         const record = normalizeIncomingRecord(body, recordId)
         const savedRecord = await storage.updateRecord(userKey, recordId, record)
@@ -426,18 +547,25 @@ export function createInternshipApiMiddleware(env = process.env) {
         return
       }
 
-      if (req.method === 'DELETE' && recordId) {
-        const deleted = await storage.deleteRecord(userKey, recordId)
+      if (req.method === 'DELETE' && recordId && !recordAction) {
+        const permanentlyDelete = requestUrl.searchParams.get('permanent') === '1'
+        const deleted = await storage.deleteRecord(userKey, recordId, { permanent: permanentlyDelete })
 
         if (!deleted) {
           writeJson(res, 404, { message: 'Record not found.' })
           return
         }
 
-        writeJson(res, 200, {
+        const payload = {
           ok: true,
           source: storage.mode
-        })
+        }
+
+        if (!permanentlyDelete) {
+          payload.record = deleted
+        }
+
+        writeJson(res, 200, payload)
         return
       }
 
