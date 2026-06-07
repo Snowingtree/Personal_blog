@@ -13,6 +13,8 @@ const MAX_COMMENT_LENGTH = 120
 const MAX_COMMENTS = 100
 const MAX_TAGS = 10
 const MAX_TAG_LENGTH = 24
+const MAX_BLOG_TAGS = 100
+const DEFAULT_BLOG_TAGS = ['前端', 'Vue', 'JavaScript', 'AI', '工作流']
 const supportedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 function normalizeEnvValue(value) {
@@ -66,7 +68,8 @@ function getMysqlConfig(env) {
     user: normalizeEnvValue(env.MYSQL_USER),
     password: normalizeEnvValue(env.MYSQL_PASSWORD),
     database: normalizeEnvValue(env.MYSQL_DATABASE),
-    table: normalizeEnvValue(env.THOUGHTS_MYSQL_TABLE) || 'thought_posts'
+    table: normalizeEnvValue(env.THOUGHTS_MYSQL_TABLE) || 'thought_posts',
+    tagTable: normalizeEnvValue(env.THOUGHTS_TAGS_MYSQL_TABLE) || 'thought_tags'
   }
 
   const missingKeys = Object.entries({
@@ -197,7 +200,13 @@ function normalizeComments(value) {
   }, [])
 }
 
-function normalizeTags(value, fallbackValue = []) {
+function normalizeTagName(value) {
+  return typeof value === 'string'
+    ? value.replace(/\s+/g, ' ').trim().slice(0, MAX_TAG_LENGTH)
+    : ''
+}
+
+function normalizeTags(value, fallbackValue = [], maxTags = MAX_TAGS) {
   const sourceTags = Array.isArray(value) ? value : fallbackValue
 
   if (!Array.isArray(sourceTags)) {
@@ -208,12 +217,10 @@ function normalizeTags(value, fallbackValue = []) {
   const tags = []
 
   sourceTags.forEach((tag) => {
-    const normalizedTag = typeof tag === 'string'
-      ? tag.replace(/\s+/g, ' ').trim().slice(0, MAX_TAG_LENGTH)
-      : ''
+    const normalizedTag = normalizeTagName(tag)
     const tagKey = normalizedTag.toLowerCase()
 
-    if (normalizedTag && !seenTags.has(tagKey) && tags.length < MAX_TAGS) {
+    if (normalizedTag && !seenTags.has(tagKey) && tags.length < maxTags) {
       seenTags.add(tagKey)
       tags.push(normalizedTag)
     }
@@ -313,9 +320,23 @@ function parseStoredPayload(value, env) {
 function createMysqlStorage(env) {
   const config = getMysqlConfig(env)
   const tableName = quoteIdentifier(config.table, 'THOUGHTS_MYSQL_TABLE')
+  const tagTableName = quoteIdentifier(config.tagTable, 'THOUGHTS_TAGS_MYSQL_TABLE')
   let poolPromise = null
 
+  async function tableExists(connection, table) {
+    const [rows] = await connection.query(
+      `SELECT COUNT(*) AS count
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      [table]
+    )
+
+    return Number(rows?.[0]?.count || 0) > 0
+  }
+
   async function ensureTable(connection) {
+    const tagTableExisted = await tableExists(connection, config.tagTable)
+
     await connection.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -326,6 +347,43 @@ function createMysqlStorage(env) {
         UNIQUE KEY uniq_post_id (post_id),
         KEY idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    )
+
+    await connection.query(
+      `CREATE TABLE IF NOT EXISTS ${tagTableName} (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        tag_name VARCHAR(${MAX_TAG_LENGTH}) NOT NULL,
+        tag_key VARCHAR(${MAX_TAG_LENGTH}) NOT NULL,
+        sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at DATETIME(3) NOT NULL,
+        updated_at DATETIME(3) NOT NULL,
+        UNIQUE KEY uniq_tag_key (tag_key),
+        KEY idx_sort_order (sort_order)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+    )
+
+    if (!tagTableExisted) {
+      await seedDefaultTags(connection)
+    }
+  }
+
+  async function seedDefaultTags(connection) {
+    const now = new Date().toISOString()
+    const tags = normalizeTags(DEFAULT_BLOG_TAGS, [], MAX_BLOG_TAGS)
+
+    await Promise.all(
+      tags.map((tag, index) => connection.query(
+        `INSERT IGNORE INTO ${tagTableName}
+          (tag_name, tag_key, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          tag,
+          tag.toLowerCase(),
+          index,
+          toMysqlDateTime(now),
+          toMysqlDateTime(now)
+        ]
+      ))
     )
   }
 
@@ -370,9 +428,106 @@ function createMysqlStorage(env) {
     }
   }
 
+  function mapRowToTag(row) {
+    return normalizeTagName(row.tag_name)
+  }
+
   return {
     mode: 'mysql',
     table: config.table,
+    tagTable: config.tagTable,
+    async listTags() {
+      return withConnection(async (connection) => {
+        const [rows] = await connection.query(
+          `SELECT tag_name
+           FROM ${tagTableName}
+           ORDER BY sort_order ASC, id ASC`
+        )
+
+        return normalizeTags(rows.map(mapRowToTag), [], MAX_BLOG_TAGS)
+      })
+    },
+    async createTag(value) {
+      const tag = normalizeTagName(value)
+
+      if (!tag) {
+        const error = new Error('Tag name is required.')
+        error.statusCode = 400
+        throw error
+      }
+
+      return withConnection(async (connection) => {
+        const tagKey = tag.toLowerCase()
+        const [existingRows] = await connection.query(
+          `SELECT tag_name
+           FROM ${tagTableName}
+           WHERE tag_key = ?
+           LIMIT 1`,
+          [tagKey]
+        )
+
+        if (existingRows.length) {
+          return { tag: mapRowToTag(existingRows[0]), created: false }
+        }
+
+        const [countRows] = await connection.query(
+          `SELECT COUNT(*) AS count
+           FROM ${tagTableName}`
+        )
+
+        if (Number(countRows?.[0]?.count || 0) >= MAX_BLOG_TAGS) {
+          const error = new Error(`A maximum of ${MAX_BLOG_TAGS} tags is allowed.`)
+          error.statusCode = 400
+          throw error
+        }
+
+        const [orderRows] = await connection.query(
+          `SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_order
+           FROM ${tagTableName}`
+        )
+        const now = new Date().toISOString()
+
+        try {
+          await connection.query(
+            `INSERT INTO ${tagTableName}
+              (tag_name, tag_key, sort_order, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              tag,
+              tagKey,
+              Number(orderRows?.[0]?.next_order || 0),
+              toMysqlDateTime(now),
+              toMysqlDateTime(now)
+            ]
+          )
+        } catch (error) {
+          if (error instanceof Error && error.code === 'ER_DUP_ENTRY') {
+            return { tag, created: false }
+          }
+
+          throw error
+        }
+
+        return { tag, created: true }
+      })
+    },
+    async deleteTag(value) {
+      const tag = normalizeTagName(value)
+
+      if (!tag) {
+        return false
+      }
+
+      return withConnection(async (connection) => {
+        const [result] = await connection.query(
+          `DELETE FROM ${tagTableName}
+           WHERE tag_key = ?`,
+          [tag.toLowerCase()]
+        )
+
+        return Number(result?.affectedRows || 0) > 0
+      })
+    },
     async listPosts(options = {}) {
       return withConnection(async (connection) => {
         const [rows] = await connection.query(
@@ -512,6 +667,16 @@ function normalizeImageRequest(requestUrl, env) {
   return { imageId, mimeType }
 }
 
+function decodePathValue(value) {
+  try {
+    return decodeURIComponent(String(value || ''))
+  } catch {
+    const error = new Error('Request path is invalid.')
+    error.statusCode = 400
+    throw error
+  }
+}
+
 export function createThoughtsApiMiddleware(env = process.env) {
   const storage = createMysqlStorage(env)
   const imageStorage = createThoughtsImageStorage(env)
@@ -544,9 +709,56 @@ export function createThoughtsApiMiddleware(env = process.env) {
       const postMatch = requestUrl.pathname.match(
         /^\/api\/thoughts\/posts(?:\/([A-Za-z0-9_-]{1,64}))?$/
       )
+      const tagMatch = requestUrl.pathname.match(
+        /^\/api\/thoughts\/tags(?:\/([^/]+))?$/
+      )
 
-      if (!postMatch && !restoreMatch) {
+      if (!postMatch && !restoreMatch && !tagMatch) {
         writeJson(res, 404, { message: 'Not found' })
+        return
+      }
+
+      if (tagMatch) {
+        const tagName = tagMatch[1] ? decodePathValue(tagMatch[1]) : ''
+
+        if (req.method === 'GET' && !tagName) {
+          const tags = await storage.listTags()
+          writeJson(res, 200, {
+            tags,
+            source: storage.mode,
+            table: storage.tagTable
+          })
+          return
+        }
+
+        if (req.method === 'POST' && !tagName) {
+          const body = await readJsonBody(req)
+          const result = await storage.createTag(body?.tag)
+          const tags = await storage.listTags()
+          writeJson(res, result.created ? 201 : 200, {
+            tag: result.tag,
+            tags,
+            created: result.created,
+            source: storage.mode,
+            table: storage.tagTable
+          })
+          return
+        }
+
+        if (req.method === 'DELETE' && tagName) {
+          const deleted = await storage.deleteTag(tagName)
+          const tags = await storage.listTags()
+          writeJson(res, 200, {
+            ok: true,
+            deleted,
+            tags,
+            source: storage.mode,
+            table: storage.tagTable
+          })
+          return
+        }
+
+        writeJson(res, 405, { message: 'Method not allowed' })
         return
       }
 
@@ -680,6 +892,7 @@ export function createThoughtsApiMiddleware(env = process.env) {
         path: requestUrl.pathname,
         storageMode: storage.mode,
         table: storage.table,
+        tagTable: storage.tagTable,
         message: error instanceof Error ? error.message : 'Unknown server error'
       })
 

@@ -141,13 +141,13 @@
                 placeholder="标签名称"
                 aria-label="标签名称"
               />
-              <button type="submit" :disabled="!normalizedTagDraft">添加</button>
+              <button type="submit" :disabled="!normalizedTagDraft || isSavingTag">添加</button>
             </form>
 
             <ul v-if="blogTags.length" class="thoughts-tag-manager__tags" aria-label="博客标签列表">
               <li v-for="tag in blogTags" :key="tag">
                 <span>{{ tag }}</span>
-                <button type="button" :aria-label="`删除标签 ${tag}`" :title="`删除标签 ${tag}`" @click="removeBlogTag(tag)">
+                <button type="button" :disabled="isSavingTag" :aria-label="`删除标签 ${tag}`" :title="`删除标签 ${tag}`" @click="removeBlogTag(tag)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M18 6 6 18M6 6l12 12" />
                   </svg>
@@ -378,8 +378,6 @@ const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const THOUGHTS_BACKGROUND_CLASS = 'is-thoughts-page'
 const LEGACY_THOUGHTS_POSTS_KEY = 'vibe-coding-thoughts-posts'
-const BLOG_TAGS_KEY = 'vibe-coding-blog-tags'
-const DEFAULT_BLOG_TAGS = ['前端', 'Vue', 'JavaScript', 'AI', '工作流']
 const previewImage = ref('')
 const isComposerOpen = ref(false)
 const activeThoughtsView = ref('feed')
@@ -391,9 +389,11 @@ const blogTags = ref([])
 const tagDraft = ref('')
 const isLoadingPosts = ref(false)
 const isLoadingTrash = ref(false)
+const isLoadingTags = ref(false)
 const isPublishing = ref(false)
 const isRemovingPost = ref(false)
 const isRestoringPost = ref(false)
+const isSavingTag = ref(false)
 
 const isManagingPosts = computed(() => activeThoughtsView.value === 'manager')
 const isManagingTags = computed(() => activeThoughtsView.value === 'tags')
@@ -449,12 +449,12 @@ const archives = computed(() => {
 watch(privateAppAvailable, (available) => {
   if (available) {
     loadPosts()
+    loadBlogTags()
   }
 }, { immediate: true })
 
 onMounted(() => {
   removeLegacyStoredPosts()
-  loadBlogTags()
   syncThoughtsBackground(true)
 })
 
@@ -706,6 +706,10 @@ function toggleManagementView() {
 function toggleTagView() {
   activeThoughtsView.value = isManagingTags.value ? 'feed' : 'tags'
   tagDraft.value = ''
+
+  if (isManagingTags.value) {
+    loadBlogTags()
+  }
 }
 
 function toggleTrashView() {
@@ -731,6 +735,10 @@ function normalizeBlogTag(value) {
 }
 
 function dedupeBlogTags(tags) {
+  if (!Array.isArray(tags)) {
+    return []
+  }
+
   const seenTags = new Set()
   const nextTags = []
 
@@ -747,37 +755,27 @@ function dedupeBlogTags(tags) {
   return nextTags
 }
 
-function loadBlogTags() {
+async function loadBlogTags() {
+  if (isLoadingTags.value) {
+    return
+  }
+
+  isLoadingTags.value = true
+
   try {
-    const storedTagsValue = localStorage.getItem(BLOG_TAGS_KEY)
-
-    if (storedTagsValue === null) {
-      blogTags.value = DEFAULT_BLOG_TAGS
-      persistBlogTags()
-      return
-    }
-
-    const storedTags = JSON.parse(storedTagsValue)
-    blogTags.value = Array.isArray(storedTags) ? dedupeBlogTags(storedTags) : DEFAULT_BLOG_TAGS
-    persistBlogTags()
-  } catch {
-    blogTags.value = DEFAULT_BLOG_TAGS
-    persistBlogTags()
+    const data = await http.get('/api/thoughts/tags')
+    blogTags.value = dedupeBlogTags(data.tags)
+  } catch (error) {
+    notify(getErrorMessage(error, '标签读取失败'), 'danger')
+  } finally {
+    isLoadingTags.value = false
   }
 }
 
-function persistBlogTags() {
-  try {
-    localStorage.setItem(BLOG_TAGS_KEY, JSON.stringify(blogTags.value))
-  } catch {
-    notify('标签保存失败', 'danger')
-  }
-}
-
-function addBlogTag() {
+async function addBlogTag() {
   const nextTag = normalizedTagDraft.value
 
-  if (!nextTag) {
+  if (!nextTag || isSavingTag.value) {
     return
   }
 
@@ -788,22 +786,38 @@ function addBlogTag() {
     return
   }
 
-  blogTags.value = [...blogTags.value, nextTag]
-  tagDraft.value = ''
-  persistBlogTags()
-  notify('标签已添加')
+  isSavingTag.value = true
+
+  try {
+    const data = await http.post('/api/thoughts/tags', { tag: nextTag })
+    blogTags.value = dedupeBlogTags(data.tags)
+    tagDraft.value = ''
+    notify(data.created ? '标签已添加' : '标签已存在')
+  } catch (error) {
+    notify(getErrorMessage(error, '标签添加失败'), 'danger')
+  } finally {
+    isSavingTag.value = false
+  }
 }
 
-function removeBlogTag(tag) {
+async function removeBlogTag(tag) {
   const tagKey = normalizeBlogTag(tag).toLowerCase()
 
-  if (!tagKey) {
+  if (!tagKey || isSavingTag.value) {
     return
   }
 
-  blogTags.value = blogTags.value.filter((item) => item.toLowerCase() !== tagKey)
-  persistBlogTags()
-  notify('标签已删除')
+  isSavingTag.value = true
+
+  try {
+    const data = await http.delete(`/api/thoughts/tags/${encodeURIComponent(tag)}`)
+    blogTags.value = dedupeBlogTags(data.tags)
+    notify(data.deleted ? '标签已删除' : '标签不存在')
+  } catch (error) {
+    notify(getErrorMessage(error, '标签删除失败'), 'danger')
+  } finally {
+    isSavingTag.value = false
+  }
 }
 
 function closeRemovePostDialog() {
