@@ -119,6 +119,135 @@
           <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
         </section>
 
+        <section v-else-if="isViewingStats" key="statistics" class="thoughts-stream thoughts-manager thoughts-statistics" aria-label="统计">
+          <header class="thoughts-manager__head">
+            <div>
+              <p>STATISTICS</p>
+              <h1>统计</h1>
+            </div>
+          </header>
+
+          <dl class="thoughts-manager__summary">
+            <div>
+              <dt>动态</dt>
+              <dd>{{ posts.length }}</dd>
+            </div>
+            <div>
+              <dt>图片</dt>
+              <dd>{{ totalImages }}</dd>
+            </div>
+            <div>
+              <dt>评论</dt>
+              <dd>{{ totalComments }}</dd>
+            </div>
+          </dl>
+
+          <section class="thoughts-statistics__grid" aria-label="统计面板">
+            <article class="thoughts-statistics__card">
+              <header>
+                <strong>标签使用</strong>
+                <span>{{ topPostTags.length }} 个标签</span>
+              </header>
+              <ol v-if="topPostTags.length" class="thoughts-statistics__ranking">
+                <li v-for="tag in topPostTags" :key="tag.name">
+                  <span>{{ tag.name }}</span>
+                  <strong>{{ tag.count }}</strong>
+                </li>
+              </ol>
+              <div v-else class="thoughts-statistics__empty">暂无标签使用数据</div>
+            </article>
+
+            <article class="thoughts-statistics__card">
+              <header>
+                <strong>月份分布</strong>
+                <span>{{ recentArchives.length }} 个月</span>
+              </header>
+              <ol v-if="recentArchives.length" class="thoughts-statistics__bars">
+                <li v-for="archive in recentArchives" :key="archive.label">
+                  <span>{{ archive.label }}</span>
+                  <i><b :style="{ transform: `scaleX(${archive.count / maxArchiveCount})` }"></b></i>
+                  <strong>{{ archive.count }}</strong>
+                </li>
+              </ol>
+              <div v-else class="thoughts-statistics__empty">暂无月份数据</div>
+            </article>
+
+            <article class="thoughts-statistics__card thoughts-contributions">
+              <header>
+                <strong>{{ selectedContributionYear }} 年动态</strong>
+                <span>{{ contributionTotal }} 条动态</span>
+              </header>
+
+              <div class="thoughts-contributions__layout">
+                <div class="thoughts-contributions__chart" :style="{ '--week-count': contributionWeeks.length }">
+                  <div class="thoughts-contributions__months" aria-hidden="true">
+                    <span
+                      v-for="month in contributionMonthLabels"
+                      :key="month.key"
+                      :style="{ gridColumn: `${month.weekIndex + 1} / span ${month.span}` }"
+                    >
+                      {{ month.label }}
+                    </span>
+                  </div>
+
+                  <div class="thoughts-contributions__body">
+                    <div class="thoughts-contributions__weekdays" aria-hidden="true">
+                      <span></span>
+                      <span>周一</span>
+                      <span></span>
+                      <span>周三</span>
+                      <span></span>
+                      <span>周五</span>
+                      <span></span>
+                    </div>
+
+                    <div class="thoughts-contributions__weeks" aria-label="年度动态热力图">
+                      <div v-for="week in contributionWeeks" :key="week.key" class="thoughts-contributions__week">
+                        <span
+                          v-for="day in week.days"
+                          :key="day.key"
+                          class="thoughts-contributions__day"
+                          :class="{ 'is-outside-range': !day.isInRange }"
+                          :data-level="day.level"
+                          :title="day.title"
+                          :aria-label="day.title"
+                        ></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="thoughts-contributions__legend" aria-hidden="true">
+                    <span>少</span>
+                    <i data-level="0"></i>
+                    <i data-level="1"></i>
+                    <i data-level="2"></i>
+                    <i data-level="3"></i>
+                    <i data-level="4"></i>
+                    <span>多</span>
+                  </div>
+                </div>
+
+                <div class="thoughts-contributions__years" aria-label="选择年份">
+                  <button
+                    v-for="yearOption in contributionYearOptions"
+                    :key="yearOption.year"
+                    type="button"
+                    :class="{ 'is-active': yearOption.year === selectedContributionYear }"
+                    :disabled="!yearOption.count"
+                    :title="yearOption.title"
+                    :aria-pressed="yearOption.year === selectedContributionYear"
+                    @click="selectContributionYear(yearOption.year)"
+                  >
+                    {{ yearOption.year }}
+                  </button>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
+        </section>
+
         <section v-else-if="isManagingTags" key="tags" class="thoughts-stream thoughts-manager thoughts-tags" aria-label="标签管理">
           <header class="thoughts-manager__head">
             <div>
@@ -156,6 +285,66 @@
             </ul>
 
             <div v-else class="thoughts-manager__empty">暂无标签</div>
+          </section>
+
+          <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
+        </section>
+
+        <section v-else-if="isExportOpen" key="export" class="thoughts-stream thoughts-manager thoughts-export" aria-label="导出">
+          <header class="thoughts-manager__head">
+            <div>
+              <p>EXPORT</p>
+              <h1>导出</h1>
+            </div>
+          </header>
+
+          <dl class="thoughts-manager__summary">
+            <div>
+              <dt>动态</dt>
+              <dd>{{ posts.length }}</dd>
+            </div>
+            <div>
+              <dt>标签</dt>
+              <dd>{{ blogTags.length }}</dd>
+            </div>
+            <div>
+              <dt>评论</dt>
+              <dd>{{ totalComments }}</dd>
+            </div>
+          </dl>
+
+          <section class="thoughts-export__panel" aria-label="导出格式">
+            <header>
+              <strong>导出格式</strong>
+              <span>{{ exportFileBaseName }}</span>
+            </header>
+
+            <div class="thoughts-export__actions">
+              <button type="button" :disabled="!posts.length" @click="exportPostsAsJson">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M14 3v4a2 2 0 0 0 2 2h4" />
+                  <path d="M7 3h7l6 6v12H7V3Z" />
+                  <path d="M10 13h7M10 17h5" />
+                </svg>
+                <span>JSON</span>
+              </button>
+              <button type="button" :disabled="!posts.length" @click="exportPostsAsMarkdown">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 5h16v14H4V5Z" />
+                  <path d="M8 9v6m0-6 3 3 3-3v6m3-6v6" />
+                </svg>
+                <span>Markdown</span>
+              </button>
+            </div>
+
+            <ol v-if="posts.length" class="thoughts-export__preview" aria-label="导出预览">
+              <li v-for="post in posts.slice(0, 5)" :key="post.id">
+                <time :datetime="post.createdAt">{{ formatManagementTime(post.createdAt) }}</time>
+                <span>{{ getPostExcerpt(post.content) }}</span>
+              </li>
+            </ol>
+
+            <div v-else class="thoughts-manager__empty">暂无可导出的动态</div>
           </section>
 
           <button type="button" class="thoughts-mobile-back" @click="handleBackToTools">返回</button>
@@ -256,22 +445,64 @@
           <path d="M8 9h8M8 13h5" />
         </svg>
       </button>
-      <button
-        type="button"
-        class="thoughts-manage-button"
-        :class="{ 'is-active': isManagingPosts }"
-        :aria-pressed="isManagingPosts"
-        aria-label="管理动态"
-        title="管理动态"
-        @click="toggleManagementView"
+      <div
+        class="thoughts-management-tools"
+        :class="{ 'is-expanded': isManagementToolsExpanded }"
+        @mouseenter="openManagementToolsByHover"
+        @mouseleave="closeManagementTools"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M5 7h8M17 7h2M5 12h2m4 0h8M5 17h8m4 0h2" />
-          <circle cx="15" cy="7" r="2" />
-          <circle cx="9" cy="12" r="2" />
-          <circle cx="15" cy="17" r="2" />
-        </svg>
-      </button>
+        <button
+          type="button"
+          class="thoughts-manage-button thoughts-management-trigger"
+          :class="{ 'is-active': isManagingPosts || isViewingStats || isManagementToolsExpanded }"
+          :aria-expanded="isManagementToolsExpanded"
+          aria-controls="thoughts-management-menu"
+          aria-label="管理工具"
+          title="管理工具"
+          @click="toggleManagementTools"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 7h8M17 7h2M5 12h2m4 0h8M5 17h8m4 0h2" />
+            <circle cx="15" cy="7" r="2" />
+            <circle cx="9" cy="12" r="2" />
+            <circle cx="15" cy="17" r="2" />
+          </svg>
+        </button>
+        <div id="thoughts-management-menu" class="thoughts-management-tools__menu" aria-label="管理工具">
+          <button
+            type="button"
+            class="thoughts-manage-button thoughts-management-action"
+            :class="{ 'is-active': isManagingPosts }"
+            :aria-pressed="isManagingPosts"
+            aria-label="管理动态"
+            title="管理动态"
+            @click="toggleManagementView"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 7h8M17 7h2M5 12h2m4 0h8M5 17h8m4 0h2" />
+              <circle cx="15" cy="7" r="2" />
+              <circle cx="9" cy="12" r="2" />
+              <circle cx="15" cy="17" r="2" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="thoughts-stats-button thoughts-management-action"
+            :class="{ 'is-active': isViewingStats }"
+            :aria-pressed="isViewingStats"
+            aria-label="统计"
+            title="统计"
+            @click="toggleStatisticsView"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 19V9" />
+              <path d="M12 19V5" />
+              <path d="M19 19v-7" />
+              <path d="M4 19h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
       <button
         type="button"
         class="thoughts-tag-button"
@@ -297,6 +528,22 @@
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="thoughts-export-button"
+        :class="{ 'is-active': isExportOpen }"
+        :aria-pressed="isExportOpen"
+        aria-label="导出"
+        title="导出"
+        @click="toggleExportView"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 4v10" />
+          <path d="m8 10 4 4 4-4" />
+          <path d="M5 18h14" />
+          <path d="M7 14v4h10v-4" />
         </svg>
       </button>
     </div>
@@ -381,6 +628,9 @@ const LEGACY_THOUGHTS_POSTS_KEY = 'vibe-coding-thoughts-posts'
 const previewImage = ref('')
 const isComposerOpen = ref(false)
 const activeThoughtsView = ref('feed')
+const isManagementMenuOpen = ref(false)
+const isManagementMenuHovering = ref(false)
+const selectedContributionYear = ref(new Date().getFullYear())
 const removingPostId = ref('')
 const removingPostMode = ref('soft')
 const posts = ref([])
@@ -396,14 +646,38 @@ const isRestoringPost = ref(false)
 const isSavingTag = ref(false)
 
 const isManagingPosts = computed(() => activeThoughtsView.value === 'manager')
+const isViewingStats = computed(() => activeThoughtsView.value === 'stats')
 const isManagingTags = computed(() => activeThoughtsView.value === 'tags')
 const isTrashOpen = computed(() => activeThoughtsView.value === 'trash')
+const isExportOpen = computed(() => activeThoughtsView.value === 'export')
 const isFeedView = computed(() => activeThoughtsView.value === 'feed')
+const isManagementToolsExpanded = computed(() => isManagementMenuOpen.value || isManagementMenuHovering.value)
 const totalComments = computed(() => posts.value.reduce((sum, post) => sum + post.comments.length, 0))
 const totalImages = computed(() => posts.value.reduce((sum, post) => sum + post.images.length, 0))
 const trashTotalComments = computed(() => trashPosts.value.reduce((sum, post) => sum + post.comments.length, 0))
 const trashTotalImages = computed(() => trashPosts.value.reduce((sum, post) => sum + post.images.length, 0))
 const normalizedTagDraft = computed(() => normalizeBlogTag(tagDraft.value))
+const exportFileBaseName = computed(() => `thoughts-${formatExportTimestamp(new Date())}`)
+const contributionYearOptions = computed(() => createContributionYearOptions(posts.value))
+const contributionWeeks = computed(() => createContributionWeeks(posts.value, selectedContributionYear.value))
+const contributionTotal = computed(() => contributionWeeks.value.reduce((total, week) => (
+  total + week.days.reduce((weekTotal, day) => weekTotal + day.count, 0)
+), 0))
+const contributionMonthLabels = computed(() => createContributionMonthLabels(contributionWeeks.value))
+const topPostTags = computed(() => {
+  const tagMap = new Map()
+
+  posts.value.forEach((post) => {
+    post.tags.forEach((tag) => {
+      tagMap.set(tag, (tagMap.get(tag) || 0) + 1)
+    })
+  })
+
+  return [...tagMap.entries()]
+    .sort((firstTag, secondTag) => secondTag[1] - firstTag[1] || firstTag[0].localeCompare(secondTag[0], 'zh-Hans-CN'))
+    .slice(0, 6)
+    .map(([name, count]) => ({ name, count }))
+})
 const removeDialogCopy = computed(() => {
   if (removingPostMode.value === 'force') {
     return {
@@ -445,6 +719,8 @@ const archives = computed(() => {
 
   return [...archiveMap.entries()].map(([label, count]) => ({ label, count }))
 })
+const recentArchives = computed(() => archives.value.slice(0, 6))
+const maxArchiveCount = computed(() => Math.max(...recentArchives.value.map((archive) => archive.count), 1))
 
 watch(privateAppAvailable, (available) => {
   if (available) {
@@ -695,16 +971,43 @@ function handlePrimaryAction() {
   }
 
   activeThoughtsView.value = 'feed'
+  closeManagementTools()
   tagDraft.value = ''
+}
+
+function openManagementToolsByHover() {
+  isManagementMenuHovering.value = true
+}
+
+function closeManagementTools() {
+  isManagementMenuOpen.value = false
+  isManagementMenuHovering.value = false
+}
+
+function toggleManagementTools() {
+  if (isManagementMenuOpen.value) {
+    closeManagementTools()
+    return
+  }
+
+  isManagementMenuOpen.value = true
 }
 
 function toggleManagementView() {
   activeThoughtsView.value = isManagingPosts.value ? 'feed' : 'manager'
+  closeManagementTools()
+  tagDraft.value = ''
+}
+
+function toggleStatisticsView() {
+  activeThoughtsView.value = isViewingStats.value ? 'feed' : 'stats'
+  closeManagementTools()
   tagDraft.value = ''
 }
 
 function toggleTagView() {
   activeThoughtsView.value = isManagingTags.value ? 'feed' : 'tags'
+  closeManagementTools()
   tagDraft.value = ''
 
   if (isManagingTags.value) {
@@ -714,11 +1017,28 @@ function toggleTagView() {
 
 function toggleTrashView() {
   activeThoughtsView.value = isTrashOpen.value ? 'feed' : 'trash'
+  closeManagementTools()
   tagDraft.value = ''
 
   if (isTrashOpen.value) {
     loadTrashPosts()
   }
+}
+
+function toggleExportView() {
+  activeThoughtsView.value = isExportOpen.value ? 'feed' : 'export'
+  closeManagementTools()
+  tagDraft.value = ''
+}
+
+function selectContributionYear(year) {
+  const yearOption = contributionYearOptions.value.find((option) => option.year === year)
+
+  if (!yearOption?.count) {
+    return
+  }
+
+  selectedContributionYear.value = year
 }
 
 function closeComposerDialog() {
@@ -753,6 +1073,161 @@ function dedupeBlogTags(tags) {
   })
 
   return nextTags
+}
+
+function createContributionYearOptions(sourcePosts) {
+  const currentYear = new Date().getFullYear()
+  const yearCounts = new Map()
+  let earliestYear = currentYear - 4
+
+  sourcePosts.forEach((post) => {
+    const createdAt = new Date(post.createdAt)
+
+    if (Number.isNaN(createdAt.getTime())) {
+      return
+    }
+
+    const year = createdAt.getFullYear()
+    earliestYear = Math.min(earliestYear, year)
+    yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
+  })
+
+  const finalYear = Math.min(currentYear - 4, earliestYear)
+  const years = []
+
+  for (let year = currentYear; year >= finalYear; year -= 1) {
+    const count = yearCounts.get(year) || 0
+
+    years.push({
+      year,
+      count,
+      title: count ? `${year} 年 ${count} 条动态` : `${year} 年暂无动态`
+    })
+  }
+
+  return years
+}
+
+function createContributionWeeks(sourcePosts, selectedYear) {
+  const today = startOfLocalDay(new Date())
+  const rangeStart = startOfLocalDay(new Date(selectedYear, 0, 1))
+  const yearEnd = startOfLocalDay(new Date(selectedYear, 11, 31))
+  const rangeEnd = selectedYear === today.getFullYear() ? today : yearEnd
+  const calendarStart = addLocalDays(rangeStart, -rangeStart.getDay())
+  const calendarEnd = addLocalDays(rangeEnd, 6 - rangeEnd.getDay())
+  const postCounts = new Map()
+
+  sourcePosts.forEach((post) => {
+    const createdAt = startOfLocalDay(new Date(post.createdAt))
+
+    if (Number.isNaN(createdAt.getTime()) || createdAt < rangeStart || createdAt > rangeEnd) {
+      return
+    }
+
+    const dateKey = getLocalDateKey(createdAt)
+    postCounts.set(dateKey, (postCounts.get(dateKey) || 0) + 1)
+  })
+
+  const weeks = []
+
+  for (let weekStart = calendarStart; weekStart <= calendarEnd; weekStart = addLocalDays(weekStart, 7)) {
+    const days = []
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      const date = addLocalDays(weekStart, dayIndex)
+      const isInRange = date >= rangeStart && date <= rangeEnd
+      const dateKey = getLocalDateKey(date)
+      const count = isInRange ? postCounts.get(dateKey) || 0 : 0
+      const dateLabel = formatContributionDate(date)
+
+      days.push({
+        key: dateKey,
+        count,
+        isInRange,
+        level: isInRange ? getContributionLevel(count) : 0,
+        monthKey: `${date.getFullYear()}-${date.getMonth()}`,
+        monthLabel: `${date.getMonth() + 1}月`,
+        title: count ? `${dateLabel}：${count} 条动态` : `${dateLabel}：无动态`
+      })
+    }
+
+    weeks.push({
+      key: getLocalDateKey(weekStart),
+      days
+    })
+  }
+
+  return weeks
+}
+
+function createContributionMonthLabels(weeks) {
+  const labels = []
+  const seenMonths = new Set()
+
+  weeks.forEach((week, weekIndex) => {
+    const visibleDay = week.days.find((day) => day.isInRange)
+
+    if (!visibleDay || seenMonths.has(visibleDay.monthKey)) {
+      return
+    }
+
+    seenMonths.add(visibleDay.monthKey)
+    labels.push({
+      key: visibleDay.monthKey,
+      label: visibleDay.monthLabel,
+      weekIndex,
+      span: 1
+    })
+  })
+
+  return labels.map((label, index) => ({
+    ...label,
+    span: Math.max((labels[index + 1]?.weekIndex || weeks.length) - label.weekIndex, 1)
+  })).filter((label, index) => index === 0 || label.span >= 3)
+}
+
+function startOfLocalDay(value) {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function addLocalDays(value, amount) {
+  const date = new Date(value)
+  date.setDate(date.getDate() + amount)
+  return date
+}
+
+function getLocalDateKey(value) {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0')
+  ].join('-')
+}
+
+function getContributionLevel(count) {
+  if (count <= 0) {
+    return 0
+  }
+
+  if (count === 1) {
+    return 1
+  }
+
+  if (count === 2) {
+    return 2
+  }
+
+  if (count <= 4) {
+    return 3
+  }
+
+  return 4
+}
+
+function formatContributionDate(value) {
+  return `${value.getFullYear()}/${String(value.getMonth() + 1).padStart(2, '0')}/${String(value.getDate()).padStart(2, '0')}`
 }
 
 async function loadBlogTags() {
@@ -818,6 +1293,116 @@ async function removeBlogTag(tag) {
   } finally {
     isSavingTag.value = false
   }
+}
+
+function createExportPost(post) {
+  return {
+    id: post.id,
+    author: post.author,
+    authorInitials: post.authorInitials,
+    content: post.content,
+    tags: [...post.tags],
+    images: post.images.map((image) => ({
+      id: image.id,
+      name: image.name,
+      size: image.size,
+      src: image.src
+    })),
+    comments: post.comments.map((comment) => ({
+      id: comment.id,
+      author: comment.author,
+      content: comment.content,
+      createdAt: comment.createdAt
+    })),
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    deletedAt: post.deletedAt
+  }
+}
+
+function createExportPayload() {
+  return {
+    exportedAt: new Date().toISOString(),
+    version: 1,
+    tags: [...blogTags.value],
+    posts: posts.value.map(createExportPost)
+  }
+}
+
+function downloadExportFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+function exportPostsAsJson() {
+  if (!posts.value.length) {
+    notify('暂无可导出的动态', 'danger')
+    return
+  }
+
+  downloadExportFile(
+    `${exportFileBaseName.value}.json`,
+    JSON.stringify(createExportPayload(), null, 2),
+    'application/json;charset=utf-8'
+  )
+  notify('导出文件已生成')
+}
+
+function exportPostsAsMarkdown() {
+  if (!posts.value.length) {
+    notify('暂无可导出的动态', 'danger')
+    return
+  }
+
+  const lines = [
+    '# 碎碎念导出',
+    '',
+    `导出时间：${formatManagementTime(new Date().toISOString())}`,
+    `动态数量：${posts.value.length}`,
+    ''
+  ]
+
+  posts.value.forEach((post, index) => {
+    lines.push(`## ${String(index + 1).padStart(2, '0')} · ${formatManagementTime(post.createdAt)}`)
+    lines.push('')
+
+    if (post.tags.length) {
+      lines.push(post.tags.map((tag) => `#${tag.replace(/\s+/g, '-')}`).join(' '))
+      lines.push('')
+    }
+
+    lines.push(post.content || '仅包含图片')
+    lines.push('')
+
+    post.images.forEach((image, imageIndex) => {
+      lines.push(`![图片 ${imageIndex + 1}](${image.src})`)
+    })
+
+    if (post.images.length) {
+      lines.push('')
+    }
+
+    post.comments.forEach((comment) => {
+      lines.push(`- ${comment.author} · ${formatManagementTime(comment.createdAt)}：${comment.content}`)
+    })
+
+    lines.push('')
+  })
+
+  downloadExportFile(
+    `${exportFileBaseName.value}.md`,
+    `${lines.join('\n').trim()}\n`,
+    'text/markdown;charset=utf-8'
+  )
+  notify('导出文件已生成')
 }
 
 function closeRemovePostDialog() {
@@ -915,6 +1500,22 @@ function formatManagementTime(value) {
   }
 
   return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function formatExportTimestamp(value) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'unknown-time'
+  }
+
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getHours()).padStart(2, '0'),
+    String(date.getMinutes()).padStart(2, '0')
+  ].join('')
 }
 
 function getPostExcerpt(content) {
@@ -1394,6 +1995,285 @@ function handleBackToTools() {
   text-align: center;
 }
 
+.thoughts-statistics__grid {
+  display: grid;
+  gap: 14px;
+}
+
+.thoughts-statistics__card {
+  overflow: hidden;
+  border: 1px solid #e2e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.thoughts-statistics__card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #edf0f2;
+  padding: 14px 18px;
+}
+
+.thoughts-statistics__card > header strong {
+  color: #3d4a5f;
+  font-size: 0.88rem;
+}
+
+.thoughts-statistics__card > header span {
+  min-width: 0;
+  overflow: hidden;
+  color: #9aa2ad;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thoughts-contributions__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+}
+
+.thoughts-contributions__chart {
+  overflow: hidden;
+  padding: 15px 18px 14px;
+}
+
+.thoughts-contributions__months {
+  display: grid;
+  margin-left: 40px;
+  grid-template-columns: repeat(var(--week-count), minmax(0, 1fr));
+  gap: 2px;
+  color: #677386;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.thoughts-contributions__months span {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.thoughts-contributions__body {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.thoughts-contributions__weekdays {
+  display: grid;
+  width: 32px;
+  flex: 0 0 auto;
+  grid-template-rows: repeat(7, minmax(7px, 1fr));
+  gap: 2px;
+  color: #677386;
+  font-size: 0.72rem;
+  line-height: 1;
+  text-align: right;
+}
+
+.thoughts-contributions__weekdays span {
+  display: grid;
+  align-items: center;
+}
+
+.thoughts-contributions__weeks {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: repeat(var(--week-count), minmax(0, 1fr));
+  gap: 2px;
+}
+
+.thoughts-contributions__week {
+  display: grid;
+  gap: 2px;
+}
+
+.thoughts-contributions__day,
+.thoughts-contributions__legend i {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: #ebedf0;
+  box-shadow: inset 0 0 0 1px rgba(27, 31, 36, 0.04);
+}
+
+.thoughts-contributions__legend i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.thoughts-contributions__day[data-level="1"],
+.thoughts-contributions__legend i[data-level="1"] {
+  background: #9be9a8;
+}
+
+.thoughts-contributions__day[data-level="2"],
+.thoughts-contributions__legend i[data-level="2"] {
+  background: #40c463;
+}
+
+.thoughts-contributions__day[data-level="3"],
+.thoughts-contributions__legend i[data-level="3"] {
+  background: #30a14e;
+}
+
+.thoughts-contributions__day[data-level="4"],
+.thoughts-contributions__legend i[data-level="4"] {
+  background: #216e39;
+}
+
+.thoughts-contributions__day.is-outside-range {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.thoughts-contributions__legend {
+  display: flex;
+  width: calc(100% - 40px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 12px;
+  margin-left: 40px;
+  color: #677386;
+  font-size: 0.72rem;
+}
+
+.thoughts-contributions__years {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border-left: 1px solid #edf0f2;
+  padding: 14px;
+}
+
+.thoughts-contributions__years button {
+  width: 100%;
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #677386;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.thoughts-contributions__years button:hover {
+  background: #eef2f7;
+  color: #253246;
+}
+
+.thoughts-contributions__years button.is-active {
+  background: #253246;
+  color: #ffffff;
+}
+
+.thoughts-contributions__years button:disabled,
+.thoughts-contributions__years button:disabled:hover,
+.thoughts-contributions__years button:disabled.is-active {
+  border-color: #edf0f2;
+  background: #f3f4f6;
+  color: #b7bec8;
+  cursor: not-allowed;
+}
+
+.thoughts-statistics__ranking,
+.thoughts-statistics__bars {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 10px 12px 12px;
+  list-style: none;
+}
+
+.thoughts-statistics__ranking li,
+.thoughts-statistics__bars li {
+  min-width: 0;
+  min-height: 46px;
+  border-radius: 6px;
+  color: #445168;
+  font-size: 0.82rem;
+}
+
+.thoughts-statistics__ranking li:nth-child(odd),
+.thoughts-statistics__bars li:nth-child(odd) {
+  background: #f7f8fa;
+}
+
+.thoughts-statistics__ranking li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 14px;
+}
+
+.thoughts-statistics__ranking span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thoughts-statistics__ranking strong,
+.thoughts-statistics__bars strong {
+  color: #253246;
+  font-size: 0.86rem;
+}
+
+.thoughts-statistics__bars li {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr) 38px;
+  gap: 12px;
+  align-items: center;
+  padding: 0 14px;
+}
+
+.thoughts-statistics__bars span {
+  min-width: 0;
+  overflow: hidden;
+  color: #677386;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thoughts-statistics__bars i {
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: #edf0f2;
+}
+
+.thoughts-statistics__bars b {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #253246;
+  transform-origin: left center;
+}
+
+.thoughts-statistics__empty {
+  color: #9aa2ad;
+  font-size: 0.82rem;
+  padding: 30px 18px;
+  text-align: center;
+}
+
 .thought-view-enter-active,
 .thought-view-leave-active {
   transition:
@@ -1416,10 +2296,49 @@ function handleBackToTools() {
   gap: 10px;
 }
 
+.thoughts-management-tools {
+  position: relative;
+  display: grid;
+  width: 54px;
+  height: 54px;
+}
+
+.thoughts-management-tools__menu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  display: flex;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  padding-left: 10px;
+  transform: translateX(-6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.thoughts-management-tools.is-expanded .thoughts-management-tools__menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.thoughts-management-trigger {
+  position: relative;
+  z-index: 1;
+}
+
+.thoughts-management-action {
+  flex: 0 0 auto;
+}
+
 .thoughts-create-button,
 .thoughts-manage-button,
+.thoughts-stats-button,
 .thoughts-tag-button,
-.thoughts-trash-button {
+.thoughts-trash-button,
+.thoughts-export-button {
   display: grid;
   width: 54px;
   height: 54px;
@@ -1448,8 +2367,10 @@ function handleBackToTools() {
 }
 
 .thoughts-manage-button,
+.thoughts-stats-button,
 .thoughts-tag-button,
-.thoughts-trash-button {
+.thoughts-trash-button,
+.thoughts-export-button {
   border: 1px solid #dce1e7;
   background: #ffffff;
   box-shadow: 0 10px 22px rgba(37, 50, 70, 0.12);
@@ -1458,10 +2379,14 @@ function handleBackToTools() {
 
 .thoughts-manage-button:hover,
 .thoughts-manage-button.is-active,
+.thoughts-stats-button:hover,
+.thoughts-stats-button.is-active,
 .thoughts-tag-button:hover,
 .thoughts-tag-button.is-active,
 .thoughts-trash-button:hover,
-.thoughts-trash-button.is-active {
+.thoughts-trash-button.is-active,
+.thoughts-export-button:hover,
+.thoughts-export-button.is-active {
   border-color: #253246;
   background: #253246;
   color: #ffffff;
@@ -1470,8 +2395,10 @@ function handleBackToTools() {
 
 .thoughts-create-button svg,
 .thoughts-manage-button svg,
+.thoughts-stats-button svg,
 .thoughts-tag-button svg,
-.thoughts-trash-button svg {
+.thoughts-trash-button svg,
+.thoughts-export-button svg {
   width: 23px;
   height: 23px;
   fill: none;
@@ -1653,6 +2580,105 @@ function handleBackToTools() {
   stroke-width: 1.8;
 }
 
+.thoughts-export__panel {
+  overflow: hidden;
+  border: 1px solid #e2e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.thoughts-export__panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #edf0f2;
+  padding: 14px 18px;
+}
+
+.thoughts-export__panel > header strong {
+  color: #3d4a5f;
+  font-size: 0.88rem;
+}
+
+.thoughts-export__panel > header span {
+  color: #9aa2ad;
+  font-size: 0.72rem;
+}
+
+.thoughts-export__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: #eef1f5;
+}
+
+.thoughts-export__actions button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 68px;
+  border: 0;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.thoughts-export__actions button:hover {
+  background: #f7f8fa;
+}
+
+.thoughts-export__actions button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.thoughts-export__actions svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.thoughts-export__preview {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thoughts-export__preview li {
+  display: grid;
+  grid-template-columns: 142px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 48px;
+  border-top: 1px solid #edf0f2;
+  padding: 0 18px;
+}
+
+.thoughts-export__preview time {
+  color: #87909e;
+  font-size: 0.72rem;
+}
+
+.thoughts-export__preview span {
+  overflow: hidden;
+  color: #445168;
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .thoughts-composer-dialog {
   width: min(100%, 680px);
   max-height: min(820px, calc(100vh - 40px));
@@ -1824,26 +2850,79 @@ function handleBackToTools() {
   }
 
   .thoughts-create-button,
+  .thoughts-management-tools,
   .thoughts-manage-button,
+  .thoughts-stats-button,
   .thoughts-tag-button,
-  .thoughts-trash-button {
+  .thoughts-trash-button,
+  .thoughts-export-button {
     width: 50px;
     height: 50px;
+  }
+
+  .thoughts-management-tools__menu {
+    right: 100%;
+    left: auto;
+    padding-right: 10px;
+    padding-left: 0;
+    transform: translateX(6px);
+  }
+
+  .thoughts-management-tools.is-expanded .thoughts-management-tools__menu {
+    transform: translateX(0);
   }
 
   .thoughts-create-button:hover,
   .thoughts-manage-button:hover,
   .thoughts-manage-button.is-active,
+  .thoughts-stats-button:hover,
+  .thoughts-stats-button.is-active,
   .thoughts-tag-button:hover,
   .thoughts-tag-button.is-active,
   .thoughts-trash-button:hover,
-  .thoughts-trash-button.is-active {
+  .thoughts-trash-button.is-active,
+  .thoughts-export-button:hover,
+  .thoughts-export-button.is-active {
     transform: scale(1.06);
   }
 
   .thoughts-composer-dialog {
     max-height: calc(100vh - 24px);
     padding: 14px;
+  }
+
+  .thoughts-contributions__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .thoughts-contributions__years {
+    display: flex;
+    overflow-x: auto;
+    border-top: 1px solid #edf0f2;
+    border-left: 0;
+    padding: 10px 14px;
+  }
+
+  .thoughts-contributions__years button {
+    width: auto;
+    min-width: 76px;
+    flex: 0 0 auto;
+  }
+
+  .thoughts-statistics__bars li {
+    grid-template-columns: 1fr 1fr 32px;
+    gap: 8px;
+    padding: 9px 12px;
+  }
+
+  .thoughts-export__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .thoughts-export__preview li {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 10px 14px;
   }
 
 }
