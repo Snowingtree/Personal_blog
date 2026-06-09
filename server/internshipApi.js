@@ -180,9 +180,9 @@ function normalizeUserKey(req) {
 function normalizeIncomingRecord(body, fallbackId = '') {
   const now = new Date().toISOString()
   const title = typeof body.title === 'string' ? body.title.trim() : ''
-  const content = typeof body.content === 'string' ? body.content.trim() : ''
+  const content = typeof body.content === 'string' ? body.content : ''
 
-  if (!title || !content) {
+  if (!title || !content.trim()) {
     const error = new Error('title and content are required.')
     error.statusCode = 400
     throw error

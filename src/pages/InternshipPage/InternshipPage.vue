@@ -114,7 +114,7 @@
                 </div>
 
                 <div class="internship-record__body">
-                  <p class="internship-record__content">{{ record.content }}</p>
+                  <p class="internship-record__content">{{ getRecordPreview(record.content) }}</p>
                   <div class="internship-record__actions">
                     <button type="button" @click="startEditing(record)">编辑</button>
                     <button type="button" @click="requestRemoveRecord(record)">删除</button>
@@ -146,7 +146,7 @@
                     <h3>{{ record.title }}</h3>
                     <time :datetime="record.deletedAt">删除于 {{ formatDateTime(record.deletedAt) }}</time>
                   </div>
-                  <p>{{ record.content }}</p>
+                  <p class="internship-trash-item__content">{{ getRecordPreview(record.content) }}</p>
                 </div>
                 <div class="internship-trash-item__actions">
                   <button type="button" class="internship-secondary" @click="restoreDeletedRecord(record)">恢复</button>
@@ -889,6 +889,10 @@ function getCategoryFilterLabel(value) {
 
 function getStatusLabel(value) {
   return statusOptions.find((option) => option.value === value)?.label || '进行中'
+}
+
+function getRecordPreview(value) {
+  return String(value ?? '').replace(/\r?\n/g, ' ')
 }
 
 function toggleSelectMenu(name) {
@@ -1730,7 +1734,7 @@ function handleBackToTools() {
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre;
 }
 
 .internship-record__actions {
@@ -1906,6 +1910,10 @@ function handleBackToTools() {
   color: var(--internship-copy);
   font-size: 0.88rem;
   line-height: 1.5;
+}
+
+.internship-trash-item .internship-trash-item__content {
+  white-space: pre;
 }
 
 .internship-trash-item time {
