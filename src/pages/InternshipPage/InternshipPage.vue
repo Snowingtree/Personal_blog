@@ -294,9 +294,11 @@
             <label class="internship-form__record">
               <span>记录</span>
               <textarea
-                v-model="draftContent"
+                :value="draftContent"
                 rows="10"
                 placeholder="记录任务、问题、解决方案、复盘或待办"
+                spellcheck="false"
+                @input="handleDraftContentInput"
               ></textarea>
             </label>
           </form>
@@ -737,6 +739,10 @@ function closeDraftDialog() {
   closeSelectMenu()
   draftDialogOpen.value = false
   resetDraft()
+}
+
+function handleDraftContentInput(event) {
+  draftContent.value = event.target?.value ?? ''
 }
 
 async function handleSave() {
@@ -1490,6 +1496,9 @@ function handleBackToTools() {
 .internship-form__record textarea {
   min-height: clamp(320px, 44vh, 500px);
   height: 100%;
+  font-family: Consolas, 'Courier New', monospace;
+  white-space: pre-wrap;
+  tab-size: 4;
 }
 
 .internship-field--textarea > span:first-child {
