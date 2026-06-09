@@ -294,7 +294,7 @@
             <label class="internship-form__record">
               <span>记录</span>
               <textarea
-                v-model.trim="draftContent"
+                v-model="draftContent"
                 rows="10"
                 placeholder="记录任务、问题、解决方案、复盘或待办"
               ></textarea>
@@ -740,7 +740,7 @@ function closeDraftDialog() {
 }
 
 async function handleSave() {
-  if (!draftTitle.value || !draftContent.value) {
+  if (!draftTitle.value || !draftContent.value.trim()) {
     notify('标题和记录都需要填写', 'danger')
     return
   }
