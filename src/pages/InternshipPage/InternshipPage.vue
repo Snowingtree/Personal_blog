@@ -36,13 +36,7 @@
         </div>
 
         <div class="internship-board__content">
-          <Transition name="internship-board-switch" mode="out-in">
-            <section
-              v-if="activeBoardView === 'records'"
-              key="records"
-              class="internship-board__records-view"
-              aria-label="实习记录内容"
-            >
+          <section class="internship-board__records-view" aria-label="实习记录内容">
             <div class="internship-board__toolbar">
               <label class="internship-search">
                 <span>搜索</span>
@@ -99,69 +93,99 @@
               </button>
             </div>
 
-            <div class="internship-records">
-              <article v-for="record in filteredRecords" :key="record.id" class="internship-record">
-                <div class="internship-record__head">
-                  <h2>{{ record.title }}</h2>
+            <div class="internship-list-switcher">
+              <Transition name="internship-board-fade">
+              <div v-if="activeBoardView === 'records'" key="records" class="internship-records">
+                <article
+                  v-for="record in filteredRecords"
+                  :key="record.id"
+                  class="internship-record"
+                  @click="handleRecordDetailClick(record)"
+                  @dblclick="openRecordDetail(record)"
+                >
+                  <div class="internship-record__head">
+                    <h2>{{ record.title }}</h2>
 
-                  <div class="internship-record__meta">
-                    <time :datetime="record.updatedAt">更新于 {{ formatDate(record.updatedAt) }}</time>
-                    <span>{{ getCategoryLabel(record.category) }}</span>
-                    <span :class="['internship-record__status', `is-${record.status}`]">
-                      {{ getStatusLabel(record.status) }}
-                    </span>
+                    <div class="internship-record__meta">
+                      <time :datetime="record.updatedAt">更新于 {{ formatDate(record.updatedAt) }}</time>
+                      <span>{{ getCategoryLabel(record.category) }}</span>
+                      <span :class="['internship-record__status', `is-${record.status}`]">
+                        {{ getStatusLabel(record.status) }}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                <div class="internship-record__body">
-                  <p class="internship-record__content">{{ getRecordPreview(record.content) }}</p>
-                  <div class="internship-record__actions">
-                    <button type="button" @click="startEditing(record)">编辑</button>
-                    <button type="button" @click="requestRemoveRecord(record)">删除</button>
+                  <div class="internship-record__body">
+                    <p class="internship-record__content">{{ getRecordPreview(record.content) }}</p>
+                    <div class="internship-record__actions" @click.stop @dblclick.stop>
+                      <button type="button" @click="startEditing(record)">编辑</button>
+                      <button type="button" @click="requestRemoveRecord(record)">删除</button>
+                    </div>
                   </div>
-                </div>
-              </article>
+                </article>
 
-              <p v-if="!filteredRecords.length" class="internship-empty">
-                {{ records.length ? '没有匹配的实习记录' : '暂无实习记录' }}
-              </p>
-            </div>
-            </section>
-
-            <section v-else key="trash" class="internship-trash internship-trash--board" aria-label="回收站列表">
-            <div class="internship-trash__head">
-              <div>
-                <h2>回收站</h2>
-                <p>已删除的记录会显示在这里，可以恢复或移除。</p>
+                <p v-if="!filteredRecords.length" class="internship-empty">
+                  {{ records.length ? '没有匹配的实习记录' : '暂无实习记录' }}
+                </p>
               </div>
-              <button type="button" class="internship-secondary" @click="showRecordsView">返回记录</button>
-            </div>
 
-            <p v-if="!sortedDeletedRecords.length" class="internship-empty">回收站为空</p>
+              <div v-else key="trash" class="internship-records" aria-label="回收站列表">
+                <p v-if="deletedRecordsLoading" class="internship-empty">正在读取回收站...</p>
+                <template v-else-if="filteredDeletedRecords.length">
+                  <article
+                    v-for="record in filteredDeletedRecords"
+                    :key="record.id"
+                    class="internship-record"
+                    @click="handleRecordDetailClick(record)"
+                    @dblclick="openRecordDetail(record)"
+                  >
+                    <div class="internship-record__head">
+                      <h2>{{ record.title }}</h2>
 
-            <div v-else class="internship-trash-list">
-              <article v-for="record in sortedDeletedRecords" :key="record.id" class="internship-trash-item">
-                <div class="internship-trash-item__main">
-                  <div class="internship-trash-item__head">
-                    <h3>{{ record.title }}</h3>
-                    <time :datetime="record.deletedAt">删除于 {{ formatDateTime(record.deletedAt) }}</time>
-                  </div>
-                  <p class="internship-trash-item__content">{{ getRecordPreview(record.content) }}</p>
-                </div>
-                <div class="internship-trash-item__actions">
-                  <button type="button" class="internship-secondary" @click="restoreDeletedRecord(record)">恢复</button>
-                  <button type="button" class="internship-danger" @click="removeDeletedRecord(record.id)">移除</button>
-                </div>
-              </article>
+                      <div class="internship-record__meta">
+                        <time :datetime="record.deletedAt">删除于 {{ formatDateTime(record.deletedAt) }}</time>
+                        <span>{{ getCategoryLabel(record.category) }}</span>
+                        <span :class="['internship-record__status', `is-${record.status}`]">
+                          {{ getStatusLabel(record.status) }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="internship-record__body">
+                      <p class="internship-record__content">{{ getRecordPreview(record.content) }}</p>
+                      <div class="internship-record__actions" @click.stop @dblclick.stop>
+                        <button type="button" class="internship-secondary" @click="restoreDeletedRecord(record)">恢复</button>
+                        <button type="button" class="internship-danger" @click="removeDeletedRecord(record.id)">移除</button>
+                      </div>
+                    </div>
+                  </article>
+                </template>
+
+                <p v-else class="internship-empty">
+                  {{ deletedRecords.length ? '没有匹配的回收站记录' : '回收站为空' }}
+                </p>
+              </div>
+              </Transition>
             </div>
-            </section>
-          </Transition>
+          </section>
         </div>
       </section>
 
       <aside class="internship-summary" aria-label="实习概览">
         <article v-for="card in statCards" :key="card.key" class="internship-stat">
-          <span>{{ card.label }}</span>
+          <div class="internship-stat__head">
+            <span>{{ card.label }}</span>
+            <button
+              v-if="activeBoardView === 'trash' && card.key === 'follow-up'"
+              type="button"
+              class="internship-clear-trash"
+              :disabled="deletedRecordsLoading || trashClearing || !deletedRecords.length"
+              title="清空回收站"
+              @click="requestClearTrash"
+            >
+              清空
+            </button>
+          </div>
           <strong>{{ card.value }}</strong>
         </article>
       </aside>
@@ -340,6 +364,115 @@
       </div>
     </Transition>
 
+    <Transition name="internship-window">
+      <div
+        v-if="clearTrashConfirmOpen"
+        class="internship-modal"
+        role="presentation"
+        @click.self="closeClearTrashConfirm"
+      >
+        <section
+          class="internship-dialog internship-confirm-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="internship-clear-trash-title"
+        >
+          <div class="internship-dialog__head">
+            <div>
+              <h2 id="internship-clear-trash-title">清空回收站</h2>
+            </div>
+            <button
+              type="button"
+              class="internship-dialog__close"
+              aria-label="关闭"
+              :disabled="trashClearing"
+              @click="closeClearTrashConfirm"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="internship-confirm">
+            <p>清空后这些记录会被永久删除，无法恢复。</p>
+            <strong>共 {{ deletedRecords.length }} 条回收站记录</strong>
+            <div class="internship-confirm__actions">
+              <button
+                type="button"
+                class="internship-secondary"
+                :disabled="trashClearing"
+                @click="closeClearTrashConfirm"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="internship-danger"
+                :disabled="trashClearing"
+                @click="confirmClearTrash"
+              >
+                {{ trashClearing ? '清空中...' : '确认清空' }}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="internship-window">
+      <div
+        v-if="detailRecord"
+        class="internship-modal"
+        role="presentation"
+        @click.self="closeRecordDetail"
+      >
+        <section
+          class="internship-dialog internship-detail-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="internship-detail-dialog-title"
+        >
+          <div class="internship-dialog__head internship-detail-dialog__head">
+            <div>
+              <h2 id="internship-detail-dialog-title">记录详情</h2>
+            </div>
+            <div class="internship-dialog__actions">
+              <button
+                v-if="!detailRecordIsDeleted"
+                type="button"
+                class="internship-dialog__edit"
+                aria-label="编辑记录"
+                title="编辑"
+                @click="editRecordFromDetail"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                  <path d="M13.5 6.5l4 4" />
+                </svg>
+              </button>
+              <button type="button" class="internship-dialog__close" aria-label="关闭" @click="closeRecordDetail">
+                ×
+              </button>
+            </div>
+          </div>
+
+          <article class="internship-detail">
+            <header class="internship-detail__head">
+              <h3>{{ detailRecord.title }}</h3>
+              <div class="internship-detail__meta">
+                <time :datetime="detailRecord.recordDate">{{ formatRecordDate(detailRecord.recordDate) }}</time>
+                <span>{{ getCategoryLabel(detailRecord.category) }}</span>
+                <span :class="['internship-record__status', `is-${detailRecord.status}`]">
+                  {{ getStatusLabel(detailRecord.status) }}
+                </span>
+                <time :datetime="detailRecord.updatedAt">更新于 {{ formatDateTime(detailRecord.updatedAt) }}</time>
+              </div>
+            </header>
+            <pre class="internship-detail__content">{{ detailRecord.content }}</pre>
+          </article>
+        </section>
+      </div>
+    </Transition>
+
   </main>
 
   <main v-else class="auth-layout">
@@ -391,6 +524,9 @@ const draftStatus = ref('progress')
 const editingId = ref('')
 const draftDialogOpen = ref(false)
 const deleteTargetRecord = ref(null)
+const clearTrashConfirmOpen = ref(false)
+const trashClearing = ref(false)
+const detailRecord = ref(null)
 const activeBoardView = ref('records')
 const searchQuery = ref('')
 const activeStatus = ref('all')
@@ -399,6 +535,9 @@ const openSelectMenu = ref('')
 const records = ref(readStoredRecords())
 const deletedRecords = ref([])
 const recordsLoaded = ref(false)
+const deletedRecordsLoading = ref(false)
+let detailClickRecordId = ''
+let detailClickTimer = null
 
 function syncInternshipBackground(enabled) {
   if (typeof document === 'undefined') {
@@ -415,6 +554,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   syncInternshipBackground(false)
+
+  if (detailClickTimer) {
+    window.clearTimeout(detailClickTimer)
+  }
 })
 
 watch(
@@ -466,6 +609,37 @@ const sortedDeletedRecords = computed(() => (
   [...deletedRecords.value].sort((left, right) => (
     new Date(right.deletedAt).getTime() - new Date(left.deletedAt).getTime()
   ))
+))
+
+const filteredDeletedRecords = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase()
+
+  return sortedDeletedRecords.value.filter((record) => {
+    if (activeStatus.value !== 'all' && record.status !== activeStatus.value) {
+      return false
+    }
+
+    if (activeCategory.value !== 'all' && record.category !== activeCategory.value) {
+      return false
+    }
+
+    if (!keyword) {
+      return true
+    }
+
+    const searchableText = [
+      record.title,
+      record.content,
+      getCategoryLabel(record.category),
+      getStatusLabel(record.status)
+    ].join(' ').toLowerCase()
+
+    return searchableText.includes(keyword)
+  })
+})
+
+const detailRecordIsDeleted = computed(() => (
+  Boolean(detailRecord.value && deletedRecords.value.some((record) => record.id === detailRecord.value.id))
 ))
 
 const statCards = computed(() => [
@@ -689,6 +863,7 @@ async function migrateDeletedRecordsToDatabase(localDeletedRecords) {
 
 async function loadDeletedRecords() {
   const localDeletedRecords = readStoredDeletedRecords()
+  deletedRecordsLoading.value = true
 
   try {
     const data = await http.get('/api/internship/records?scope=trash')
@@ -716,6 +891,8 @@ async function loadDeletedRecords() {
     }
   } catch (error) {
     notify(error instanceof Error ? error.message : '回收站加载失败', 'danger')
+  } finally {
+    deletedRecordsLoading.value = false
   }
 }
 
@@ -805,23 +982,84 @@ function startEditing(record) {
   draftDialogOpen.value = true
 }
 
+function editRecordFromDetail() {
+  const record = detailRecord.value
+
+  if (!record) {
+    return
+  }
+
+  closeRecordDetail()
+  startEditing(record)
+}
+
 function requestRemoveRecord(record) {
   closeSelectMenu()
   deleteTargetRecord.value = record
+}
+
+function handleRecordDetailClick(record) {
+  if (detailClickRecordId === record.id && detailClickTimer) {
+    window.clearTimeout(detailClickTimer)
+    detailClickRecordId = ''
+    detailClickTimer = null
+    openRecordDetail(record)
+    return
+  }
+
+  if (detailClickTimer) {
+    window.clearTimeout(detailClickTimer)
+  }
+
+  detailClickRecordId = record.id
+  detailClickTimer = window.setTimeout(() => {
+    detailClickRecordId = ''
+    detailClickTimer = null
+  }, 360)
+}
+
+function openRecordDetail(record) {
+  closeSelectMenu()
+  detailRecord.value = record
+}
+
+function closeRecordDetail() {
+  detailRecord.value = null
 }
 
 function closeDeleteConfirm() {
   deleteTargetRecord.value = null
 }
 
-function toggleTrashView() {
+function requestClearTrash() {
   closeSelectMenu()
-  activeBoardView.value = activeBoardView.value === 'trash' ? 'records' : 'trash'
+
+  if (!deletedRecords.value.length) {
+    notify('回收站已经为空')
+    return
+  }
+
+  clearTrashConfirmOpen.value = true
 }
 
-function showRecordsView() {
+function closeClearTrashConfirm() {
+  if (trashClearing.value) {
+    return
+  }
+
+  clearTrashConfirmOpen.value = false
+}
+
+async function toggleTrashView() {
   closeSelectMenu()
-  activeBoardView.value = 'records'
+
+  if (activeBoardView.value === 'trash') {
+    activeBoardView.value = 'records'
+    return
+  }
+
+  activeBoardView.value = 'trash'
+  await loadDeletedRecords()
 }
 
 async function confirmRemoveRecord() {
@@ -885,6 +1123,51 @@ async function removeDeletedRecord(recordId) {
   }
 }
 
+async function confirmClearTrash() {
+  if (trashClearing.value) {
+    return
+  }
+
+  const recordIds = deletedRecords.value.map((record) => record.id)
+
+  if (!recordIds.length) {
+    clearTrashConfirmOpen.value = false
+    notify('回收站已经为空')
+    return
+  }
+
+  trashClearing.value = true
+
+  try {
+    const results = await Promise.allSettled(
+      recordIds.map((recordId) => (
+        http.delete(`/api/internship/records/${encodeURIComponent(recordId)}?permanent=1`)
+      ))
+    )
+    const removedIds = recordIds.filter((recordId, index) => (
+      results[index]?.status === 'fulfilled'
+    ))
+    const failedCount = recordIds.length - removedIds.length
+
+    if (removedIds.length) {
+      const removedIdSet = new Set(removedIds)
+      deletedRecords.value = deletedRecords.value.filter((record) => !removedIdSet.has(record.id))
+    }
+
+    if (failedCount) {
+      notify(`已清空 ${removedIds.length} 条，${failedCount} 条失败`, 'danger')
+      return
+    }
+
+    clearTrashConfirmOpen.value = false
+    notify('回收站已清空')
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '清空失败', 'danger')
+  } finally {
+    trashClearing.value = false
+  }
+}
+
 function getCategoryLabel(value) {
   return categoryOptions.find((option) => option.value === value)?.label || '记录'
 }
@@ -898,7 +1181,12 @@ function getStatusLabel(value) {
 }
 
 function getRecordPreview(value) {
-  return String(value ?? '').replace(/\r?\n/g, ' ')
+  return String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/^[\t \u00a0\u3000]+/, ''))
+    .join(' ')
+    .replace(/^[\t \u00a0\u3000]+/, '')
 }
 
 function toggleSelectMenu(name) {
@@ -944,6 +1232,22 @@ function formatDate(value) {
   }
 
   return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date)
+}
+
+function formatDateTime(value) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -1055,6 +1359,7 @@ function handleBackToTools() {
 .internship-trash-button,
 .internship-add-button,
 .internship-dialog__close,
+.internship-dialog__edit,
 .internship-dialog__save,
 .internship-primary,
 .internship-secondary,
@@ -1079,6 +1384,7 @@ function handleBackToTools() {
 .internship-trash-button,
 .internship-add-button,
 .internship-dialog__close,
+.internship-dialog__edit,
 .internship-dialog__save {
   display: inline-flex;
   align-items: center;
@@ -1130,6 +1436,7 @@ function handleBackToTools() {
 }
 
 .internship-dialog__close,
+.internship-dialog__edit,
 .internship-dialog__save {
   width: 42px;
   min-width: 42px;
@@ -1145,6 +1452,12 @@ function handleBackToTools() {
   box-shadow: 0 12px 24px rgba(17, 24, 39, 0.14);
 }
 
+.internship-dialog__edit {
+  color: var(--internship-ink);
+  background: var(--internship-soft);
+}
+
+.internship-dialog__edit svg,
 .internship-dialog__save svg {
   width: 18px;
   height: 18px;
@@ -1168,6 +1481,7 @@ function handleBackToTools() {
 .internship-trash-button:hover,
 .internship-add-button:hover,
 .internship-dialog__close:hover,
+.internship-dialog__edit:hover,
 .internship-dialog__save:hover,
 .internship-primary:hover,
 .internship-secondary:hover,
@@ -1203,10 +1517,51 @@ function handleBackToTools() {
     0 3px 10px rgba(17, 24, 39, 0.03);
 }
 
+.internship-stat__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .internship-stat span {
+  min-width: 0;
   color: var(--internship-muted);
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.internship-clear-trash {
+  flex: 0 0 auto;
+  border: 1px solid rgba(180, 35, 47, 0.2);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #b4232f;
+  background: rgba(255, 228, 230, 0.58);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+.internship-clear-trash:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(180, 35, 47, 0.42);
+  background: rgba(255, 228, 230, 0.86);
+  box-shadow: 0 10px 20px rgba(180, 35, 47, 0.12);
+}
+
+.internship-clear-trash:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .internship-stat strong {
@@ -1518,8 +1873,7 @@ function handleBackToTools() {
 
 .internship-actions,
 .internship-record__actions,
-.internship-confirm__actions,
-.internship-trash-item__actions {
+.internship-confirm__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1562,32 +1916,40 @@ function handleBackToTools() {
   min-height: 0;
 }
 
-.internship-board-switch-enter-active,
-.internship-board-switch-leave-active {
-  transition:
-    opacity 220ms ease,
-    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 260ms ease;
-  will-change: opacity, transform, filter;
+.internship-list-switcher {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
 }
 
-.internship-board-switch-enter-from {
+.internship-list-switcher > .internship-records {
+  grid-area: 1 / 1;
+  min-height: 0;
+}
+
+.internship-board-fade-enter-active,
+.internship-board-fade-leave-active {
+  transition: opacity 360ms ease;
+  will-change: opacity;
+}
+
+.internship-board-fade-leave-active {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.internship-board-fade-enter-from,
+.internship-board-fade-leave-to {
   opacity: 0;
-  filter: blur(5px);
-  transform: translate3d(0, 12px, 0) scale(0.985);
 }
 
-.internship-board-switch-leave-to {
-  opacity: 0;
-  filter: blur(3px);
-  transform: translate3d(0, -8px, 0) scale(0.99);
-}
-
-.internship-board-switch-enter-to,
-.internship-board-switch-leave-from {
+.internship-board-fade-enter-to,
+.internship-board-fade-leave-from {
   opacity: 1;
-  filter: blur(0);
-  transform: translate3d(0, 0, 0) scale(1);
 }
 
 .internship-board__head,
@@ -1631,7 +1993,7 @@ function handleBackToTools() {
 
 .internship-board__toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(240px, 28%) 260px minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -1664,6 +2026,7 @@ function handleBackToTools() {
   gap: 8px;
   padding: 14px 16px;
   animation: internship-item-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  cursor: pointer;
 }
 
 .internship-record__head {
@@ -1814,134 +2177,73 @@ function handleBackToTools() {
   white-space: nowrap;
 }
 
-.internship-trash {
+.internship-detail-dialog {
+  width: min(920px, calc(100vw - 44px));
+}
+
+.internship-detail-dialog__head {
+  justify-content: space-between;
+}
+
+.internship-detail {
   display: grid;
-  gap: 14px;
-  margin-top: 18px;
+  gap: 16px;
+  margin-top: 14px;
 }
 
-.internship-trash--board {
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 0;
-  margin-top: 0;
-}
-
-.internship-trash__head {
+.internship-detail__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   min-width: 0;
 }
 
-.internship-trash__head h2,
-.internship-trash__head p {
-  margin: 0;
-}
-
-.internship-trash__head h2 {
-  color: var(--internship-ink);
-  font-size: 1.35rem;
-  line-height: 1.2;
-}
-
-.internship-trash__head p {
-  margin-top: 6px;
-  color: var(--internship-muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.internship-trash-list {
-  display: grid;
-  gap: 10px;
-  max-height: min(56vh, 520px);
-  padding-right: 4px;
-  overflow: auto;
-}
-
-.internship-trash--board .internship-trash-list {
-  max-height: none;
-  min-height: 0;
-}
-
-.internship-trash-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.internship-trash-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(17, 24, 39, 0.18);
-}
-
-.internship-trash-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+.internship-detail__head h3 {
+  flex: 1 1 auto;
   min-width: 0;
-  border: 1px solid var(--internship-line);
-  border-radius: 16px;
-  padding: 14px;
-  background: var(--internship-soft);
-  animation: internship-item-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  margin: 0;
+  color: var(--internship-ink);
+  font-size: 1.22rem;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
 }
 
-.internship-trash-item__main {
-  display: grid;
+.internship-detail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 0 1 auto;
   gap: 8px;
-  min-width: 0;
 }
 
-.internship-trash-item__head {
-  display: flex;
+.internship-detail__meta span,
+.internship-detail__meta time {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.internship-trash-item h3,
-.internship-trash-item p {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.internship-trash-item h3 {
-  color: var(--internship-ink);
-  font-size: 1rem;
-  line-height: 1.3;
-}
-
-.internship-trash-item p {
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 4px 9px;
   color: var(--internship-copy);
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-
-.internship-trash-item .internship-trash-item__content {
-  white-space: pre;
-}
-
-.internship-trash-item time {
-  flex: 0 0 auto;
-  color: var(--internship-muted);
+  background: var(--internship-soft);
   font-size: 0.78rem;
   font-weight: 700;
-  white-space: nowrap;
 }
 
-.internship-trash-item__actions {
-  flex: 0 0 auto;
-  gap: 8px;
-}
-
-.internship-trash-item__actions button {
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 0.82rem;
+.internship-detail__content {
+  max-height: min(52vh, 520px);
+  margin: 0;
+  border: 1px solid var(--internship-line);
+  border-radius: 16px;
+  padding: 16px;
+  color: var(--internship-copy);
+  background: var(--internship-soft);
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.92rem;
+  line-height: 1.75;
+  overflow: auto;
+  tab-size: 4;
+  white-space: pre-wrap;
 }
 
 @keyframes internship-item-enter {
@@ -2009,8 +2311,8 @@ function handleBackToTools() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .internship-board-switch-enter-active,
-  .internship-board-switch-leave-active,
+  .internship-board-fade-enter-active,
+  .internship-board-fade-leave-active,
   .internship-window-enter-active,
   .internship-window-leave-active,
   .internship-window-enter-active .internship-dialog,
@@ -2018,16 +2320,12 @@ function handleBackToTools() {
     transition-duration: 1ms;
   }
 
-  .internship-record,
-  .internship-trash-item {
+  .internship-record {
     animation: none;
   }
 
-  .internship-board-switch-enter-from,
-  .internship-board-switch-leave-to,
   .internship-window-enter-from .internship-dialog,
   .internship-window-leave-to .internship-dialog {
-    filter: none;
     transform: none;
   }
 }
@@ -2174,16 +2472,21 @@ function handleBackToTools() {
     gap: 8px;
   }
 
-  .internship-confirm__actions,
-  .internship-trash-item,
-  .internship-trash-item__head,
-  .internship-trash-item__actions {
+  .internship-detail__head {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .internship-detail__meta {
+    justify-content: flex-start;
+  }
+
+  .internship-confirm__actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .internship-confirm__actions button,
-  .internship-trash-item__actions button {
+  .internship-confirm__actions button {
     width: 100%;
   }
 }
