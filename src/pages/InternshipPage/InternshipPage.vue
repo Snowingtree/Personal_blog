@@ -4,7 +4,7 @@
       <section class="internship-board" aria-label="实习记录列表">
         <div class="internship-board__head">
           <div>
-            <h1>实习记录</h1>
+            <h1>实习</h1>
           </div>
           <div class="internship-board__actions">
             <button type="button" class="internship-logout" @click="handleBackToTools">返回</button>
@@ -81,7 +81,12 @@
               </div>
             </div>
 
-            <div class="internship-status-tabs" role="tablist" aria-label="记录状态筛选">
+            <div
+              class="internship-status-tabs"
+              :class="{ 'has-trash-action': activeBoardView === 'trash' }"
+              role="tablist"
+              aria-label="记录状态筛选"
+            >
               <button
                 v-for="option in statusFilterOptions"
                 :key="option.value"
@@ -90,6 +95,16 @@
                 @click="activeStatus = option.value"
               >
                 {{ option.label }}
+              </button>
+              <button
+                v-if="activeBoardView === 'trash'"
+                type="button"
+                class="internship-clear-trash internship-clear-trash--tabs"
+                :disabled="deletedRecordsLoading || trashClearing || !deletedRecords.length"
+                title="清空回收站"
+                @click="requestClearTrash"
+              >
+                清空
               </button>
             </div>
 
@@ -107,7 +122,7 @@
                     <h2>{{ record.title }}</h2>
 
                     <div class="internship-record__meta">
-                      <time :datetime="record.updatedAt">更新于 {{ formatDate(record.updatedAt) }}</time>
+                      <time :datetime="record.createdAt">{{ formatDate(record.createdAt) }}</time>
                       <span>{{ getCategoryLabel(record.category) }}</span>
                       <span :class="['internship-record__status', `is-${record.status}`]">
                         {{ getStatusLabel(record.status) }}
@@ -175,16 +190,6 @@
         <article v-for="card in statCards" :key="card.key" class="internship-stat">
           <div class="internship-stat__head">
             <span>{{ card.label }}</span>
-            <button
-              v-if="activeBoardView === 'trash' && card.key === 'follow-up'"
-              type="button"
-              class="internship-clear-trash"
-              :disabled="deletedRecordsLoading || trashClearing || !deletedRecords.length"
-              title="清空回收站"
-              @click="requestClearTrash"
-            >
-              清空
-            </button>
           </div>
           <strong>{{ card.value }}</strong>
         </article>
@@ -207,6 +212,10 @@
           <div class="internship-dialog__head">
             <div>
               <h2 id="internship-dialog-title">{{ editingId ? '编辑记录' : '添加实习记录' }}</h2>
+              <div v-if="editingId" class="internship-dialog__meta">
+                <time :datetime="draftCreatedAt">创建于 {{ formatDateTime(draftCreatedAt) }}</time>
+                <time :datetime="draftUpdatedAt">编辑于 {{ formatDateTime(draftUpdatedAt) }}</time>
+              </div>
             </div>
             <div class="internship-dialog__actions">
               <button
@@ -464,7 +473,8 @@
                 <span :class="['internship-record__status', `is-${detailRecord.status}`]">
                   {{ getStatusLabel(detailRecord.status) }}
                 </span>
-                <time :datetime="detailRecord.updatedAt">更新于 {{ formatDateTime(detailRecord.updatedAt) }}</time>
+                <time :datetime="detailRecord.createdAt">创建于 {{ formatDateTime(detailRecord.createdAt) }}</time>
+                <time :datetime="detailRecord.updatedAt">编辑于 {{ formatDateTime(detailRecord.updatedAt) }}</time>
               </div>
             </header>
             <pre class="internship-detail__content">{{ detailRecord.content }}</pre>
@@ -521,6 +531,8 @@ const draftContent = ref('')
 const draftDate = ref(formatInputDate(new Date()))
 const draftCategory = ref('daily')
 const draftStatus = ref('progress')
+const draftCreatedAt = ref('')
+const draftUpdatedAt = ref('')
 const editingId = ref('')
 const draftDialogOpen = ref(false)
 const deleteTargetRecord = ref(null)
@@ -902,6 +914,8 @@ function resetDraft() {
   draftDate.value = formatInputDate(new Date())
   draftCategory.value = 'daily'
   draftStatus.value = 'progress'
+  draftCreatedAt.value = ''
+  draftUpdatedAt.value = ''
   editingId.value = ''
 }
 
@@ -936,7 +950,7 @@ async function handleSave() {
     recordDate: normalizeInputDate(draftDate.value) || formatInputDate(new Date()),
     category: draftCategory.value,
     status: draftStatus.value,
-    createdAt: now,
+    createdAt: editingId.value ? (draftCreatedAt.value || now) : now,
     updatedAt: now
   }
 
@@ -979,6 +993,8 @@ function startEditing(record) {
   draftDate.value = record.recordDate
   draftCategory.value = record.category
   draftStatus.value = record.status
+  draftCreatedAt.value = record.createdAt
+  draftUpdatedAt.value = record.updatedAt
   draftDialogOpen.value = true
 }
 
@@ -1991,6 +2007,25 @@ function handleBackToTools() {
   font-size: 1.55rem;
 }
 
+.internship-dialog__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.internship-dialog__meta time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  color: var(--internship-muted);
+  background: var(--internship-soft);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .internship-board__toolbar {
   display: grid;
   grid-template-columns: minmax(240px, 28%) 260px minmax(0, 1fr);
@@ -2019,6 +2054,26 @@ function handleBackToTools() {
   color: #ffffff;
   border-color: #111827;
   background: linear-gradient(135deg, #111827 0%, #374151 100%);
+}
+
+.internship-status-tabs .internship-clear-trash--tabs {
+  margin-left: auto;
+  min-width: 72px;
+  border-color: rgba(180, 35, 47, 0.2);
+  color: #b4232f;
+  background: rgba(255, 228, 230, 0.58);
+}
+
+.internship-status-tabs .internship-clear-trash--tabs:hover:not(:disabled) {
+  border-color: rgba(180, 35, 47, 0.42);
+  background: rgba(255, 228, 230, 0.86);
+}
+
+.internship-status-tabs .internship-clear-trash--tabs:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .internship-record {
@@ -2418,11 +2473,20 @@ function handleBackToTools() {
     gap: 6px;
   }
 
+  .internship-status-tabs.has-trash-action {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
   .internship-status-tabs button {
     min-width: 0;
     padding: 8px 4px;
     font-size: clamp(0.68rem, 2.8vw, 0.82rem);
     white-space: nowrap;
+  }
+
+  .internship-status-tabs .internship-clear-trash--tabs {
+    margin-left: 0;
+    min-width: 0;
   }
 
   .internship-board__head,
