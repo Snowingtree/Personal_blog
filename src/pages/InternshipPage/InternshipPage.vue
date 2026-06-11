@@ -331,6 +331,7 @@
                 rows="10"
                 placeholder="记录任务、问题、解决方案、复盘或待办"
                 spellcheck="false"
+                @keydown="handleDraftContentKeydown"
                 @input="handleDraftContentInput"
               ></textarea>
             </label>
@@ -502,6 +503,7 @@ import http from '../../utils/http'
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const INTERNSHIP_BACKGROUND_CLASS = 'is-internship-page'
+const DRAFT_CONTENT_TAB = '\t'
 
 const categoryOptions = [
   { value: 'daily', label: '日报' },
@@ -934,6 +936,33 @@ function closeDraftDialog() {
 
 function handleDraftContentInput(event) {
   draftContent.value = event.target?.value ?? ''
+}
+
+function handleDraftContentKeydown(event) {
+  if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) {
+    return
+  }
+
+  const textarea = event.currentTarget
+
+  if (!textarea || typeof textarea.value !== 'string' || typeof textarea.setSelectionRange !== 'function') {
+    return
+  }
+
+  event.preventDefault()
+
+  const selectionStart = textarea.selectionStart ?? textarea.value.length
+  const selectionEnd = textarea.selectionEnd ?? selectionStart
+  const nextValue = [
+    textarea.value.slice(0, selectionStart),
+    DRAFT_CONTENT_TAB,
+    textarea.value.slice(selectionEnd)
+  ].join('')
+  const nextCursorPosition = selectionStart + DRAFT_CONTENT_TAB.length
+
+  draftContent.value = nextValue
+  textarea.value = nextValue
+  textarea.setSelectionRange(nextCursorPosition, nextCursorPosition)
 }
 
 async function handleSave() {
