@@ -4,7 +4,7 @@
       <section class="internship-board" aria-label="实习记录列表">
         <div class="internship-board__head">
           <div>
-            <h1>实习</h1>
+            <h1>{{ boardTitle }}</h1>
           </div>
           <div class="internship-board__actions">
             <button type="button" class="internship-logout" @click="handleBackToTools">返回</button>
@@ -36,8 +36,144 @@
         </div>
 
         <div class="internship-board__content">
-          <section class="internship-board__records-view" aria-label="实习记录内容">
-            <div class="internship-board__toolbar">
+          <Transition name="internship-board-fade" mode="out-in">
+          <section
+            v-if="activeBoardView === 'management'"
+            key="management"
+            class="internship-management-view"
+            aria-label="实习管理"
+          >
+            <section class="internship-contributions" aria-label="年度实习记录">
+              <header>
+                <strong>年度记录</strong>
+                <span>{{ internshipContributionTotal }} records</span>
+              </header>
+
+              <div class="internship-contributions__years-list">
+                <section
+                  v-for="yearStats in internshipContributionYears"
+                  :key="yearStats.year"
+                  class="internship-contributions__year"
+                >
+                  <div class="internship-contributions__year-row">
+                    <div class="internship-contributions__chart" :style="{ '--week-count': yearStats.weeks.length }">
+                    <div class="internship-contributions__months" aria-hidden="true">
+                      <span
+                        v-for="month in yearStats.monthLabels"
+                        :key="month.key"
+                        :style="{ gridColumn: `${month.weekIndex + 1} / span ${month.span}` }"
+                      >
+                        {{ month.label }}
+                      </span>
+                    </div>
+
+                    <div class="internship-contributions__body">
+                      <div class="internship-contributions__weekdays" aria-hidden="true">
+                        <span></span>
+                        <span>Mon</span>
+                        <span></span>
+                        <span>Wed</span>
+                        <span></span>
+                        <span>Fri</span>
+                        <span></span>
+                      </div>
+
+                      <div class="internship-contributions__weeks" aria-label="年度实习记录热力图">
+                        <div v-for="week in yearStats.weeks" :key="week.key" class="internship-contributions__week">
+                          <button
+                            v-for="day in week.days"
+                            :key="day.key"
+                            type="button"
+                            class="internship-contributions__day"
+                            :class="{
+                              'is-outside-range': !day.isInRange,
+                              'is-selected': selectedContributionDateKey === day.key
+                            }"
+                            :data-level="day.level"
+                            :data-tooltip="day.tooltip"
+                            :aria-label="day.title"
+                            :aria-pressed="selectedContributionDateKey === day.key"
+                            :disabled="!day.isInRange"
+                            @click="selectContributionDay(day)"
+                          ></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="internship-contributions__legend" aria-hidden="true">
+                      <span>Less</span>
+                      <i data-level="0"></i>
+                      <i data-level="1"></i>
+                      <i data-level="2"></i>
+                      <i data-level="3"></i>
+                      <i data-level="4"></i>
+                      <span>More</span>
+                    </div>
+                    </div>
+
+                    <aside class="internship-contributions__year-side" aria-label="年度">
+                      <button
+                        type="button"
+                        class="internship-contributions__year-button"
+                        :class="{ 'is-active': selectedContributionYear === yearStats.year }"
+                        @click="selectContributionYear(yearStats.year)"
+                      >
+                        <strong>{{ yearStats.year }}</strong>
+                        <span>{{ yearStats.total }}</span>
+                      </button>
+                    </aside>
+                  </div>
+                </section>
+              </div>
+
+              <Transition name="internship-contribution-details">
+                <section
+                  v-if="selectedContributionDateKey"
+                  class="internship-contributions__details"
+                  aria-label="选中日期实习记录"
+                >
+                  <header>
+                    <div>
+                      <span>选中日期</span>
+                      <strong>{{ selectedContributionDateLabel }}</strong>
+                    </div>
+                    <span>{{ selectedContributionRecords.length }} records</span>
+                  </header>
+
+                  <div v-if="selectedContributionRecords.length" class="internship-contributions__details-list">
+                    <button
+                      v-for="record in selectedContributionRecords"
+                      :key="record.id"
+                      type="button"
+                      class="internship-contributions__details-item"
+                      @click="openRecordDetail(record)"
+                    >
+                      <span class="internship-contributions__details-main">
+                        <strong>{{ record.title }}</strong>
+                        <span>{{ getRecordPreview(record.content) }}</span>
+                      </span>
+                      <span class="internship-contributions__details-meta">
+                        <span>{{ getCategoryLabel(record.category) }}</span>
+                        <span :class="['internship-record__status', `is-${record.status}`]">
+                          {{ getStatusLabel(record.status) }}
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+
+                  <p v-else class="internship-contributions__details-empty">
+                    当天没有实习记录
+                  </p>
+                </section>
+              </Transition>
+            </section>
+          </section>
+
+          <section v-else key="records" class="internship-board__records-view" aria-label="实习记录内容">
+            <div
+              class="internship-board__toolbar"
+              :class="{ 'has-trash-action': activeBoardView === 'trash' }"
+            >
               <label class="internship-search">
                 <span>搜索</span>
                 <input v-model.trim="searchQuery" type="search" placeholder="标题、内容、类型或状态" />
@@ -79,27 +215,48 @@
                   </Transition>
                 </span>
               </div>
-            </div>
 
-            <div
-              class="internship-status-tabs"
-              :class="{ 'has-trash-action': activeBoardView === 'trash' }"
-              role="tablist"
-              aria-label="记录状态筛选"
-            >
-              <button
-                v-for="option in statusFilterOptions"
-                :key="option.value"
-                type="button"
-                :class="{ 'is-active': activeStatus === option.value }"
-                @click="activeStatus = option.value"
-              >
-                {{ option.label }}
-              </button>
+              <div class="internship-filter internship-filter--status">
+                <span>状态</span>
+                <span
+                  class="internship-select-wrap"
+                  :class="{ 'is-open': openSelectMenu === 'activeStatus' }"
+                  @focusout="handleSelectFocusout($event, 'activeStatus')"
+                >
+                  <button
+                    type="button"
+                    class="internship-select-trigger"
+                    aria-haspopup="listbox"
+                    :aria-expanded="openSelectMenu === 'activeStatus'"
+                    @click="toggleSelectMenu('activeStatus')"
+                    @keydown.escape.stop="closeSelectMenu('activeStatus')"
+                  >
+                    <span>{{ getStatusFilterLabel(activeStatus) }}</span>
+                  </button>
+                  <Transition name="internship-select-menu">
+                    <span v-if="openSelectMenu === 'activeStatus'" class="internship-select-menu" role="listbox">
+                      <button
+                        v-for="option in statusFilterOptions"
+                        :key="option.value"
+                        type="button"
+                        class="internship-select-option"
+                        :class="{ 'is-selected': activeStatus === option.value }"
+                        role="option"
+                        :aria-selected="activeStatus === option.value"
+                        @mousedown.prevent
+                        @click="selectActiveStatus(option.value)"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </span>
+                  </Transition>
+                </span>
+              </div>
+
               <button
                 v-if="activeBoardView === 'trash'"
                 type="button"
-                class="internship-clear-trash internship-clear-trash--tabs"
+                class="internship-clear-trash internship-clear-trash--toolbar"
                 :disabled="deletedRecordsLoading || trashClearing || !deletedRecords.length"
                 title="清空回收站"
                 @click="requestClearTrash"
@@ -183,16 +340,31 @@
               </Transition>
             </div>
           </section>
+          </Transition>
         </div>
       </section>
 
       <aside class="internship-summary" aria-label="实习概览">
-        <article v-for="card in statCards" :key="card.key" class="internship-stat">
-          <div class="internship-stat__head">
-            <span>{{ card.label }}</span>
-          </div>
-          <strong>{{ card.value }}</strong>
-        </article>
+        <template v-for="card in statCards" :key="card.key">
+          <button
+            v-if="card.key === 'total'"
+            type="button"
+            class="internship-stat internship-stat--button"
+            :class="{ 'is-active': activeBoardView === 'management' }"
+            @click="openManagementView"
+          >
+            <div class="internship-stat__head">
+              <span>{{ card.label }}</span>
+            </div>
+            <strong>{{ card.value }}</strong>
+          </button>
+          <article v-else class="internship-stat">
+            <div class="internship-stat__head">
+              <span>{{ card.label }}</span>
+            </div>
+            <strong>{{ card.value }}</strong>
+          </article>
+        </template>
       </aside>
     </section>
 
@@ -222,8 +394,9 @@
                 type="submit"
                 form="internship-record-form"
                 class="internship-dialog__save"
-                :aria-label="editingId ? '更新记录' : '保存记录'"
-                :title="editingId ? '更新记录' : '保存记录'"
+                :disabled="draftSaving"
+                :aria-label="draftSaving ? '保存中' : (editingId ? '更新记录' : '保存记录')"
+                :title="draftSaving ? '保存中' : (editingId ? '更新记录' : '保存记录')"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M5 4h12l2 2v14H5V4Z" />
@@ -504,6 +677,7 @@ const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const INTERNSHIP_BACKGROUND_CLASS = 'is-internship-page'
 const DRAFT_CONTENT_TAB = '\t'
+const currentContributionYear = new Date().getFullYear()
 
 const categoryOptions = [
   { value: 'daily', label: '日报' },
@@ -537,11 +711,14 @@ const draftCreatedAt = ref('')
 const draftUpdatedAt = ref('')
 const editingId = ref('')
 const draftDialogOpen = ref(false)
+const draftSaving = ref(false)
 const deleteTargetRecord = ref(null)
 const clearTrashConfirmOpen = ref(false)
 const trashClearing = ref(false)
 const detailRecord = ref(null)
 const activeBoardView = ref('records')
+const selectedContributionDateKey = ref('')
+const selectedContributionYear = ref(currentContributionYear)
 const searchQuery = ref('')
 const activeStatus = ref('all')
 const activeCategory = ref('all')
@@ -655,6 +832,19 @@ const filteredDeletedRecords = computed(() => {
 const detailRecordIsDeleted = computed(() => (
   Boolean(detailRecord.value && deletedRecords.value.some((record) => record.id === detailRecord.value.id))
 ))
+const boardTitle = computed(() => activeBoardView.value === 'management' ? '管理' : '实习')
+const internshipContributionTotal = computed(() => records.value.length)
+const internshipContributionYears = computed(() => createInternshipContributionYears(records.value))
+const selectedContributionDateLabel = computed(() => formatContributionDateKey(selectedContributionDateKey.value))
+const selectedContributionRecords = computed(() => {
+  const dateKey = selectedContributionDateKey.value
+
+  if (!dateKey) {
+    return []
+  }
+
+  return sortedRecords.value.filter((record) => getRecordContributionDateKey(record) === dateKey)
+})
 
 const statCards = computed(() => [
   {
@@ -966,31 +1156,37 @@ function handleDraftContentKeydown(event) {
 }
 
 async function handleSave() {
+  if (draftSaving.value) {
+    return
+  }
+
   if (!draftTitle.value || !draftContent.value.trim()) {
     notify('标题和记录都需要填写', 'danger')
     return
   }
 
+  draftSaving.value = true
+  const currentEditingId = editingId.value
   const now = new Date().toISOString()
   const nextRecord = {
-    id: editingId.value || `${Date.now()}`,
+    id: currentEditingId || `${Date.now()}`,
     title: draftTitle.value,
     content: draftContent.value,
     recordDate: normalizeInputDate(draftDate.value) || formatInputDate(new Date()),
     category: draftCategory.value,
     status: draftStatus.value,
-    createdAt: editingId.value ? (draftCreatedAt.value || now) : now,
+    createdAt: currentEditingId ? (draftCreatedAt.value || now) : now,
     updatedAt: now
   }
 
   try {
-    if (editingId.value) {
-      const result = await http.put(`/api/internship/records/${encodeURIComponent(editingId.value)}`, nextRecord)
+    if (currentEditingId) {
+      const result = await http.put(`/api/internship/records/${encodeURIComponent(currentEditingId)}`, nextRecord)
       const savedRecord = normalizeRecord(result.record)
 
       if (savedRecord) {
         records.value = records.value.map((record) => (
-          record.id === editingId.value ? savedRecord : record
+          record.id === currentEditingId ? savedRecord : record
         ))
       }
 
@@ -1010,6 +1206,8 @@ async function handleSave() {
     closeDraftDialog()
   } catch (error) {
     notify(error instanceof Error ? error.message : '保存失败', 'danger')
+  } finally {
+    draftSaving.value = false
   }
 }
 
@@ -1085,6 +1283,25 @@ function requestClearTrash() {
   }
 
   clearTrashConfirmOpen.value = true
+}
+
+function openManagementView() {
+  closeSelectMenu()
+  activeBoardView.value = activeBoardView.value === 'management' ? 'records' : 'management'
+}
+
+function selectContributionDay(day) {
+  if (!day?.isInRange) {
+    return
+  }
+
+  selectedContributionDateKey.value = day.key
+  selectedContributionYear.value = Number(String(day.key).slice(0, 4)) || selectedContributionYear.value
+}
+
+function selectContributionYear(year) {
+  selectedContributionYear.value = year
+  selectedContributionDateKey.value = ''
 }
 
 function closeClearTrashConfirm() {
@@ -1221,6 +1438,10 @@ function getCategoryFilterLabel(value) {
   return categoryFilterOptions.find((option) => option.value === value)?.label || '全部'
 }
 
+function getStatusFilterLabel(value) {
+  return statusFilterOptions.find((option) => option.value === value)?.label || '全部'
+}
+
 function getStatusLabel(value) {
   return statusOptions.find((option) => option.value === value)?.label || '进行中'
 }
@@ -1232,6 +1453,221 @@ function getRecordPreview(value) {
     .map((line) => line.replace(/^[\t \u00a0\u3000]+/, ''))
     .join(' ')
     .replace(/^[\t \u00a0\u3000]+/, '')
+}
+
+function createInternshipContributionYears(sourceRecords) {
+  const currentYear = new Date().getFullYear()
+  const yearCounts = new Map()
+  let earliestYear = currentYear
+
+  sourceRecords.forEach((record) => {
+    const recordDate = getRecordContributionDate(record)
+
+    if (Number.isNaN(recordDate.getTime())) {
+      return
+    }
+
+    const year = recordDate.getFullYear()
+    earliestYear = Math.min(earliestYear, year)
+    yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
+  })
+
+  return Array.from({ length: currentYear - earliestYear + 1 }, (_, index) => {
+    const year = currentYear - index
+    const weeks = createInternshipContributionWeeks(sourceRecords, year)
+
+    return {
+      year,
+      total: yearCounts.get(year) || 0,
+      weeks,
+      monthLabels: createContributionMonthLabels(weeks)
+    }
+  })
+}
+
+function createInternshipContributionWeeks(sourceRecords, selectedYear) {
+  const rangeStart = startOfLocalDay(new Date(selectedYear, 0, 1))
+  const rangeEnd = startOfLocalDay(new Date(selectedYear, 11, 31))
+  const calendarStart = addLocalDays(rangeStart, -rangeStart.getDay())
+  const calendarEnd = addLocalDays(rangeEnd, 6 - rangeEnd.getDay())
+  const recordCounts = new Map()
+
+  sourceRecords.forEach((record) => {
+    const recordDate = getRecordContributionDate(record)
+
+    if (Number.isNaN(recordDate.getTime()) || recordDate < rangeStart || recordDate > rangeEnd) {
+      return
+    }
+
+    const dateKey = getLocalDateKey(recordDate)
+    recordCounts.set(dateKey, (recordCounts.get(dateKey) || 0) + 1)
+  })
+
+  const weeks = []
+
+  for (let weekStart = calendarStart; weekStart <= calendarEnd; weekStart = addLocalDays(weekStart, 7)) {
+    const days = []
+
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      const date = addLocalDays(weekStart, dayIndex)
+      const isInRange = date >= rangeStart && date <= rangeEnd
+      const dateKey = getLocalDateKey(date)
+      const count = isInRange ? recordCounts.get(dateKey) || 0 : 0
+      const dateLabel = formatContributionDate(date)
+      const tooltipDateLabel = formatContributionTooltipDate(date)
+      const tooltipCountLabel = count === 1 ? '1 record' : `${count} records`
+
+      days.push({
+        key: dateKey,
+        count,
+        isInRange,
+        level: isInRange ? getContributionLevel(count) : 0,
+        monthKey: `${date.getFullYear()}-${date.getMonth()}`,
+        monthLabel: getContributionMonthLabel(date),
+        tooltip: `${tooltipCountLabel} on ${tooltipDateLabel}.`,
+        title: count ? `${dateLabel}：${count} 条记录` : `${dateLabel}：无记录`
+      })
+    }
+
+    weeks.push({
+      key: getLocalDateKey(weekStart),
+      days
+    })
+  }
+
+  return weeks
+}
+
+function createContributionMonthLabels(weeks) {
+  const labels = []
+  const seenMonths = new Set()
+
+  weeks.forEach((week, weekIndex) => {
+    const visibleDay = week.days.find((day) => day.isInRange)
+
+    if (!visibleDay || seenMonths.has(visibleDay.monthKey)) {
+      return
+    }
+
+    seenMonths.add(visibleDay.monthKey)
+    labels.push({
+      key: visibleDay.monthKey,
+      label: visibleDay.monthLabel,
+      weekIndex,
+      span: 1
+    })
+  })
+
+  return labels.map((label, index) => ({
+    ...label,
+    span: Math.max((labels[index + 1]?.weekIndex || weeks.length) - label.weekIndex, 1)
+  })).filter((label, index) => index === 0 || label.span >= 3)
+}
+
+function getRecordContributionDate(record) {
+  if (record?.recordDate) {
+    const date = startOfLocalDay(new Date(`${record.recordDate}T00:00:00`))
+
+    if (!Number.isNaN(date.getTime())) {
+      return date
+    }
+  }
+
+  return startOfLocalDay(new Date(record?.createdAt))
+}
+
+function getRecordContributionDateKey(record) {
+  const date = getRecordContributionDate(record)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return getLocalDateKey(date)
+}
+
+function startOfLocalDay(value) {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function addLocalDays(value, amount) {
+  const date = new Date(value)
+  date.setDate(date.getDate() + amount)
+  return date
+}
+
+function getLocalDateKey(value) {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0')
+  ].join('-')
+}
+
+function formatContributionDateKey(value) {
+  const [year, month, day] = String(value || '').split('-')
+
+  if (!year || !month || !day) {
+    return ''
+  }
+
+  return `${year}/${month}/${day}`
+}
+
+function getContributionLevel(count) {
+  if (count <= 0) {
+    return 0
+  }
+
+  if (count === 1) {
+    return 1
+  }
+
+  if (count === 2) {
+    return 2
+  }
+
+  if (count <= 4) {
+    return 3
+  }
+
+  return 4
+}
+
+function getContributionMonthLabel(value) {
+  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][value.getMonth()]
+}
+
+function formatContributionTooltipDate(value) {
+  const monthLabel = getContributionMonthLabel(value)
+  const day = value.getDate()
+  return `${monthLabel} ${day}${getOrdinalSuffix(day)}`
+}
+
+function getOrdinalSuffix(value) {
+  if (value % 100 >= 11 && value % 100 <= 13) {
+    return 'th'
+  }
+
+  if (value % 10 === 1) {
+    return 'st'
+  }
+
+  if (value % 10 === 2) {
+    return 'nd'
+  }
+
+  if (value % 10 === 3) {
+    return 'rd'
+  }
+
+  return 'th'
+}
+
+function formatContributionDate(value) {
+  return `${value.getFullYear()}/${String(value.getMonth() + 1).padStart(2, '0')}/${String(value.getDate()).padStart(2, '0')}`
 }
 
 function toggleSelectMenu(name) {
@@ -1257,6 +1693,11 @@ function handleSelectFocusout(event, name) {
 function selectActiveCategory(value) {
   activeCategory.value = value
   closeSelectMenu('activeCategory')
+}
+
+function selectActiveStatus(value) {
+  activeStatus.value = value
+  closeSelectMenu('activeStatus')
 }
 
 function selectDraftCategory(value) {
@@ -1409,8 +1850,7 @@ function handleBackToTools() {
 .internship-primary,
 .internship-secondary,
 .internship-danger,
-.internship-record__actions button,
-.internship-status-tabs button {
+.internship-record__actions button {
   border: 1px solid var(--internship-line);
   border-radius: 14px;
   color: var(--internship-copy);
@@ -1516,8 +1956,7 @@ function handleBackToTools() {
 .internship-primary,
 .internship-secondary,
 .internship-danger,
-.internship-record__actions button,
-.internship-status-tabs button {
+.internship-record__actions button {
   padding: 10px 16px;
   font-weight: 700;
 }
@@ -1531,11 +1970,24 @@ function handleBackToTools() {
 .internship-primary:hover,
 .internship-secondary:hover,
 .internship-danger:hover,
-.internship-record__actions button:hover,
-.internship-status-tabs button:hover {
+.internship-record__actions button:hover {
   transform: translateY(-1px);
   border-color: var(--internship-line-strong);
   box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+}
+
+.internship-dialog__save:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.internship-dialog__save:disabled:hover {
+  border-color: #111827;
+  background: #111827;
+  transform: none;
+  box-shadow: none;
 }
 
 .internship-summary {
@@ -1560,6 +2012,33 @@ function handleBackToTools() {
   box-shadow:
     0 18px 40px rgba(17, 24, 39, 0.06),
     0 3px 10px rgba(17, 24, 39, 0.03);
+}
+
+.internship-stat--button {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.internship-stat--button:hover {
+  transform: translateY(-1px);
+  border-color: var(--internship-line-strong);
+  box-shadow:
+    0 22px 46px rgba(17, 24, 39, 0.09),
+    0 5px 14px rgba(17, 24, 39, 0.05);
+}
+
+.internship-stat--button.is-active {
+  border-color: rgba(17, 24, 39, 0.34);
+  background: #f9fafb;
+  box-shadow: inset 4px 0 0 #111827, 0 18px 40px rgba(17, 24, 39, 0.07);
 }
 
 .internship-stat__head {
@@ -1948,6 +2427,7 @@ function handleBackToTools() {
 }
 
 .internship-board__content {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
@@ -1956,9 +2436,461 @@ function handleBackToTools() {
 
 .internship-board__records-view {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
+}
+
+.internship-management-view {
+  min-height: 0;
+  overflow: auto;
+}
+
+.internship-management-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.internship-management-view::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.18);
+}
+
+.internship-contributions {
+  --internship-contribution-gap: 2px;
+  --internship-contribution-label-width: 32px;
+  --internship-contribution-year-width: 86px;
+  min-width: 0;
+  border: 1px solid #e2e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: visible;
+}
+
+.internship-contributions > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #edf0f2;
+  padding: 11px 14px;
+}
+
+.internship-contributions > header strong {
+  color: #3d4a5f;
+  font-size: 0.88rem;
+}
+
+.internship-contributions > header span {
+  min-width: 0;
+  overflow: hidden;
+  color: #9aa2ad;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.internship-contributions__years-list {
+  display: grid;
+  gap: 0;
+}
+
+.internship-contributions__year + .internship-contributions__year {
+  border-top: 1px solid #edf0f2;
+}
+
+.internship-contributions__year-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--internship-contribution-year-width);
+  align-items: start;
+  gap: 16px;
+  padding: 14px;
+}
+
+.internship-contributions__year-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 0;
+}
+
+.internship-contributions__year-head strong {
+  color: #253246;
+  font-size: 0.92rem;
+}
+
+.internship-contributions__year-head span {
+  color: #87909e;
+  font-size: 0.76rem;
+}
+
+.internship-contributions__chart {
+  min-width: 0;
+  overflow: visible;
+  padding: 0;
+}
+
+.internship-contributions__months {
+  display: grid;
+  margin-left: calc(var(--internship-contribution-label-width) + 8px);
+  grid-template-columns: repeat(var(--week-count), minmax(0, 1fr));
+  gap: var(--internship-contribution-gap);
+  color: #677386;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.internship-contributions__months span {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.internship-contributions__body {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.internship-contributions__weekdays {
+  display: grid;
+  width: var(--internship-contribution-label-width);
+  flex: 0 0 auto;
+  grid-template-rows: repeat(7, minmax(7px, 1fr));
+  gap: var(--internship-contribution-gap);
+  color: #677386;
+  font-size: 0.72rem;
+  line-height: 1;
+  text-align: right;
+}
+
+.internship-contributions__weekdays span {
+  display: grid;
+  align-items: center;
+}
+
+.internship-contributions__weeks {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: repeat(var(--week-count), minmax(0, 1fr));
+  gap: var(--internship-contribution-gap);
+}
+
+.internship-contributions__week {
+  display: grid;
+  gap: var(--internship-contribution-gap);
+}
+
+.internship-contributions__day,
+.internship-contributions__legend i {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: #ebedf0;
+  box-shadow: inset 0 0 0 1px rgba(27, 31, 36, 0.04);
+}
+
+.internship-contributions__day {
+  position: relative;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  cursor: default;
+}
+
+.internship-contributions__day:not(:disabled) {
+  cursor: pointer;
+}
+
+.internship-contributions__day:not(:disabled):hover {
+  box-shadow:
+    inset 0 0 0 1px rgba(27, 31, 36, 0.08),
+    0 0 0 2px rgba(17, 24, 39, 0.08);
+}
+
+.internship-contributions__day.is-selected {
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 1px rgba(27, 31, 36, 0.1),
+    0 0 0 2px rgba(9, 105, 218, 0.22);
+  transform: scale(1.04);
+}
+
+.internship-contributions__day::before,
+.internship-contributions__day::after {
+  position: absolute;
+  left: 50%;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.internship-contributions__day::before {
+  bottom: calc(100% + 9px);
+  max-width: 240px;
+  border-radius: 6px;
+  background: #24292f;
+  color: #ffffff;
+  content: attr(data-tooltip);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 8px 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.internship-contributions__day::after {
+  bottom: calc(100% + 4px);
+  border: 5px solid transparent;
+  border-top-color: #24292f;
+  content: "";
+}
+
+.internship-contributions__day:hover::before,
+.internship-contributions__day:hover::after,
+.internship-contributions__day:focus-visible::before,
+.internship-contributions__day:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.internship-contributions__legend i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.internship-contributions__day[data-level="1"],
+.internship-contributions__legend i[data-level="1"] {
+  background: #9be9a8;
+}
+
+.internship-contributions__day[data-level="2"],
+.internship-contributions__legend i[data-level="2"] {
+  background: #40c463;
+}
+
+.internship-contributions__day[data-level="3"],
+.internship-contributions__legend i[data-level="3"] {
+  background: #30a14e;
+}
+
+.internship-contributions__day[data-level="4"],
+.internship-contributions__legend i[data-level="4"] {
+  background: #216e39;
+}
+
+.internship-contributions__day.is-outside-range {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.internship-contributions__legend {
+  display: flex;
+  width: calc(100% - var(--internship-contribution-label-width) - 8px);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 12px;
+  margin-left: calc(var(--internship-contribution-label-width) + 8px);
+  color: #677386;
+  font-size: 0.72rem;
+}
+
+.internship-contributions__year-side {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.internship-contributions__year-button {
+  display: grid;
+  width: 100%;
+  min-height: 40px;
+  align-content: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #5f6b7a;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.internship-contributions__year-button:hover {
+  border-color: #d8dee4;
+  background: #f6f8fa;
+}
+
+.internship-contributions__year-button.is-active {
+  border-color: #0969da;
+  color: #ffffff;
+  background: #0969da;
+  box-shadow: 0 8px 18px rgba(9, 105, 218, 0.18);
+}
+
+.internship-contributions__year-button strong {
+  font-size: 0.86rem;
+  line-height: 1;
+}
+
+.internship-contributions__year-button span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.78;
+}
+
+.internship-contributions__details {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #edf0f2;
+  padding: 12px 14px 14px;
+  background: #ffffff;
+}
+
+.internship-contributions__details > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.internship-contributions__details > header div {
+  display: grid;
+  gap: 3px;
+}
+
+.internship-contributions__details > header span {
+  color: #87909e;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.internship-contributions__details > header strong {
+  color: #253246;
+  font-size: 0.94rem;
+}
+
+.internship-contributions__details-list {
+  display: grid;
+  gap: 7px;
+}
+
+.internship-contributions__details-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #edf0f2;
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: inherit;
+  background: #f9fafb;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.internship-contributions__details-item:hover {
+  border-color: rgba(17, 24, 39, 0.18);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+  transform: translateY(-1px);
+}
+
+.internship-contributions__details-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.internship-contributions__details-main strong,
+.internship-contributions__details-main span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.internship-contributions__details-main strong {
+  color: #253246;
+  font-size: 0.86rem;
+}
+
+.internship-contributions__details-main span {
+  color: #6b7280;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.internship-contributions__details-meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.internship-contributions__details-meta > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--internship-copy);
+  background: var(--internship-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.internship-contributions__details-empty {
+  margin: 0;
+  border: 1px dashed #d8dde3;
+  border-radius: 8px;
+  padding: 12px;
+  color: #87909e;
+  background: #f9fafb;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.internship-contribution-details-enter-active,
+.internship-contribution-details-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.internship-contribution-details-enter-from,
+.internship-contribution-details-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .internship-list-switcher {
@@ -2057,8 +2989,14 @@ function handleBackToTools() {
 
 .internship-board__toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 28%) 260px minmax(0, 1fr);
+  grid-template-columns: minmax(160px, 240px) minmax(190px, 240px) minmax(190px, 240px);
+  align-items: center;
+  justify-content: start;
   gap: 14px;
+}
+
+.internship-board__toolbar.has-trash-action {
+  grid-template-columns: minmax(160px, 240px) minmax(190px, 240px) minmax(190px, 240px) auto;
 }
 
 .internship-search,
@@ -2069,36 +3007,24 @@ function handleBackToTools() {
   gap: 10px;
 }
 
-.internship-status-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.internship-status-tabs button {
-  background: var(--internship-soft);
-}
-
-.internship-status-tabs button.is-active {
-  color: #ffffff;
-  border-color: #111827;
-  background: linear-gradient(135deg, #111827 0%, #374151 100%);
-}
-
-.internship-status-tabs .internship-clear-trash--tabs {
+.internship-clear-trash--toolbar {
+  align-self: stretch;
   margin-left: auto;
   min-width: 72px;
+  border-radius: 14px;
+  padding: 0 16px;
   border-color: rgba(180, 35, 47, 0.2);
   color: #b4232f;
   background: rgba(255, 228, 230, 0.58);
+  font-weight: 700;
 }
 
-.internship-status-tabs .internship-clear-trash--tabs:hover:not(:disabled) {
+.internship-clear-trash--toolbar:hover:not(:disabled) {
   border-color: rgba(180, 35, 47, 0.42);
   background: rgba(255, 228, 230, 0.86);
 }
 
-.internship-status-tabs .internship-clear-trash--tabs:disabled {
+.internship-clear-trash--toolbar:disabled {
   opacity: 0.42;
   cursor: not-allowed;
   transform: none;
@@ -2466,6 +3392,10 @@ function handleBackToTools() {
     grid-template-columns: 1fr;
   }
 
+  .internship-board__toolbar.has-trash-action {
+    grid-template-columns: 1fr;
+  }
+
   .internship-summary {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
@@ -2494,28 +3424,6 @@ function handleBackToTools() {
   .internship-stat strong {
     font-size: clamp(1.05rem, 7vw, 1.5rem);
     text-align: center;
-  }
-
-  .internship-status-tabs {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .internship-status-tabs.has-trash-action {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .internship-status-tabs button {
-    min-width: 0;
-    padding: 8px 4px;
-    font-size: clamp(0.68rem, 2.8vw, 0.82rem);
-    white-space: nowrap;
-  }
-
-  .internship-status-tabs .internship-clear-trash--tabs {
-    margin-left: 0;
-    min-width: 0;
   }
 
   .internship-board__head,
