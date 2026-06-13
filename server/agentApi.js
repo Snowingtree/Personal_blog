@@ -13,7 +13,7 @@ import {
   normalizeRequestedGenerationConfig,
   normalizeRequestedModel,
   postAiProviderJson
-} from './aiApi.js'
+} from './aiProvider.js'
 
 const agentPromptFile = new URL('./prompts/agent-system.txt', import.meta.url)
 const agentStorageDirPath = resolve(process.cwd(), 'storage', 'agent', 'sessions')

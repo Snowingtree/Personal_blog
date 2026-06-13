@@ -109,8 +109,8 @@ const tasselStyle = computed(() => ({
 }))
 let tasselStartY = 0
 
-const topbarToolLabel = computed(() => '笔记')
-const topbarToolHref = computed(() => resolvePrivateAppUrl('/notes-login'))
+const topbarToolLabel = computed(() => '工具')
+const topbarToolHref = computed(() => resolvePrivateAppUrl('/login'))
 
 function toggleTheme() {
   toggleSiteTheme()

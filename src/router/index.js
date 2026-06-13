@@ -3,7 +3,6 @@ import BlogHomePage from '../pages/BlogHomePage/BlogHomePage.vue'
 import LoginPage from '../pages/LoginPage/LoginPage.vue'
 import DisplayPage from '../pages/DisplayPage/DisplayPage.vue'
 import NotesLoginPage from '../pages/NotesLoginPage/NotesLoginPage.vue'
-const AiSettingsPage = () => import('../pages/AiSettingsPage/AiSettingsPage.vue')
 const BlogArticlePage = () => import('../pages/BlogArticlePage/BlogArticlePage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
@@ -137,17 +136,6 @@ const router = createRouter({
       }
     },
     {
-      path: '/ai-settings',
-      name: 'ai-settings',
-      component: AiSettingsPage,
-      meta: {
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        requiresAuth: true,
-        authScope: 'notes'
-      }
-    },
-    {
       path: '/notes',
       name: 'notes',
       component: NotesPage,
@@ -174,6 +162,10 @@ function getAuthKeyByScope(scope) {
 }
 
 function getLoginRouteByScope(scope) {
+  if (scope === 'tools') {
+    return 'login'
+  }
+
   if (isUnifiedPrivateAuthScope(scope)) {
     return 'notes-login'
   }

@@ -70,12 +70,14 @@ code {
 }
 
 .note-display-layout {
+  width: 100%;
+  max-width: none;
+  margin: 0;
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
   height: 100dvh;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  padding: 2px;
 }
 
 .note-display-layout .app-header {
@@ -359,114 +361,6 @@ code {
   border-radius: 28px;
 }
 
-.ai-settings-layout {
-  width: min(1360px, calc(100% - 32px));
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
-}
-
-.ai-settings-grid {
-  grid-template-columns: 1fr;
-  align-content: start;
-}
-
-.ai-settings-card {
-  min-height: 0;
-}
-
-.ai-settings-card:last-child {
-  display: flex;
-  flex-direction: column;
-}
-
-.ai-settings-copy {
-  margin-bottom: 18px;
-}
-
-.ai-settings-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.ai-settings-form__field {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  align-items: center;
-  gap: 16px;
-}
-
-.ai-settings-form__field > span {
-  color: #4a6881;
-}
-
-.ai-settings-form__field > input,
-.ai-settings-form__field .wm-input {
-  min-width: 0;
-}
-
-.ai-settings-form-actions,
-.ai-settings-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.ai-settings-form-actions__back {
-  margin-left: auto;
-}
-
-.ai-settings-empty {
-  margin: 18px 0 0;
-  color: #55728b;
-}
-
-.ai-settings-table-wrap {
-  overflow: auto;
-  max-height: min(58dvh, 720px);
-  padding-right: 4px;
-}
-
-.ai-settings-table {
-  width: 100%;
-  min-width: 720px;
-  border-collapse: collapse;
-}
-
-.ai-settings-table th,
-.ai-settings-table td {
-  padding: 14px 12px;
-  border-bottom: 1px solid rgba(18, 52, 78, 0.08);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.ai-settings-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: rgba(248, 252, 255, 0.98);
-  color: #26557b;
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.ai-settings-table td {
-  color: #3d5f79;
-}
-
-.ai-settings-api-key {
-  font-family: "Cascadia Code", "Consolas", monospace;
-  letter-spacing: 0.02em;
-}
-
-.ai-settings-versions {
-  max-width: 280px;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -621,7 +515,7 @@ code {
   flex-direction: column;
   gap: 8px;
   flex: 1;
-  min-height: calc(100dvh - 92px);
+  min-height: 0;
   overflow: hidden;
   padding: 10px;
 }
@@ -2065,10 +1959,6 @@ body.is-note-resizing * {
     grid-template-columns: 1fr;
   }
 
-  .ai-settings-grid {
-    grid-template-columns: 1fr;
-  }
-
   .note-repo-update-dialog {
     padding: 18px;
   }
@@ -2265,6 +2155,14 @@ body.is-note-resizing * {
     padding-bottom: 20px;
   }
 
+  .note-display-layout {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding-top: 0;
+    padding-bottom: 16px;
+  }
+
   .auth-card,
   .panel-card,
   .app-header {
@@ -2382,10 +2280,6 @@ body.is-note-resizing * {
     justify-content: space-between;
   }
 
-  .ai-settings-table {
-    min-width: 640px;
-  }
-
   .note-mobile-directory-dialog__panel {
     padding: 16px;
     border-radius: 22px;
@@ -2404,12 +2298,6 @@ body.is-note-resizing * {
   .field input,
   .list-input {
     border-radius: 14px;
-  }
-
-  .ai-settings-form__field {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-    gap: 8px;
   }
 
   .primary-btn,

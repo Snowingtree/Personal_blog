@@ -1,5 +1,5 @@
 <template>
-  <main class="auth-layout">
+  <main class="auth-layout tool-login-layout">
     <LoginForm
       :submitting="submitting"
       :server-error="serverError"
@@ -80,3 +80,102 @@ async function handleLogin(payload) {
   }
 }
 </script>
+
+<style scoped>
+.tool-login-layout {
+  width: min(1120px, calc(100% - 32px));
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px 0 40px;
+  background: #ffffff;
+}
+
+.tool-login-layout :deep(.auth-card) {
+  width: min(960px, 100%);
+  border: 1px solid #e7e7e7;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.08);
+  backdrop-filter: none;
+}
+
+.tool-login-layout :deep(.brand-block) {
+  color: #f7f7f7;
+  background: #171717;
+  box-shadow: none;
+}
+
+.tool-login-layout :deep(.brand-tag) {
+  color: #bdbdbd;
+}
+
+.tool-login-layout :deep(.brand-copy) {
+  color: rgba(247, 247, 247, 0.78);
+}
+
+.tool-login-layout :deep(.field) {
+  color: #4f4f4f;
+}
+
+.tool-login-layout :deep(.field .wm-input__wrapper) {
+  border-color: #dedede;
+  background: #ffffff;
+  color: #171717;
+  box-shadow: none;
+}
+
+.tool-login-layout :deep(.field .wm-input__wrapper:focus-within) {
+  border-color: #9b9b9b;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
+}
+
+.tool-login-layout :deep(.primary-btn) {
+  color: #ffffff;
+  background: #171717;
+  box-shadow: none;
+}
+
+.tool-login-layout :deep(.primary-btn:hover) {
+  box-shadow: none;
+}
+
+.tool-login-layout :deep(.primary-btn:disabled) {
+  opacity: 0.62;
+  transform: none;
+}
+
+.tool-login-layout :deep(.secondary-btn) {
+  color: #171717;
+  border: 1px solid #e7e7e7;
+  background: #f4f4f4;
+}
+
+.tool-login-layout :deep(.secondary-btn:hover) {
+  background: #ececec;
+}
+
+.tool-login-layout :deep(.form-error) {
+  color: #d14c3e;
+}
+
+@media (max-width: 720px) {
+  .tool-login-layout {
+    width: min(100% - 24px, 1120px);
+    padding: 24px 0;
+  }
+
+  .tool-login-layout :deep(.auth-card) {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .tool-login-layout :deep(.brand-block),
+  .tool-login-layout :deep(.login-form) {
+    padding: 22px;
+  }
+
+  .tool-login-layout :deep(.login-actions) {
+    display: grid;
+  }
+}
+</style>

@@ -148,7 +148,6 @@
               <section class="note-view-pane">
                 <div class="note-view-toolbar">
                   <div>
-                    <p class="section-tag">当前文件</p>
                     <div class="note-view-title-bar">
                       <div class="note-view-title">
                         <h3>{{ activeFileTitle }}</h3>
@@ -1600,5 +1599,77 @@ onBeforeUnmount(() => {
 .notes-agent-theme :deep(.note-dialog),
 .notes-agent-theme :deep(.note-repo-update-dialog) {
   background: rgba(17, 24, 39, 0.32);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog) {
+  backdrop-filter: blur(14px);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__panel) {
+  border-color: var(--mono-line);
+  background: var(--mono-surface);
+  box-shadow:
+    0 28px 70px rgba(17, 24, 39, 0.18),
+    0 4px 14px rgba(17, 24, 39, 0.08);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__panel::before),
+.notes-agent-theme :deep(.note-repo-update-dialog__panel::after) {
+  display: none;
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__pulse--outer) {
+  background: radial-gradient(circle, rgba(17, 24, 39, 0.08), transparent 68%);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__pulse--inner) {
+  background: radial-gradient(circle, rgba(107, 114, 128, 0.1), transparent 66%);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__ring--outer) {
+  border-color: rgba(17, 24, 39, 0.1);
+  border-top-color: #111827;
+  border-right-color: rgba(55, 65, 81, 0.72);
+  box-shadow: 0 0 24px rgba(17, 24, 39, 0.08);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__ring--middle) {
+  border-color: rgba(17, 24, 39, 0.08);
+  border-bottom-color: #6b7280;
+  border-left-color: rgba(107, 114, 128, 0.72);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__core) {
+  background: linear-gradient(145deg, #111827 0%, #374151 100%);
+  box-shadow:
+    0 18px 34px rgba(17, 24, 39, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__content .section-tag) {
+  color: var(--mono-muted);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__content h3) {
+  color: var(--mono-ink);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__copy) {
+  color: var(--mono-muted);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__status) {
+  border-color: var(--mono-line);
+  background: var(--mono-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__status-line) {
+  background: linear-gradient(90deg, rgba(17, 24, 39, 0.08), #111827, #6b7280, rgba(17, 24, 39, 0.1));
+  background-size: 200% 100%;
+}
+
+.notes-agent-theme :deep(.note-repo-update-dialog__status-text) {
+  color: var(--mono-copy);
 }
 </style>

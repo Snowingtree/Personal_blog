@@ -20,8 +20,7 @@ const PRIVATE_ROUTE_PREFIXES = [
   '/thoughts',
   '/tools',
   '/notes',
-  '/notes-login',
-  '/ai-settings'
+  '/notes-login'
 ]
 
 function isPrivateRoutePath(pathname) {
