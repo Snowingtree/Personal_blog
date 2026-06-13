@@ -80,7 +80,7 @@ const toolOptions = [
     key: 'tools',
     rank: 'A',
     suit: '\u2660',
-    title: '\u5DE5\u5177',
+    title: '\u7B14\u8BB0',
     to: '/notes'
   },
   {

@@ -209,15 +209,22 @@
 
                       <div class="thoughts-contributions__weeks" aria-label="年度动态热力图">
                         <div v-for="week in yearStats.weeks" :key="week.key" class="thoughts-contributions__week">
-                          <span
+                          <button
                             v-for="day in week.days"
                             :key="day.key"
+                            type="button"
                             class="thoughts-contributions__day"
-                            :class="{ 'is-outside-range': !day.isInRange }"
+                            :class="{
+                              'is-outside-range': !day.isInRange,
+                              'is-selected': selectedContributionDateKey === day.key
+                            }"
                             :data-level="day.level"
                             :data-tooltip="day.tooltip"
                             :aria-label="day.title"
-                          ></span>
+                            :aria-pressed="selectedContributionDateKey === day.key"
+                            :disabled="!day.isInRange"
+                            @click="selectContributionDay(day)"
+                          ></button>
                         </div>
                       </div>
                     </div>
@@ -234,6 +241,57 @@
                   </div>
                 </section>
               </div>
+
+              <Transition name="thoughts-contribution-details">
+                <section
+                  v-if="selectedContributionDateKey"
+                  class="thoughts-contributions__details"
+                  aria-label="选中日期动态"
+                >
+                  <header>
+                    <div>
+                      <span>选中日期</span>
+                      <strong>{{ selectedContributionDateLabel }}</strong>
+                    </div>
+                    <span>{{ selectedContributionPosts.length }} posts</span>
+                  </header>
+
+                  <div v-if="selectedContributionPosts.length" class="thoughts-contributions__details-list">
+                    <article
+                      v-for="post in selectedContributionPosts"
+                      :key="post.id"
+                      class="thoughts-contributions__details-item"
+                    >
+                      <div class="thoughts-contributions__details-main">
+                        <div class="thoughts-contributions__details-meta">
+                          <time :datetime="post.createdAt">{{ formatManagementTime(post.createdAt) }}</time>
+                          <ul v-if="post.tags.length" aria-label="动态标签">
+                            <li v-for="tag in post.tags" :key="tag">{{ tag }}</li>
+                          </ul>
+                        </div>
+                        <p>{{ getPostExcerpt(post.content) }}</p>
+                        <small>{{ post.images.length }} 张图片 · {{ post.comments.length }} 条评论</small>
+                      </div>
+
+                      <div v-if="post.images.length" class="thoughts-contributions__details-images">
+                        <button
+                          v-for="image in post.images.slice(0, 3)"
+                          :key="image.id"
+                          type="button"
+                          :aria-label="`预览图片 ${image.name || image.id}`"
+                          @click="previewImage = image.src"
+                        >
+                          <img :src="image.src" :alt="image.name || '动态图片'" />
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <p v-else class="thoughts-contributions__details-empty">
+                    当天没有动态
+                  </p>
+                </section>
+              </Transition>
             </article>
           </section>
 
@@ -635,6 +693,7 @@ const isPublishing = ref(false)
 const isRemovingPost = ref(false)
 const isRestoringPost = ref(false)
 const isSavingTag = ref(false)
+const selectedContributionDateKey = ref('')
 
 const isManagingPosts = computed(() => activeThoughtsView.value === 'manager')
 const isViewingStats = computed(() => activeThoughtsView.value === 'stats')
@@ -651,6 +710,16 @@ const normalizedTagDraft = computed(() => normalizeBlogTag(tagDraft.value))
 const exportFileBaseName = computed(() => `thoughts-${formatExportTimestamp(new Date())}`)
 const contributionYears = computed(() => createContributionYears(posts.value))
 const contributionTotal = computed(() => contributionYears.value.reduce((total, yearStats) => total + yearStats.total, 0))
+const selectedContributionDateLabel = computed(() => formatContributionDateKey(selectedContributionDateKey.value))
+const selectedContributionPosts = computed(() => {
+  const dateKey = selectedContributionDateKey.value
+
+  if (!dateKey) {
+    return []
+  }
+
+  return posts.value.filter((post) => getPostContributionDateKey(post) === dateKey)
+})
 const topPostTags = computed(() => {
   const tagMap = new Map()
 
@@ -1161,6 +1230,24 @@ function createContributionMonthLabels(weeks) {
   })).filter((label, index) => index === 0 || label.span >= 3)
 }
 
+function selectContributionDay(day) {
+  if (!day?.isInRange) {
+    return
+  }
+
+  selectedContributionDateKey.value = day.key
+}
+
+function getPostContributionDateKey(post) {
+  const createdAt = startOfLocalDay(new Date(post?.createdAt))
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return ''
+  }
+
+  return getLocalDateKey(createdAt)
+}
+
 function startOfLocalDay(value) {
   const date = new Date(value)
   date.setHours(0, 0, 0, 0)
@@ -1179,6 +1266,16 @@ function getLocalDateKey(value) {
     String(value.getMonth() + 1).padStart(2, '0'),
     String(value.getDate()).padStart(2, '0')
   ].join('-')
+}
+
+function formatContributionDateKey(value) {
+  const [year, month, day] = String(value || '').split('-')
+
+  if (!year || !month || !day) {
+    return ''
+  }
+
+  return `${year}/${month}/${day}`
 }
 
 function getContributionLevel(count) {
@@ -2139,7 +2236,28 @@ function handleBackToTools() {
 
 .thoughts-contributions__day {
   position: relative;
+  border: 0;
+  padding: 0;
+  appearance: none;
   cursor: default;
+}
+
+.thoughts-contributions__day:not(:disabled) {
+  cursor: pointer;
+}
+
+.thoughts-contributions__day:not(:disabled):hover {
+  box-shadow:
+    inset 0 0 0 1px rgba(27, 31, 36, 0.08),
+    0 0 0 2px rgba(17, 24, 39, 0.08);
+}
+
+.thoughts-contributions__day.is-selected {
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 1px rgba(27, 31, 36, 0.1),
+    0 0 0 2px rgba(9, 105, 218, 0.22);
+  transform: scale(1.04);
 }
 
 .thoughts-contributions__day::before,
@@ -2226,6 +2344,165 @@ function handleBackToTools() {
   margin-left: 40px;
   color: #677386;
   font-size: 0.72rem;
+}
+
+.thoughts-contributions__details {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #edf0f2;
+  padding: 12px 14px 14px;
+  background: #ffffff;
+}
+
+.thoughts-contributions__details > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.thoughts-contributions__details > header div {
+  display: grid;
+  gap: 3px;
+}
+
+.thoughts-contributions__details > header span {
+  color: #87909e;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.thoughts-contributions__details > header strong {
+  color: #253246;
+  font-size: 0.94rem;
+}
+
+.thoughts-contributions__details-list {
+  display: grid;
+  gap: 8px;
+}
+
+.thoughts-contributions__details-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #edf0f2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f9fafb;
+}
+
+.thoughts-contributions__details-main {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.thoughts-contributions__details-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.thoughts-contributions__details-meta time {
+  flex: 0 0 auto;
+  color: #87909e;
+  font-size: 0.72rem;
+}
+
+.thoughts-contributions__details-meta ul {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 5px;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  list-style: none;
+}
+
+.thoughts-contributions__details-meta li {
+  display: inline-flex;
+  max-width: 96px;
+  flex: 0 1 auto;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #253246;
+  background: #eef2f7;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 4px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thoughts-contributions__details-main p {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: #445168;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thoughts-contributions__details-main small {
+  color: #9aa2ad;
+  font-size: 0.72rem;
+}
+
+.thoughts-contributions__details-images {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.thoughts-contributions__details-images button {
+  display: block;
+  overflow: hidden;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e2e5e9;
+  border-radius: 6px;
+  padding: 0;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.thoughts-contributions__details-images img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thoughts-contributions__details-empty {
+  margin: 0;
+  border: 1px dashed #d8dde3;
+  border-radius: 8px;
+  padding: 12px;
+  color: #87909e;
+  background: #f9fafb;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.thoughts-contribution-details-enter-active,
+.thoughts-contribution-details-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.thoughts-contribution-details-enter-from,
+.thoughts-contribution-details-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .thoughts-statistics__ranking,

@@ -70,7 +70,6 @@ code {
 }
 
 .note-display-layout {
-  --note-workspace-tassel-clearance: 0px;
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
@@ -635,32 +634,6 @@ code {
   gap: 12px;
 }
 
-.note-workspace-switch {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(45, 144, 255, 0.08);
-}
-
-.note-workspace-switch__button {
-  flex: 1;
-  border: 0;
-  padding: 9px 16px;
-  border-radius: 999px;
-  background: transparent;
-  color: #35556f;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
-}
-
-.note-workspace-switch__button.is-active {
-  background: linear-gradient(135deg, #2d90ff 0%, #53bbff 100%);
-  color: #f5fcff;
-  box-shadow: 0 10px 24px rgba(45, 144, 255, 0.2);
-}
-
 .note-mobile-directory-trigger {
   display: inline-flex;
   align-items: center;
@@ -1201,58 +1174,6 @@ code {
   justify-content: flex-end;
   align-items: center;
   gap: 12px;
-}
-
-@media (min-width: 901px) {
-  .note-display-layout {
-    --note-workspace-tassel-clearance: 80px;
-  }
-
-  .note-repo-actions {
-    position: relative;
-    z-index: 9;
-    padding-right: var(--note-workspace-tassel-clearance);
-  }
-
-  .note-display-layout .header-actions {
-    position: relative;
-    z-index: 9;
-  }
-}
-
-.note-workspace-next-enter-active,
-.note-workspace-next-leave-active,
-.note-workspace-prev-enter-active,
-.note-workspace-prev-leave-active {
-  transition:
-    opacity 420ms ease,
-    transform 460ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 420ms ease;
-  will-change: opacity, transform, filter;
-}
-
-.note-workspace-next-enter-from {
-  opacity: 0;
-  transform: translate3d(88px, 0, 0);
-  filter: blur(10px);
-}
-
-.note-workspace-next-leave-to {
-  opacity: 0;
-  transform: translate3d(-88px, 0, 0);
-  filter: blur(10px);
-}
-
-.note-workspace-prev-enter-from {
-  opacity: 0;
-  transform: translate3d(-88px, 0, 0);
-  filter: blur(10px);
-}
-
-.note-workspace-prev-leave-to {
-  opacity: 0;
-  transform: translate3d(88px, 0, 0);
-  filter: blur(10px);
 }
 
 .note-editor-textarea {
@@ -2224,10 +2145,6 @@ body.is-note-resizing * {
     align-items: center;
   }
 
-  .note-workspace-switch {
-    width: 100%;
-  }
-
   .note-browser-layout {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -2429,10 +2346,6 @@ body.is-note-resizing * {
 
   .note-view-body {
     background: transparent;
-  }
-
-  .note-workspace-switch__button {
-    flex: 1;
   }
 
   .note-sidebar-switch {

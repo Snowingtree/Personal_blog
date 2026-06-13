@@ -28,7 +28,7 @@ import http from '../../utils/http'
 const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
-const notesTitle = '\u5DE5\u5177\u767B\u5F55'
+const notesTitle = '\u7B14\u8BB0\u767B\u5F55'
 
 async function handleLogin(payload) {
   serverError.value = ''

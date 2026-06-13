@@ -1,11 +1,5 @@
 <template>
   <main v-if="privateAppAvailable" class="display-layout display-layout--wide note-display-layout notes-agent-theme">
-    <NoteWorkspaceTassel
-      v-if="showDesktopWorkspaceSwitch"
-      :active-view="desktopWorkspaceView"
-      @toggle="toggleDesktopWorkspace"
-    />
-
     <AppHeader
       tag=""
       title="仓库笔记浏览"
@@ -16,7 +10,6 @@
     >
       <template #actions>
         <button
-          v-if="activeWorkspaceView === 'notes'"
           type="button"
           class="secondary-btn"
           :disabled="repoBusy"
@@ -25,7 +18,6 @@
           更新
         </button>
         <button
-          v-if="activeWorkspaceView === 'notes'"
           type="button"
           class="primary-btn"
           :disabled="repoBusy"
@@ -73,45 +65,16 @@
             <span class="note-mobile-directory-trigger__text">目录</span>
           </button>
 
-          <div
-            v-if="isMobileView"
-            class="note-workspace-switch"
-            role="tablist"
-            aria-label="工作区切换"
-          >
-            <button
-              type="button"
-              class="note-workspace-switch__button"
-              :class="{ 'is-active': activeWorkspaceView === 'notes' }"
-              @click="handleDesktopWorkspaceChange('notes')"
-            >
-              笔记
-            </button>
-            <button
-              type="button"
-              class="note-workspace-switch__button"
-              :class="{ 'is-active': activeWorkspaceView === 'ai' }"
-              @click="handleDesktopWorkspaceChange('ai')"
-            >
-              AI
-            </button>
-          </div>
-
         </div>
       </div>
 
       <div class="note-workspace-shell">
-        <Transition :name="workspaceTransitionName" mode="out-in">
+        <div class="note-workspace-page note-workspace-page--notes">
           <div
-            v-if="activeWorkspaceView === 'notes'"
-            key="notes"
-            class="note-workspace-page note-workspace-page--notes"
+            ref="noteBrowserLayoutRef"
+            class="note-browser-layout"
+            :style="browserLayoutStyle"
           >
-            <div
-              ref="noteBrowserLayoutRef"
-              class="note-browser-layout"
-              :style="browserLayoutStyle"
-            >
               <aside
                 v-if="!isMobileView"
                 class="note-tree-pane"
@@ -306,17 +269,8 @@
                   <p v-else class="empty-state note-view-empty">请选择左侧 Markdown 文件查看内容。</p>
                 </div>
               </section>
-            </div>
           </div>
-
-          <NoteAiWorkspace
-            v-else
-            key="ai"
-            class="note-workspace-page note-workspace-page--ai"
-            :active-path="activePath"
-            :active-file-title="activeFileTitle"
-          />
-        </Transition>
+        </div>
       </div>
     </section>
 
@@ -480,12 +434,9 @@ import { useRouter } from 'vue-router'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import CommitDialog from '../../components/notes/CommitDialog/CommitDialog.vue'
-import NoteAiWorkspace from '../../components/notes/NoteAiWorkspace/NoteAiWorkspace.vue'
 import NoteTreeNode from '../../components/notes/NoteTreeNode/NoteTreeNode.vue'
-import NoteWorkspaceTassel from '../../components/notes/NoteWorkspaceTassel/NoteWorkspaceTassel.vue'
 import {
   NOTE_ACTIVE_PATH_KEY,
-  NOTE_DESKTOP_WORKSPACE_KEY,
   NOTE_OPEN_FOLDERS_KEY,
   NOTE_SIDEBAR_MODE_KEY,
   NOTE_SIDEBAR_WIDTH_KEY
@@ -518,7 +469,6 @@ const commitTypeOptions = [
   { key: 'perf', label: 'perf' }
 ]
 
-const DESKTOP_WORKSPACE_ORDER = ['notes', 'ai']
 const REPO_ACTION_TIMEOUT = 60000
 const MOBILE_PREVIEW_BREAKPOINT = 900
 const headingIndentBase = 14
@@ -561,10 +511,6 @@ function writeStorageArray(key, value) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
-function normalizeDesktopWorkspaceView(value) {
-  return value === 'quiz' || value === 'ai' ? 'ai' : 'notes'
-}
-
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const files = ref([])
@@ -584,8 +530,6 @@ const loadError = ref('')
 const saveError = ref('')
 const openFolders = ref(new Set(readStorageArray(NOTE_OPEN_FOLDERS_KEY)))
 const sidebarMode = ref(readStorageValue(NOTE_SIDEBAR_MODE_KEY, 'tree') === 'titles' ? 'titles' : 'tree')
-const desktopWorkspaceView = ref(normalizeDesktopWorkspaceView(readStorageValue(NOTE_DESKTOP_WORKSPACE_KEY, 'notes')))
-const workspaceTransitionDirection = ref('next')
 const commitDialogVisible = ref(false)
 const commitType = ref('feat')
 const commitSubject = ref('')
@@ -606,10 +550,7 @@ const openFolderList = computed(() => [...openFolders.value])
 const previewContent = computed(() => normalizeMarkdownSource(draftContent.value))
 const activeHeadings = computed(() => extractMarkdownHeadings(previewContent.value))
 const browserLayoutStyle = computed(() => ({ '--note-sidebar-width': `${sidebarWidth.value}px` }))
-const showDesktopWorkspaceSwitch = computed(() => !isMobileView.value)
-const activeWorkspaceView = computed(() => desktopWorkspaceView.value)
 const repoUpdateDialogVisible = computed(() => repoBusy.value && repoAction.value === 'update')
-const workspaceTransitionName = computed(() => workspaceTransitionDirection.value === 'prev' ? 'note-workspace-prev' : 'note-workspace-next')
 const activeFileTitle = computed(() => activePath.value ? getFileName(activePath.value).replace(/\.[^.]+$/, '') : '未选择文件')
 const isDirty = computed(() => draftContent.value !== activeContent.value)
 const showStickyMobileDirectoryTrigger = computed(() =>
@@ -719,10 +660,6 @@ function persistOpenFolders() {
 
 function persistSidebarWidth() {
   writeStorageValue(NOTE_SIDEBAR_WIDTH_KEY, String(Math.round(sidebarWidth.value)))
-}
-
-function persistDesktopWorkspaceView() {
-  writeStorageValue(NOTE_DESKTOP_WORKSPACE_KEY, desktopWorkspaceView.value)
 }
 
 function ensureActivePathFoldersOpen(path) {
@@ -881,32 +818,6 @@ function syncSidebarWidthToLayout() {
 
   sidebarWidth.value = clampSidebarWidth(sidebarWidth.value)
   persistSidebarWidth()
-}
-
-function handleDesktopWorkspaceChange(nextView) {
-  const normalizedView = normalizeDesktopWorkspaceView(nextView)
-
-  if (desktopWorkspaceView.value === normalizedView) {
-    return
-  }
-
-  const currentIndex = DESKTOP_WORKSPACE_ORDER.indexOf(desktopWorkspaceView.value)
-  const nextIndex = DESKTOP_WORKSPACE_ORDER.indexOf(normalizedView)
-
-  workspaceTransitionDirection.value = nextIndex < currentIndex ? 'prev' : 'next'
-  stopSidebarResize()
-
-  if (commitDialogVisible.value && !(repoBusy.value && repoAction.value === 'publish')) {
-    resetCommitDialog()
-  }
-
-  closeMobileDirectory()
-  desktopWorkspaceView.value = normalizedView
-  persistDesktopWorkspaceView()
-}
-
-function toggleDesktopWorkspace() {
-  handleDesktopWorkspaceChange(desktopWorkspaceView.value === 'ai' ? 'notes' : 'ai')
 }
 
 function storeMobileDirectoryScrollTop() {
@@ -1463,9 +1374,6 @@ onBeforeUnmount(() => {
 .notes-agent-theme :deep(.panel-card),
 .notes-agent-theme :deep(.note-tree-pane),
 .notes-agent-theme :deep(.note-view-pane),
-.notes-agent-theme :deep(.note-ai-view__panel),
-.notes-agent-theme :deep(.note-ai-view__toolbar),
-.notes-agent-theme :deep(.note-ai-view__chat-form),
 .notes-agent-theme :deep(.note-dialog__panel),
 .notes-agent-theme :deep(.note-mobile-directory-dialog__panel) {
   border-color: var(--mono-line);
@@ -1479,15 +1387,12 @@ onBeforeUnmount(() => {
 .notes-agent-theme :deep(.app-header h1),
 .notes-agent-theme :deep(.panel-head h2),
 .notes-agent-theme :deep(.note-view-toolbar h3),
-.notes-agent-theme :deep(.note-ai-view__panel h4),
-.notes-agent-theme :deep(.note-ai-view__chat-title),
 .notes-agent-theme :deep(.note-dialog__head h3) {
   color: var(--mono-ink);
 }
 
 .notes-agent-theme :deep(.page-tag),
-.notes-agent-theme :deep(.section-tag),
-.notes-agent-theme :deep(.note-ai-view__toolbar-tag) {
+.notes-agent-theme :deep(.section-tag) {
   color: var(--mono-muted);
 }
 
@@ -1496,8 +1401,6 @@ onBeforeUnmount(() => {
 .notes-agent-theme :deep(.empty-state),
 .notes-agent-theme :deep(.note-view-status),
 .notes-agent-theme :deep(.note-view-updated),
-.notes-agent-theme :deep(.note-ai-view__status),
-.notes-agent-theme :deep(.note-ai-view__toolbar-feedback),
 .notes-agent-theme :deep(.note-dialog__copy),
 .notes-agent-theme :deep(.note-dialog__preview) {
   color: var(--mono-muted);
@@ -1506,9 +1409,7 @@ onBeforeUnmount(() => {
 .notes-agent-theme :deep(.primary-btn),
 .notes-agent-theme :deep(.secondary-btn),
 .notes-agent-theme :deep(.ghost-btn),
-.notes-agent-theme :deep(.note-mobile-directory-trigger),
-.notes-agent-theme :deep(.note-ai-view__history-button),
-.notes-agent-theme :deep(.note-ai-view__chat-clear) {
+.notes-agent-theme :deep(.note-mobile-directory-trigger) {
   border-radius: 14px;
   transition:
     transform 160ms ease,
@@ -1529,9 +1430,7 @@ onBeforeUnmount(() => {
 
 .notes-agent-theme :deep(.secondary-btn),
 .notes-agent-theme :deep(.ghost-btn),
-.notes-agent-theme :deep(.note-mobile-directory-trigger),
-.notes-agent-theme :deep(.note-ai-view__history-button),
-.notes-agent-theme :deep(.note-ai-view__chat-clear) {
+.notes-agent-theme :deep(.note-mobile-directory-trigger) {
   color: var(--mono-copy);
   border: 1px solid var(--mono-line);
   background: var(--mono-soft);
@@ -1539,9 +1438,7 @@ onBeforeUnmount(() => {
 
 .notes-agent-theme :deep(.secondary-btn:hover),
 .notes-agent-theme :deep(.ghost-btn:hover),
-.notes-agent-theme :deep(.note-mobile-directory-trigger:hover),
-.notes-agent-theme :deep(.note-ai-view__history-button:hover),
-.notes-agent-theme :deep(.note-ai-view__chat-clear:hover) {
+.notes-agent-theme :deep(.note-mobile-directory-trigger:hover) {
   border-color: var(--mono-line-strong);
   background: var(--mono-soft-strong);
 }
@@ -1557,10 +1454,7 @@ onBeforeUnmount(() => {
 .notes-agent-theme :deep(.note-tree-wrap),
 .notes-agent-theme :deep(.note-tree-meta),
 .notes-agent-theme :deep(.note-view-toolbar),
-.notes-agent-theme :deep(.note-view-body),
-.notes-agent-theme :deep(.note-ai-view__question-stage),
-.notes-agent-theme :deep(.note-ai-view__chat-shell),
-.notes-agent-theme :deep(.note-ai-view__parameter-panel) {
+.notes-agent-theme :deep(.note-view-body) {
   border-color: var(--mono-line);
   background: var(--mono-soft);
 }
@@ -1609,22 +1503,18 @@ onBeforeUnmount(() => {
   background: rgba(17, 24, 39, 0.22);
 }
 
-.notes-agent-theme :deep(.note-workspace-switch),
 .notes-agent-theme :deep(.note-mode-switch),
 .notes-agent-theme :deep(.note-sidebar-switch) {
   background: var(--mono-soft-strong);
 }
 
-.notes-agent-theme :deep(.note-workspace-switch__button),
 .notes-agent-theme :deep(.note-mode-switch__button),
 .notes-agent-theme :deep(.note-sidebar-switch__button) {
   color: var(--mono-copy);
 }
 
-.notes-agent-theme :deep(.note-workspace-switch__button.is-active),
 .notes-agent-theme :deep(.note-mode-switch__button.is-active),
-.notes-agent-theme :deep(.note-sidebar-switch__button.is-active),
-.notes-agent-theme :deep(.note-ai-view__parameter-toggle.is-active) {
+.notes-agent-theme :deep(.note-sidebar-switch__button.is-active) {
   color: #ffffff;
   background: linear-gradient(135deg, #111827 0%, #374151 100%);
   box-shadow: 0 10px 22px rgba(17, 24, 39, 0.16);
@@ -1695,64 +1585,15 @@ onBeforeUnmount(() => {
   accent-color: #111827;
 }
 
-.notes-agent-theme :deep(.note-ai-view__model-input),
-.notes-agent-theme :deep(.note-ai-view__chat-input),
 .notes-agent-theme :deep(.note-commit-field__input) {
   border-color: var(--mono-line);
   background: var(--mono-surface);
   color: var(--mono-ink);
 }
 
-.notes-agent-theme :deep(.note-ai-view__model-input:focus),
-.notes-agent-theme :deep(.note-ai-view__chat-input:focus),
 .notes-agent-theme :deep(.note-commit-field__input:focus) {
   border-color: rgba(17, 24, 39, 0.38);
   box-shadow: 0 0 0 4px rgba(17, 24, 39, 0.08);
-}
-
-.notes-agent-theme :deep(.note-ai-view__context-card),
-.notes-agent-theme :deep(.note-ai-view__question-card),
-.notes-agent-theme :deep(.note-ai-view__answer-card),
-.notes-agent-theme :deep(.note-ai-view__chat-bubble),
-.notes-agent-theme :deep(.note-ai-view__chat-loading),
-.notes-agent-theme :deep(.note-ai-view__chat-model-badge) {
-  border-color: var(--mono-line);
-  background: var(--mono-surface);
-  color: var(--mono-copy);
-}
-
-.notes-agent-theme :deep(.note-ai-view__chat-item--user .note-ai-view__chat-bubble) {
-  background: var(--mono-soft-strong);
-}
-
-.notes-agent-theme :deep(.note-ai-view__parameter-field) {
-  border-color: var(--mono-line);
-  background: var(--mono-surface);
-  --parameter-accent: #111827;
-  --parameter-accent-soft: rgba(17, 24, 39, 0.14);
-  --parameter-accent-glow: rgba(17, 24, 39, 0.18);
-}
-
-.notes-agent-theme :deep(.note-workspace-tassel) {
-  color: var(--mono-ink);
-  filter: drop-shadow(0 14px 20px rgba(17, 24, 39, 0.12));
-}
-
-.notes-agent-theme :deep(.note-workspace-tassel__cord),
-.notes-agent-theme :deep(.note-workspace-tassel__head),
-.notes-agent-theme :deep(.note-workspace-tassel.is-ai .note-workspace-tassel__head),
-.notes-agent-theme :deep(.note-workspace-tassel__fringe),
-.notes-agent-theme :deep(.note-workspace-tassel.is-ai .note-workspace-tassel__fringe) {
-  border-color: var(--mono-line);
-  background: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    inset 0 -5px 0 rgba(17, 24, 39, 0.08),
-    0 12px 18px rgba(17, 24, 39, 0.12);
-}
-
-.notes-agent-theme :deep(.note-workspace-tassel__label) {
-  color: var(--mono-ink);
 }
 
 .notes-agent-theme :deep(.note-mobile-directory-dialog),

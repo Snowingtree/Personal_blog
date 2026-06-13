@@ -71,8 +71,8 @@
 
       <div class="thought-composer__publish">
         <span>{{ content.length }}/500</span>
-        <button type="button" :disabled="!canPublish || publishing" @click="publish">
-          {{ publishing ? '保存中' : '发布' }}
+        <button type="button" :disabled="!canPublish || isPublishLocked" @click="publish">
+          {{ isPublishLocked ? '保存中' : '发布' }}
         </button>
       </div>
     </footer>
@@ -115,7 +115,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const emit = defineEmits(['publish', 'notice', 'dismiss'])
 const props = defineProps({
@@ -139,8 +139,10 @@ const selectedTags = ref([])
 const isTagPickerOpen = ref(false)
 const imageInput = ref(null)
 const handledEnterKeydown = ref(false)
+const localPublishing = ref(false)
 
 const canPublish = computed(() => Boolean(content.value.trim() || images.value.length))
+const isPublishLocked = computed(() => props.publishing || localPublishing.value)
 const tagOptions = computed(() => {
   const seenTags = new Set()
   const nextTags = []
@@ -158,6 +160,15 @@ const tagOptions = computed(() => {
   return nextTags
 })
 const selectedTagKeys = computed(() => new Set(selectedTags.value.map((tag) => tag.toLowerCase())))
+
+watch(
+  () => props.publishing,
+  (publishing) => {
+    if (!publishing) {
+      localPublishing.value = false
+    }
+  }
+)
 
 function createId() {
   return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -310,7 +321,7 @@ function handleTextareaKeyup(event) {
 }
 
 function submitFromEnter() {
-  if (props.publishing) {
+  if (isPublishLocked.value) {
     return
   }
 
@@ -323,9 +334,11 @@ function submitFromEnter() {
 }
 
 function publish() {
-  if (!canPublish.value || props.publishing) {
+  if (!canPublish.value || isPublishLocked.value) {
     return
   }
+
+  localPublishing.value = true
 
   emit('publish', {
     content: content.value.trim(),
@@ -340,6 +353,7 @@ function reset() {
   images.value = []
   selectedTags.value = []
   isTagPickerOpen.value = false
+  localPublishing.value = false
 }
 </script>
 

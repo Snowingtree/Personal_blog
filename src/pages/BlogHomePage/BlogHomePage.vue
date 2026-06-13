@@ -109,7 +109,7 @@ const tasselStyle = computed(() => ({
 }))
 let tasselStartY = 0
 
-const topbarToolLabel = computed(() => '工具')
+const topbarToolLabel = computed(() => '笔记')
 const topbarToolHref = computed(() => resolvePrivateAppUrl('/notes-login'))
 
 function toggleTheme() {
