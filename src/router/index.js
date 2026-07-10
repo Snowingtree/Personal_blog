@@ -8,6 +8,7 @@ const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
 const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPage.vue')
 const AgentIntroPage = () => import('../pages/AgentIntroPage/AgentIntroPage.vue')
+const XianyuManagerPage = () => import('../pages/XianyuManagerPage/XianyuManagerPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
 const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 const ThoughtsPage = () => import('../pages/ThoughtsPage/ThoughtsPage.vue')
@@ -62,6 +63,14 @@ const router = createRouter({
       path: '/agent-intro',
       name: 'agent-intro',
       component: AgentIntroPage
+    },
+    {
+      path: '/xianyu',
+      name: 'xianyu-manager',
+      component: XianyuManagerPage,
+      meta: {
+        followSiteTheme: false
+      }
     },
     {
       path: '/ai-shares/:slug',

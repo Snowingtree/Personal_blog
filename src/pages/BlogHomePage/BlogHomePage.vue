@@ -34,6 +34,8 @@
         avatar-alt="Homepage avatar"
         agent-label="Agent"
         :agent-href="resolvePrivateAppUrl('/agent/')"
+        xianyu-label="闲鱼管理"
+        xianyu-to="/xianyu"
         :tool-label="topbarToolLabel"
         :tool-href="topbarToolHref"
         :show-theme-toggle="true"

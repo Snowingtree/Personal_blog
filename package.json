@@ -9,12 +9,14 @@
     "images:photo-wall": "node scripts/generate-photo-wall-images.mjs",
     "encrypt:openai-key": "node scripts/encrypt-openai-key.mjs",
     "sync:xiao-tu-xian": "node scripts/sync-xiao-tu-xian.mjs",
+    "test:taobao-api": "node scripts/test-taobao-api.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "axios": "^1.14.0",
     "bcryptjs": "^3.0.3",
+    "lucide-vue-next": "^0.543.0",
     "markdown-it": "^14.1.1",
     "md-editor-v3": "^6.4.2",
     "mysql2": "^3.20.0",
