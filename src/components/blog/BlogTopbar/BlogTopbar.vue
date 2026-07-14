@@ -30,7 +30,7 @@
     </nav>
 
     <div
-      v-if="agentLabel || xianyuLabel || toolLabel || featureLabel || githubHref || showThemeToggle"
+      v-if="agentLabel || toolLabel || featureLabel || githubHref || showThemeToggle"
       class="blog-topbar__actions"
     >
       <a
@@ -43,38 +43,6 @@
 
       <RouterLink v-else-if="agentLabel && agentTo" class="blog-topbar__link" :to="agentTo">
         {{ agentLabel }}
-      </RouterLink>
-
-      <a
-        v-if="xianyuLabel && xianyuHref"
-        class="blog-topbar__icon-link blog-topbar__xianyu-link"
-        :href="xianyuHref"
-        :aria-label="xianyuLabel"
-        :title="xianyuLabel"
-      >
-        <svg class="blog-link-icon blog-link-icon--fish" viewBox="0 0 64 64" aria-hidden="true">
-          <path
-            d="M8 33c8-11 20-17 34-16 7 .4 12 3.2 15 8-2.5 3.7-6.3 6.3-11.2 7.8L57 45c-9.2 1.5-16-1.3-20.4-8.2-11.1-.2-20.6-1.5-28.6-3.8Z"
-            fill="currentColor"
-          />
-          <circle cx="43" cy="25" r="2.8" fill="currentColor" class="blog-link-icon__fish-eye" />
-        </svg>
-      </a>
-
-      <RouterLink
-        v-else-if="xianyuLabel && xianyuTo"
-        class="blog-topbar__icon-link blog-topbar__xianyu-link"
-        :to="xianyuTo"
-        :aria-label="xianyuLabel"
-        :title="xianyuLabel"
-      >
-        <svg class="blog-link-icon blog-link-icon--fish" viewBox="0 0 64 64" aria-hidden="true">
-          <path
-            d="M8 33c8-11 20-17 34-16 7 .4 12 3.2 15 8-2.5 3.7-6.3 6.3-11.2 7.8L57 45c-9.2 1.5-16-1.3-20.4-8.2-11.1-.2-20.6-1.5-28.6-3.8Z"
-            fill="currentColor"
-          />
-          <circle cx="43" cy="25" r="2.8" fill="currentColor" class="blog-link-icon__fish-eye" />
-        </svg>
       </RouterLink>
 
       <a
@@ -187,18 +155,6 @@ defineProps({
     default: ''
   },
   agentHref: {
-    type: String,
-    default: ''
-  },
-  xianyuLabel: {
-    type: String,
-    default: ''
-  },
-  xianyuTo: {
-    type: String,
-    default: ''
-  },
-  xianyuHref: {
     type: String,
     default: ''
   },

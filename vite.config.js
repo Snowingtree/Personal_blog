@@ -72,12 +72,41 @@ function printBuildSizePlugin() {
   }
 }
 
+function androidWebViewHtmlPlugin() {
+  return {
+    name: 'android-webview-html',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        return html
+          .replace(/<script type="module" crossorigin src=/g, '<script type="module" src=')
+          .replace(/<link rel="stylesheet" crossorigin href=/g, '<link rel="stylesheet" href=')
+      }
+    }
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiProxyTarget = env.API_PROXY_TARGET || 'http://127.0.0.1:3001'
+  const isAndroidBuild = mode === 'android'
 
   return {
-    plugins: [vue(), printBuildSizePlugin()],
+    plugins: [
+      vue(),
+      printBuildSizePlugin(),
+      ...(isAndroidBuild ? [androidWebViewHtmlPlugin()] : [])
+    ],
+    ...(isAndroidBuild
+      ? {
+          base: './',
+          build: {
+            target: 'es2018',
+            modulePreload: false
+          }
+        }
+      : {}),
     server: {
       host: '127.0.0.1',
       port: 5174,

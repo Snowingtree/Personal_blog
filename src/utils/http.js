@@ -7,7 +7,11 @@ import {
   NOTE_USERNAME_KEY,
   USERNAME_KEY
 } from '../constants/storage'
-import { canUsePrivateAppOrigin, getPrivateAppBaseUrl } from './privateAccess'
+import {
+  canUsePrivateAppOrigin,
+  getPrivateAppBaseUrl,
+  getPublicAppBaseUrl
+} from './privateAccess'
 
 const EXPLICIT_API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
 const EXPLICIT_PRIVATE_APP_BASE_URL = String(import.meta.env.VITE_PRIVATE_APP_BASE_URL || '')
@@ -22,6 +26,7 @@ const PRIVATE_ROUTE_PREFIXES = [
   '/notes',
   '/notes-login'
 ]
+const IS_ANDROID_APP = import.meta.env.MODE === 'android'
 
 function isPrivateRoutePath(pathname) {
   const normalizedPath = String(pathname || '').trim()
@@ -35,13 +40,55 @@ function isPrivateRoutePath(pathname) {
   ))
 }
 
+function getRuntimeRoutePath() {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  if (IS_ANDROID_APP) {
+    const hashPath = String(window.location.hash || '')
+      .replace(/^#/, '')
+      .split('?')[0]
+
+    if (hashPath.startsWith('/')) {
+      return hashPath
+    }
+  }
+
+  return window.location.pathname
+}
+
+function navigateToNotesLogin() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  if (IS_ANDROID_APP) {
+    window.location.hash = '/notes-login'
+    return
+  }
+
+  const nextLocation = '/notes-login'
+  const nextUrl = new URL(nextLocation, window.location.origin).toString()
+
+  if (window.location.href !== nextUrl) {
+    window.location.assign(nextUrl)
+  }
+}
+
 function resolveApiBaseUrl() {
-  if (EXPLICIT_API_BASE_URL) {
+  if (typeof window === 'undefined') {
     return EXPLICIT_API_BASE_URL
   }
 
-  if (typeof window === 'undefined') {
-    return ''
+  if (IS_ANDROID_APP) {
+    return isPrivateRoutePath(getRuntimeRoutePath())
+      ? EXPLICIT_PRIVATE_APP_BASE_URL || getPrivateAppBaseUrl()
+      : EXPLICIT_API_BASE_URL || getPublicAppBaseUrl()
+  }
+
+  if (EXPLICIT_API_BASE_URL) {
+    return EXPLICIT_API_BASE_URL
   }
 
   if (isPrivateRoutePath(window.location.pathname)) {
@@ -209,6 +256,12 @@ function createHttpError(error) {
       : responseData?.message
   const message =
     responseMessage ||
+    (!error.response
+      && IS_ANDROID_APP
+      && typeof window !== 'undefined'
+      && isPrivateRoutePath(getRuntimeRoutePath())
+      ? '无法访问私有服务，请开启 Tailscale 后重试。'
+      : '') ||
     (error.response?.status === 403
       ? `API request was blocked with 403: ${error.config?.url || ''}. The request did not reach the Node API service. Check whether Nginx forwards /api to Node and restart the Node service after uploading server files.`
       : '') ||
@@ -285,12 +338,7 @@ http.interceptors.response.use(
             clearStoredAuth()
 
             if (typeof window !== 'undefined') {
-              const nextLocation = '/notes-login'
-              const nextUrl = new URL(nextLocation, window.location.origin).toString()
-
-              if (window.location.href !== nextUrl) {
-                window.location.assign(nextUrl)
-              }
+              navigateToNotesLogin()
             }
           }
         }
@@ -301,12 +349,7 @@ http.interceptors.response.use(
         clearStoredAuth()
 
         if (typeof window !== 'undefined') {
-          const nextLocation = '/notes-login'
-          const nextUrl = new URL(nextLocation, window.location.origin).toString()
-
-          if (window.location.href !== nextUrl) {
-            window.location.assign(nextUrl)
-          }
+          navigateToNotesLogin()
         }
       }
 

@@ -4,6 +4,7 @@ const DEFAULT_PRIVATE_APP_BASE_URL = (
 const DEFAULT_PUBLIC_APP_BASE_URL = (
   import.meta.env.VITE_PUBLIC_APP_BASE_URL || 'http://www.wmzh.online'
 ).replace(/\/$/, '')
+const IS_ANDROID_APP = import.meta.env.MODE === 'android'
 const PRIVATE_APP_RUNTIME_ACCESS_KEY = 'private-app-runtime-access'
 const PRIVATE_APP_ALLOWED_HOSTS = String(import.meta.env.VITE_PRIVATE_APP_ALLOWED_HOSTS || '')
   .split(',')
@@ -46,6 +47,10 @@ function isPrivateAppHost(hostname = typeof window !== 'undefined' ? window.loca
 }
 
 function getPrivateAppBaseUrl() {
+  if (IS_ANDROID_APP) {
+    return DEFAULT_PRIVATE_APP_BASE_URL
+  }
+
   if (typeof window !== 'undefined' && isPrivateAppHost()) {
     return window.location.origin.replace(/\/$/, '')
   }
@@ -54,6 +59,10 @@ function getPrivateAppBaseUrl() {
 }
 
 function getPublicAppBaseUrl() {
+  if (IS_ANDROID_APP) {
+    return DEFAULT_PUBLIC_APP_BASE_URL
+  }
+
   if (typeof window !== 'undefined' && !isPrivateAppHost()) {
     return window.location.origin.replace(/\/$/, '')
   }

@@ -2770,21 +2770,6 @@ body.is-note-resizing * {
   padding: 0;
 }
 
-.blog-topbar__xianyu-link {
-  color: #a46300;
-  border-color: rgba(240, 164, 47, 0.28);
-  background: #fff6df;
-}
-
-.blog-link-icon--fish {
-  width: 1.28rem;
-  height: 1.28rem;
-}
-
-.blog-link-icon__fish-eye {
-  fill: #152433;
-}
-
 .blog-topbar__theme-toggle {
   display: none;
   width: 44px;
@@ -4694,12 +4679,6 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
   color: var(--blog-ink);
   border-color: rgba(235, 220, 201, 0.12);
   background: rgba(255, 255, 255, 0.05);
-}
-
-.blog-page.blog-page--dark .blog-topbar__xianyu-link {
-  color: #f0a42f;
-  border-color: rgba(240, 164, 47, 0.26);
-  background: rgba(240, 164, 47, 0.12);
 }
 
 .blog-page.blog-page--dark .blog-topbar__button,

@@ -6,11 +6,14 @@
   "scripts": {
     "server": "node server/index.js",
     "dev": "vite",
+    "dev:android": "vite --mode android --port 5175",
     "images:photo-wall": "node scripts/generate-photo-wall-images.mjs",
     "encrypt:openai-key": "node scripts/encrypt-openai-key.mjs",
     "sync:xiao-tu-xian": "node scripts/sync-xiao-tu-xian.mjs",
     "test:taobao-api": "node scripts/test-taobao-api.mjs",
     "build": "vite build",
+    "build:android": "vite build --mode android --outDir dist-android",
+    "package:android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-android.ps1",
     "preview": "vite preview"
   },
   "dependencies": {

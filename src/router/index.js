@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { siteAuthGuard } from './authGuard'
 import BlogHomePage from '../pages/BlogHomePage/BlogHomePage.vue'
 import LoginPage from '../pages/LoginPage/LoginPage.vue'
 import DisplayPage from '../pages/DisplayPage/DisplayPage.vue'
@@ -8,18 +9,9 @@ const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
 const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPage.vue')
 const AgentIntroPage = () => import('../pages/AgentIntroPage/AgentIntroPage.vue')
-const XianyuManagerPage = () => import('../pages/XianyuManagerPage/XianyuManagerPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
 const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 const ThoughtsPage = () => import('../pages/ThoughtsPage/ThoughtsPage.vue')
-import {
-  AUTH_KEY,
-  AUTH_REFRESH_TOKEN_KEY,
-  AUTH_TOKEN_KEY,
-  NOTE_AUTH_KEY,
-  NOTE_USERNAME_KEY,
-  USERNAME_KEY
-} from '../constants/storage'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -63,14 +55,6 @@ const router = createRouter({
       path: '/agent-intro',
       name: 'agent-intro',
       component: AgentIntroPage
-    },
-    {
-      path: '/xianyu',
-      name: 'xianyu-manager',
-      component: XianyuManagerPage,
-      meta: {
-        followSiteTheme: false
-      }
     },
     {
       path: '/ai-shares/:slug',
@@ -158,70 +142,6 @@ const router = createRouter({
   ]
 })
 
-function getAuthKeyByScope(scope) {
-  if (scope === 'tools') {
-    return ''
-  }
-
-  if (scope === 'notes') {
-    return NOTE_AUTH_KEY
-  }
-
-  return AUTH_KEY
-}
-
-function getLoginRouteByScope(scope) {
-  if (scope === 'tools') {
-    return 'login'
-  }
-
-  if (isUnifiedPrivateAuthScope(scope)) {
-    return 'notes-login'
-  }
-
-  return 'login'
-}
-
-function isUnifiedPrivateAuthScope(scope) {
-  return scope === 'anime' || scope === 'notes' || scope === 'tools'
-}
-
-router.beforeEach((to) => {
-  const authToken = localStorage.getItem(AUTH_TOKEN_KEY)
-  const refreshToken = localStorage.getItem(AUTH_REFRESH_TOKEN_KEY)
-  const hasAccessToken = typeof authToken === 'string' && authToken.trim().length > 0
-  const hasRefreshToken = typeof refreshToken === 'string' && refreshToken.trim().length > 0
-  const hasToken = hasAccessToken || hasRefreshToken
-
-  if (!hasToken) {
-    localStorage.removeItem(AUTH_KEY)
-    localStorage.removeItem(USERNAME_KEY)
-    localStorage.removeItem(NOTE_AUTH_KEY)
-    localStorage.removeItem(NOTE_USERNAME_KEY)
-  }
-
-  const animeAuthenticated = hasToken && localStorage.getItem(AUTH_KEY) === 'true'
-  const notesAuthenticated = hasToken && localStorage.getItem(NOTE_AUTH_KEY) === 'true'
-  const hasAnyPrivateAppAuth = animeAuthenticated || notesAuthenticated
-
-  if (to.name === 'login' && hasAnyPrivateAppAuth) {
-    return { name: 'tool-selector' }
-  }
-
-  if (to.name === 'notes-login' && hasAnyPrivateAppAuth) {
-    return { name: 'tool-selector' }
-  }
-
-  const isAuthenticated =
-    isUnifiedPrivateAuthScope(to.meta.authScope)
-      ? hasAnyPrivateAppAuth
-      : hasToken && localStorage.getItem(getAuthKeyByScope(to.meta.authScope)) === 'true'
-
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    return { name: getLoginRouteByScope(to.meta.authScope) }
-  }
-
-  return true
-})
+router.beforeEach(siteAuthGuard)
 
 export default router

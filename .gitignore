@@ -1,5 +1,10 @@
 node_modules
 dist
+dist-android
+android/.gradle/
+android/app/build/
+android/local.properties
+*.apk
 .DS_Store
 .tmp_xiao_tu_xian_build
 data/thought-images/
