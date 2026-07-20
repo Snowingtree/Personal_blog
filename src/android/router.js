@@ -4,16 +4,11 @@ import AndroidHomePage from './pages/AndroidHomePage.vue'
 import AndroidLibraryPage from './pages/AndroidLibraryPage.vue'
 import AndroidArticlePage from './pages/AndroidArticlePage.vue'
 import LoginPage from '../pages/LoginPage/LoginPage.vue'
-import DisplayPage from '../pages/DisplayPage/DisplayPage.vue'
 import NotesLoginPage from '../pages/NotesLoginPage/NotesLoginPage.vue'
 
 const AndroidPhotoWallPage = () => import('./pages/AndroidPhotoWallPage.vue')
-const AndroidGithubPage = () => import('./pages/AndroidGithubPage.vue')
 const AndroidSettingsPage = () => import('./pages/AndroidSettingsPage.vue')
 const XianyuRecordPage = () => import('./features/xianyu/XianyuRecordPage.vue')
-const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
-const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
-const ThoughtsPage = () => import('../pages/ThoughtsPage/ThoughtsPage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 
 const router = createRouter({
@@ -68,13 +63,24 @@ const router = createRouter({
       path: '/xianyu',
       name: 'android-xianyu',
       component: XianyuRecordPage,
-      meta: { androidNavKey: 'xianyu', androidSurface: 'xianyu', followSiteTheme: false }
+      meta: {
+        androidNavKey: 'xianyu',
+        androidSurface: 'xianyu',
+        followSiteTheme: false,
+        requiresAuth: true,
+        authScope: 'xianyu'
+      }
     },
     {
-      path: '/github',
-      name: 'android-github',
-      component: AndroidGithubPage,
-      meta: { androidNavKey: 'github', androidSurface: 'public' }
+      path: '/xianyu-login',
+      name: 'xianyu-login',
+      component: LoginPage,
+      meta: {
+        androidNavKey: 'xianyu',
+        androidSurface: 'legacy',
+        followSiteTheme: false,
+        authScope: 'xianyu'
+      }
     },
     {
       path: '/settings',
@@ -82,80 +88,17 @@ const router = createRouter({
       component: AndroidSettingsPage,
       meta: { androidNavKey: 'settings', androidSurface: 'public' }
     },
-    {
-      path: '/login',
-      name: 'login',
-      component: LoginPage,
-      meta: {
-        androidNavKey: 'tools',
-        androidSurface: 'legacy',
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        authScope: 'anime'
-      }
-    },
+    { path: '/login', redirect: '/notes' },
     {
       path: '/notes-login',
       name: 'notes-login',
       component: NotesLoginPage,
       meta: {
-        androidNavKey: 'tools',
+        androidNavKey: 'notes',
         androidSurface: 'legacy',
         followSiteTheme: false,
         privateNetworkOnly: true,
         authScope: 'notes'
-      }
-    },
-    {
-      path: '/tools',
-      name: 'tool-selector',
-      component: ToolSelectorPage,
-      meta: {
-        androidNavKey: 'tools',
-        androidSurface: 'legacy',
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        requiresAuth: true,
-        authScope: 'tools'
-      }
-    },
-    {
-      path: '/display',
-      name: 'display',
-      component: DisplayPage,
-      meta: {
-        androidNavKey: 'anime',
-        androidSurface: 'legacy',
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        requiresAuth: true,
-        authScope: 'anime'
-      }
-    },
-    {
-      path: '/internship',
-      name: 'internship',
-      component: InternshipPage,
-      meta: {
-        androidNavKey: 'internship',
-        androidSurface: 'legacy',
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        requiresAuth: true,
-        authScope: 'tools'
-      }
-    },
-    {
-      path: '/thoughts',
-      name: 'thoughts',
-      component: ThoughtsPage,
-      meta: {
-        androidNavKey: 'thoughts',
-        androidSurface: 'legacy',
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        requiresAuth: true,
-        authScope: 'tools'
       }
     },
     {

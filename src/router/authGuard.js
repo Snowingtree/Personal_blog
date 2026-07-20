@@ -7,6 +7,8 @@ import {
   USERNAME_KEY
 } from '../constants/storage'
 
+const IS_ANDROID_APP = import.meta.env.MODE === 'android'
+
 function getAuthKeyByScope(scope) {
   if (scope === 'tools') {
     return ''
@@ -20,6 +22,10 @@ function getAuthKeyByScope(scope) {
 }
 
 function getLoginRouteByScope(scope) {
+  if (scope === 'xianyu') {
+    return 'xianyu-login'
+  }
+
   if (scope === 'tools') {
     return 'login'
   }
@@ -54,11 +60,18 @@ export function siteAuthGuard(to) {
   const hasAnyPrivateAppAuth = animeAuthenticated || notesAuthenticated
 
   if (to.name === 'login' && hasAnyPrivateAppAuth) {
-    return { name: 'tool-selector' }
+    return { name: IS_ANDROID_APP ? 'notes' : 'tool-selector' }
   }
 
   if (to.name === 'notes-login' && hasAnyPrivateAppAuth) {
-    return { name: 'tool-selector' }
+    return { name: IS_ANDROID_APP ? 'notes' : 'tool-selector' }
+  }
+
+  if (to.name === 'xianyu-login' && hasAnyPrivateAppAuth) {
+    const requestedRedirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
+    return requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')
+      ? requestedRedirect
+      : { name: 'android-xianyu' }
   }
 
   const isAuthenticated =
@@ -67,7 +80,13 @@ export function siteAuthGuard(to) {
       : hasToken && localStorage.getItem(getAuthKeyByScope(to.meta.authScope)) === 'true'
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    return { name: getLoginRouteByScope(to.meta.authScope) }
+    const loginRoute = { name: getLoginRouteByScope(to.meta.authScope) }
+
+    if (IS_ANDROID_APP || to.meta.authScope === 'xianyu') {
+      loginRoute.query = { redirect: to.fullPath }
+    }
+
+    return loginRoute
   }
 
   return true

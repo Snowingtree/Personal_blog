@@ -8,6 +8,7 @@
 .xianyu-record {
   color: #1f1f1f;
   background: #f4f4f4;
+  --xianyu-shell-left: var(--android-sidebar-collapsed, 56px);
   --motion-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-quick: cubic-bezier(0.2, 0.75, 0.25, 1);
   font-family:
@@ -175,6 +176,11 @@ h1 {
   will-change: transform;
 }
 
+.record-front:focus-visible {
+  outline: 2px solid #3b3b3b;
+  outline-offset: -3px;
+}
+
 .record-main,
 .record-meta {
   display: grid;
@@ -217,11 +223,6 @@ h1 {
 .status-badge.pending {
   background: #f5f5f5;
   color: #4a4a4a;
-}
-
-.status-badge.shipping {
-  background: #eeeeee;
-  color: #3f3f3f;
 }
 
 .status-badge.done {
@@ -371,7 +372,7 @@ h1 {
 
 .summary-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid #dddddd;
   border-radius: 8px;
@@ -611,7 +612,7 @@ h1 {
 
 .month-picker-layer {
   position: fixed;
-  inset: 0;
+  inset: 0 0 0 var(--xianyu-shell-left);
   z-index: 32;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -763,7 +764,7 @@ h1 {
   position: fixed;
   right: 0;
   bottom: 0;
-  left: var(--android-sidebar-collapsed);
+  left: var(--xianyu-shell-left);
   z-index: 10;
   display: grid;
   grid-template-columns: 1fr 82px 1fr;
@@ -881,7 +882,7 @@ h1 {
 
 .dialog-backdrop {
   position: fixed;
-  inset: 0;
+  inset: 0 0 0 var(--xianyu-shell-left);
   z-index: 30;
   display: grid;
   place-items: center;
@@ -889,11 +890,187 @@ h1 {
   background: rgba(0, 0, 0, 0.28);
 }
 
+.detail-dialog {
+  display: grid;
+  width: min(100%, 440px);
+  max-height: calc(100vh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  gap: 14px;
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid #d8d8d8;
+  border-radius: 14px;
+  background: #f7f7f7;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.26);
+  overscroll-behavior: contain;
+}
+
+.detail-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.detail-money-grid span {
+  color: #777;
+  font-size: 12px;
+}
+
+.detail-dialog-header strong {
+  overflow-wrap: anywhere;
+  color: #202020;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.detail-close {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #dddddd;
+  border-radius: 50%;
+  background: #fff;
+  color: #444;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.detail-image {
+  display: grid;
+  min-height: 180px;
+  max-height: 34vh;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #dddddd;
+  border-radius: 10px;
+  background: #e9e9e9;
+}
+
+.detail-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 34vh;
+  object-fit: contain;
+}
+
+.detail-money-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-money-grid > label,
+.detail-money-grid > div {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  padding: 13px;
+  border: 1px solid #dddddd;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.detail-profit-card {
+  grid-column: 1 / -1;
+}
+
+.detail-money-grid strong {
+  overflow-wrap: anywhere;
+  color: #242424;
+  font-size: 19px;
+}
+
+.detail-money-input {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 7px;
+  background: #f8f8f8;
+}
+
+.detail-money-input:focus-within {
+  border-color: #777;
+  box-shadow: 0 0 0 3px rgba(32, 32, 32, 0.08);
+}
+
+.detail-money-input b {
+  color: #555;
+  font-size: 17px;
+}
+
+.detail-money-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #242424;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.detail-action-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-download-button,
+.detail-complete-button,
+.detail-done-button {
+  min-height: 46px;
+  border-radius: 9px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.detail-download-button {
+  border: 1px solid #cfcfcf;
+  background: #fff;
+  color: #242424;
+}
+
+.detail-done-button {
+  background: #242424;
+  color: #fff;
+}
+
+.detail-complete-button {
+  background: #2f8a44;
+  color: #fff;
+}
+
+.detail-pop-enter-active,
+.detail-pop-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.detail-pop-enter-active .detail-dialog,
+.detail-pop-leave-active .detail-dialog {
+  transition: transform 300ms var(--motion-standard);
+}
+
+.detail-pop-enter-from,
+.detail-pop-leave-to {
+  opacity: 0;
+}
+
+.detail-pop-enter-from .detail-dialog,
+.detail-pop-leave-to .detail-dialog {
+  transform: translate3d(0, 18px, 0) scale(0.97);
+}
+
 .top-message {
   position: fixed;
   top: max(18px, env(safe-area-inset-top));
-  left: 50%;
-  z-index: 28;
+  left: calc(var(--xianyu-shell-left) + (100vw - var(--xianyu-shell-left)) / 2);
+  z-index: 35;
   max-width: min(88vw, 360px);
   padding: 10px 14px;
   border: 1px solid #d8d8d8;
@@ -1121,7 +1298,6 @@ h1 {
 }
 
 .status-badge.pending,
-.status-badge.shipping,
 .status-badge.done {
   color: #4e544f;
   background: #eceeeb;
@@ -1200,6 +1376,12 @@ h1 {
   }
 }
 
-:global(.android-shell.is-sidebar-expanded) .xianyu-record .bottom-nav {
-  left: var(--android-sidebar-expanded);
+:global(.android-shell.is-sidebar-expanded) .xianyu-record {
+  --xianyu-shell-left: var(--android-sidebar-expanded, 228px);
+}
+
+@media (max-width: 920px) {
+  :global(.android-shell.is-sidebar-expanded) .xianyu-record {
+    --xianyu-shell-left: var(--android-sidebar-collapsed, 56px);
+  }
 }

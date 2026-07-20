@@ -10,6 +10,7 @@ import { createInternshipApiMiddleware } from './internshipApi.js'
 import { createProtectedApiMiddleware } from './authToken.js'
 import { createNotesApiMiddleware } from './notesApi.js'
 import { createThoughtsApiMiddleware } from './thoughtsApi.js'
+import { createXianyuApiMiddleware } from './xianyuApi.js'
 
 function normalizeEnvValue(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -101,6 +102,7 @@ const agentMiddleware = createAgentApiMiddleware(process.env)
 const notesMiddleware = createNotesApiMiddleware(process.env)
 const internshipMiddleware = createInternshipApiMiddleware(process.env)
 const thoughtsMiddleware = createThoughtsApiMiddleware(process.env)
+const xianyuMiddleware = createXianyuApiMiddleware(process.env)
 
 const server = createServer(async (req, res) => {
   applyCorsHeaders(res, corsOrigin)
@@ -122,10 +124,12 @@ const server = createServer(async (req, res) => {
         await animeMiddleware(req, res, async () => {
           await aiSettingsMiddleware(req, res, async () => {
             await agentMiddleware(req, res, async () => {
-              await internshipMiddleware(req, res, async () => {
-                await thoughtsMiddleware(req, res, async () => {
-                  await notesMiddleware(req, res, () => {
-                    writeJson(res, 404, { message: 'Not found' })
+              await xianyuMiddleware(req, res, async () => {
+                await internshipMiddleware(req, res, async () => {
+                  await thoughtsMiddleware(req, res, async () => {
+                    await notesMiddleware(req, res, () => {
+                      writeJson(res, 404, { message: 'Not found' })
+                    })
                   })
                 })
               })

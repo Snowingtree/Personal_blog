@@ -1,5 +1,9 @@
 <template>
-  <main v-if="privateAppAvailable" class="internship-page">
+  <main
+    v-if="privateAppAvailable"
+    class="internship-page"
+    :class="{ 'internship-page--android': isAndroidApp }"
+  >
     <section class="internship-shell">
       <section class="internship-board" aria-label="实习记录列表">
         <div class="internship-board__head">
@@ -620,6 +624,18 @@
             </div>
             <div class="internship-dialog__actions">
               <button
+                v-if="isAndroidApp && detailRecordIsDeleted"
+                type="button"
+                class="internship-dialog__restore"
+                aria-label="恢复记录"
+                title="恢复"
+                @click="restoreRecordFromDetail"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9v-5l3 3a8 8 0 1 1-2 8" />
+                </svg>
+              </button>
+              <button
                 v-if="!detailRecordIsDeleted"
                 type="button"
                 class="internship-dialog__edit"
@@ -630,6 +646,22 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" />
                   <path d="M13.5 6.5l4 4" />
+                </svg>
+              </button>
+              <button
+                v-if="isAndroidApp"
+                type="button"
+                class="internship-dialog__delete"
+                :aria-label="detailRecordIsDeleted ? '永久移除记录' : '删除记录'"
+                :title="detailRecordIsDeleted ? '永久移除' : '删除'"
+                @click="removeRecordFromDetail"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M6 6l1 15h10l1-15" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
                 </svg>
               </button>
               <button type="button" class="internship-dialog__close" aria-label="关闭" @click="closeRecordDetail">
@@ -668,6 +700,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createMessage } from 'snowingress-my-components'
 import { useRouter } from 'vue-router'
+import { getAndroidCache, setAndroidCache } from '../../android/offlineCache'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import { INTERNSHIP_RECORDS_KEY, INTERNSHIP_TRASH_RECORDS_KEY } from '../../constants/storage'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
@@ -675,7 +708,9 @@ import http from '../../utils/http'
 
 const router = useRouter()
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
+const isAndroidApp = import.meta.env.MODE === 'android'
 const INTERNSHIP_BACKGROUND_CLASS = 'is-internship-page'
+const INTERNSHIP_CACHE_BUCKET = 'internship'
 const DRAFT_CONTENT_TAB = '\t'
 const currentContributionYear = new Date().getFullYear()
 
@@ -725,8 +760,10 @@ const activeCategory = ref('all')
 const openSelectMenu = ref('')
 const records = ref(readStoredRecords())
 const deletedRecords = ref([])
+const pendingOperations = ref([])
 const recordsLoaded = ref(false)
 const deletedRecordsLoading = ref(false)
+let internshipRefreshPromise = null
 let detailClickRecordId = ''
 let detailClickTimer = null
 
@@ -741,10 +778,18 @@ function syncInternshipBackground(enabled) {
 
 onMounted(() => {
   syncInternshipBackground(true)
+
+  if (isAndroidApp) {
+    window.addEventListener('online', handleInternshipConnectivityRestored)
+  }
 })
 
 onBeforeUnmount(() => {
   syncInternshipBackground(false)
+
+  if (isAndroidApp) {
+    window.removeEventListener('online', handleInternshipConnectivityRestored)
+  }
 
   if (detailClickTimer) {
     window.clearTimeout(detailClickTimer)
@@ -760,6 +805,22 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  records,
+  () => {
+    void persistInternshipRecordsToAndroidCache()
+  },
+  { deep: true }
+)
+
+watch(
+  deletedRecords,
+  () => {
+    void persistInternshipTrashToAndroidCache()
+  },
+  { deep: true }
 )
 
 const sortedRecords = computed(() => (
@@ -1008,12 +1069,225 @@ function normalizeDeletedRecords(value) {
   }, [])
 }
 
+async function hydrateInternshipFromAndroidCache() {
+  if (!isAndroidApp) {
+    return { hasCachedContent: false, isFresh: false }
+  }
+
+  try {
+    const [cachedRecords, cachedDeletedRecords, cachedPendingOperations] = await Promise.all([
+      getAndroidCache(INTERNSHIP_CACHE_BUCKET, 'records'),
+      getAndroidCache(INTERNSHIP_CACHE_BUCKET, 'trash'),
+      getAndroidCache(INTERNSHIP_CACHE_BUCKET, 'pending-operations')
+    ])
+    const normalizedCachedRecords = normalizeRecords(cachedRecords)
+    const normalizedCachedDeletedRecords = normalizeDeletedRecords(cachedDeletedRecords)
+
+    if (Array.isArray(cachedRecords)) {
+      records.value = normalizedCachedRecords
+    }
+
+    if (Array.isArray(cachedDeletedRecords)) {
+      deletedRecords.value = normalizedCachedDeletedRecords
+    }
+
+    pendingOperations.value = Array.isArray(cachedPendingOperations)
+      ? cachedPendingOperations.filter((operation) => operation && typeof operation.type === 'string')
+      : []
+
+    return {
+      hasCachedContent: Array.isArray(cachedRecords) || Array.isArray(cachedDeletedRecords)
+    }
+  } catch {
+    return { hasCachedContent: false }
+  }
+}
+
+async function persistInternshipRecordsToAndroidCache() {
+  if (!isAndroidApp) {
+    return
+  }
+
+  try {
+    await setAndroidCache(
+      INTERNSHIP_CACHE_BUCKET,
+      'records',
+      records.value.map((record) => ({ ...record }))
+    )
+  } catch {}
+}
+
+async function persistInternshipTrashToAndroidCache() {
+  if (!isAndroidApp) {
+    return
+  }
+
+  try {
+    await setAndroidCache(
+      INTERNSHIP_CACHE_BUCKET,
+      'trash',
+      deletedRecords.value.map((record) => ({ ...record }))
+    )
+  } catch {}
+}
+
+async function persistPendingInternshipOperations() {
+  if (!isAndroidApp) {
+    return
+  }
+
+  try {
+    await setAndroidCache(
+      INTERNSHIP_CACHE_BUCKET,
+      'pending-operations',
+      pendingOperations.value.map((operation) => ({
+        ...operation,
+        record: operation.record ? { ...operation.record } : undefined
+      }))
+    )
+  } catch {}
+}
+
+function isOfflineRequestError(error) {
+  return error instanceof Error && (
+    error.status === undefined
+    || error.status === null
+    || Number(error.status) >= 500
+  )
+}
+
+async function queueInternshipOperation(type, payload = {}) {
+  pendingOperations.value = [
+    ...pendingOperations.value,
+    {
+      operationId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      type,
+      queuedAt: new Date().toISOString(),
+      ...payload,
+      record: payload.record ? { ...payload.record } : undefined
+    }
+  ]
+  await persistPendingInternshipOperations()
+}
+
+async function executePendingInternshipOperation(operation) {
+  const recordId = encodeURIComponent(operation.recordId || operation.record?.id || '')
+
+  if (operation.type === 'create') {
+    await http.post('/api/internship/records', operation.record)
+    return
+  }
+
+  if (operation.type === 'update') {
+    await http.put(`/api/internship/records/${recordId}`, operation.record)
+    return
+  }
+
+  if (operation.type === 'delete') {
+    await http.delete(`/api/internship/records/${recordId}`)
+    return
+  }
+
+  if (operation.type === 'restore') {
+    await http.patch(`/api/internship/records/${recordId}/restore`)
+    return
+  }
+
+  if (operation.type === 'delete-permanently') {
+    await http.delete(`/api/internship/records/${recordId}?permanent=1`)
+  }
+}
+
+async function flushPendingInternshipOperations() {
+  if (!isAndroidApp || !pendingOperations.value.length) {
+    return { completed: true, syncedCount: 0 }
+  }
+
+  let syncedCount = 0
+
+  while (pendingOperations.value.length) {
+    const operation = pendingOperations.value[0]
+
+    try {
+      await executePendingInternshipOperation(operation)
+      pendingOperations.value = pendingOperations.value.filter(
+        (item) => item.operationId !== operation.operationId
+      )
+      await persistPendingInternshipOperations()
+      syncedCount += 1
+    } catch {
+      return { completed: false, syncedCount }
+    }
+  }
+
+  return { completed: true, syncedCount }
+}
+
+async function refreshInternshipFromServer() {
+  if (internshipRefreshPromise) {
+    return internshipRefreshPromise
+  }
+
+  const refreshPromise = (async () => {
+    const pendingResult = await flushPendingInternshipOperations()
+
+    if (!pendingResult.completed) {
+      return [false, false]
+    }
+
+    const results = await Promise.all([
+      loadRecords({ silent: true }),
+      loadDeletedRecords({ silent: true })
+    ])
+
+    if (results.every(Boolean)) {
+      try {
+        await setAndroidCache(INTERNSHIP_CACHE_BUCKET, 'last-sync', {
+          syncedAt: new Date().toISOString()
+        })
+      } catch {}
+    }
+
+    if (pendingResult.syncedCount) {
+      notify(`已同步 ${pendingResult.syncedCount} 条本机修改`)
+    }
+
+    return results
+  })()
+
+  internshipRefreshPromise = refreshPromise
+
+  try {
+    await refreshPromise
+  } finally {
+    if (internshipRefreshPromise === refreshPromise) {
+      internshipRefreshPromise = null
+    }
+  }
+}
+
 async function loadInternshipData() {
+  if (isAndroidApp) {
+    const cacheState = await hydrateInternshipFromAndroidCache()
+
+    if (!cacheState.hasCachedContent || pendingOperations.value.length) {
+      void refreshInternshipFromServer()
+    }
+
+    return
+  }
+
   await loadRecords()
   await loadDeletedRecords()
 }
 
-async function loadRecords() {
+function handleInternshipConnectivityRestored() {
+  if (pendingOperations.value.length) {
+    void refreshInternshipFromServer()
+  }
+}
+
+async function loadRecords({ silent = false } = {}) {
   const localRecords = readStoredRecords()
 
   try {
@@ -1034,14 +1308,21 @@ async function loadRecords() {
 
       records.value = migratedRecords
       localStorage.removeItem(INTERNSHIP_RECORDS_KEY)
+      await persistInternshipRecordsToAndroidCache()
       notify('本地记录已迁移到数据库')
-      return
+      return true
     }
 
     records.value = databaseRecords
     localStorage.removeItem(INTERNSHIP_RECORDS_KEY)
+    await persistInternshipRecordsToAndroidCache()
+    return true
   } catch (error) {
-    notify(error instanceof Error ? error.message : '实习记录加载失败', 'danger')
+    if (!silent || !records.value.length) {
+      notify(error instanceof Error ? error.message : '实习记录加载失败', 'danger')
+    }
+
+    return false
   }
 }
 
@@ -1065,7 +1346,7 @@ async function migrateDeletedRecordsToDatabase(localDeletedRecords) {
   return migratedRecords
 }
 
-async function loadDeletedRecords() {
+async function loadDeletedRecords({ silent = false } = {}) {
   const localDeletedRecords = readStoredDeletedRecords()
   deletedRecordsLoading.value = true
 
@@ -1083,8 +1364,9 @@ async function loadDeletedRecords() {
           localStorage.removeItem(INTERNSHIP_TRASH_RECORDS_KEY)
         }
 
+        await persistInternshipTrashToAndroidCache()
         notify('本地回收站已迁移到数据库')
-        return
+        return true
       }
     }
 
@@ -1093,8 +1375,14 @@ async function loadDeletedRecords() {
     if (!localDeletedRecords.length || databaseDeletedRecords.length) {
       localStorage.removeItem(INTERNSHIP_TRASH_RECORDS_KEY)
     }
+
+    await persistInternshipTrashToAndroidCache()
+    return true
   } catch (error) {
-    notify(error instanceof Error ? error.message : '回收站加载失败', 'danger')
+    if (!silent || !deletedRecords.value.length) {
+      notify(error instanceof Error ? error.message : '回收站加载失败', 'danger')
+    }
+    return false
   } finally {
     deletedRecordsLoading.value = false
   }
@@ -1179,6 +1467,45 @@ async function handleSave() {
     updatedAt: now
   }
 
+  if (isAndroidApp) {
+    const previousRecords = records.value
+
+    records.value = currentEditingId
+      ? records.value.map((record) => record.id === currentEditingId ? nextRecord : record)
+      : [nextRecord, ...records.value]
+    closeDraftDialog()
+
+    try {
+      const result = currentEditingId
+        ? await http.put(`/api/internship/records/${encodeURIComponent(currentEditingId)}`, nextRecord)
+        : await http.post('/api/internship/records', nextRecord)
+      const savedRecord = normalizeRecord(result.record)
+
+      if (savedRecord) {
+        records.value = records.value.map((record) => (
+          record.id === nextRecord.id ? savedRecord : record
+        ))
+      }
+
+      notify(currentEditingId ? '更新成功' : '保存成功')
+      return
+    } catch (error) {
+      if (isOfflineRequestError(error)) {
+        await queueInternshipOperation(currentEditingId ? 'update' : 'create', {
+          record: nextRecord
+        })
+        notify(currentEditingId ? '已保存到本机，联网后更新' : '已保存到本机，联网后同步')
+        return
+      }
+
+      records.value = previousRecords
+      notify(error instanceof Error ? error.message : '保存失败', 'danger')
+      return
+    } finally {
+      draftSaving.value = false
+    }
+  }
+
   try {
     if (currentEditingId) {
       const result = await http.put(`/api/internship/records/${encodeURIComponent(currentEditingId)}`, nextRecord)
@@ -1236,12 +1563,46 @@ function editRecordFromDetail() {
   startEditing(record)
 }
 
+async function restoreRecordFromDetail() {
+  const record = detailRecord.value
+
+  if (!record) {
+    return
+  }
+
+  closeRecordDetail()
+  await restoreDeletedRecord(record)
+}
+
+function removeRecordFromDetail() {
+  const record = detailRecord.value
+
+  if (!record) {
+    return
+  }
+
+  const permanently = detailRecordIsDeleted.value
+  closeRecordDetail()
+
+  if (permanently) {
+    removeDeletedRecord(record.id)
+    return
+  }
+
+  requestRemoveRecord(record)
+}
+
 function requestRemoveRecord(record) {
   closeSelectMenu()
   deleteTargetRecord.value = record
 }
 
 function handleRecordDetailClick(record) {
+  if (isAndroidApp) {
+    openRecordDetail(record)
+    return
+  }
+
   if (detailClickRecordId === record.id && detailClickTimer) {
     window.clearTimeout(detailClickTimer)
     detailClickRecordId = ''
@@ -1331,8 +1692,55 @@ async function confirmRemoveRecord() {
     return
   }
 
+  const recordId = record.id
+
+  if (isAndroidApp) {
+    const previousRecords = records.value
+    const previousDeletedRecords = deletedRecords.value
+    const optimisticDeletedRecord = normalizeDeletedRecord({
+      ...record,
+      deletedAt: new Date().toISOString()
+    })
+
+    records.value = records.value.filter((item) => item.id !== recordId)
+
+    if (optimisticDeletedRecord) {
+      deletedRecords.value = [
+        optimisticDeletedRecord,
+        ...deletedRecords.value.filter((item) => item.id !== recordId)
+      ]
+    }
+
+    closeDeleteConfirm()
+
+    try {
+      const result = await http.delete(`/api/internship/records/${encodeURIComponent(recordId)}`)
+      const deletedRecord = normalizeDeletedRecord(result.record)
+
+      if (deletedRecord) {
+        deletedRecords.value = [
+          deletedRecord,
+          ...deletedRecords.value.filter((item) => item.id !== recordId)
+        ]
+      }
+
+      notify('已移入回收站')
+      return
+    } catch (error) {
+      if (isOfflineRequestError(error)) {
+        await queueInternshipOperation('delete', { recordId })
+        notify('已在本机移入回收站，联网后同步')
+        return
+      }
+
+      records.value = previousRecords
+      deletedRecords.value = previousDeletedRecords
+      notify(error instanceof Error ? error.message : '删除失败', 'danger')
+      return
+    }
+  }
+
   try {
-    const recordId = record.id
     const result = await http.delete(`/api/internship/records/${encodeURIComponent(recordId)}`)
     const deletedRecord = normalizeDeletedRecord(result.record)
 
@@ -1357,6 +1765,47 @@ async function confirmRemoveRecord() {
 }
 
 async function restoreDeletedRecord(record) {
+  if (isAndroidApp) {
+    const previousRecords = records.value
+    const previousDeletedRecords = deletedRecords.value
+    const optimisticRecord = normalizeRecord(record)
+
+    if (optimisticRecord) {
+      records.value = [
+        optimisticRecord,
+        ...records.value.filter((item) => item.id !== record.id)
+      ]
+    }
+
+    deletedRecords.value = deletedRecords.value.filter((item) => item.id !== record.id)
+
+    try {
+      const result = await http.patch(`/api/internship/records/${encodeURIComponent(record.id)}/restore`)
+      const savedRecord = normalizeRecord(result.record)
+
+      if (savedRecord) {
+        records.value = [
+          savedRecord,
+          ...records.value.filter((item) => item.id !== savedRecord.id)
+        ]
+      }
+
+      notify('已恢复')
+      return
+    } catch (error) {
+      if (isOfflineRequestError(error)) {
+        await queueInternshipOperation('restore', { recordId: record.id })
+        notify('已在本机恢复，联网后同步')
+        return
+      }
+
+      records.value = previousRecords
+      deletedRecords.value = previousDeletedRecords
+      notify(error instanceof Error ? error.message : '恢复失败', 'danger')
+      return
+    }
+  }
+
   try {
     const result = await http.patch(`/api/internship/records/${encodeURIComponent(record.id)}/restore`)
     const savedRecord = normalizeRecord(result.record)
@@ -1376,6 +1825,27 @@ async function restoreDeletedRecord(record) {
 }
 
 async function removeDeletedRecord(recordId) {
+  if (isAndroidApp) {
+    const previousDeletedRecords = deletedRecords.value
+    deletedRecords.value = deletedRecords.value.filter((record) => record.id !== recordId)
+
+    try {
+      await http.delete(`/api/internship/records/${encodeURIComponent(recordId)}?permanent=1`)
+      notify('已从回收站移除')
+      return
+    } catch (error) {
+      if (isOfflineRequestError(error)) {
+        await queueInternshipOperation('delete-permanently', { recordId })
+        notify('已从本机移除，联网后同步')
+        return
+      }
+
+      deletedRecords.value = previousDeletedRecords
+      notify(error instanceof Error ? error.message : '移除失败', 'danger')
+      return
+    }
+  }
+
   try {
     await http.delete(`/api/internship/records/${encodeURIComponent(recordId)}?permanent=1`)
     deletedRecords.value = deletedRecords.value.filter((record) => record.id !== recordId)
@@ -1396,6 +1866,42 @@ async function confirmClearTrash() {
     clearTrashConfirmOpen.value = false
     notify('回收站已经为空')
     return
+  }
+
+  if (isAndroidApp) {
+    const previousDeletedRecords = deletedRecords.value
+    const failedRecordIds = []
+    let queuedCount = 0
+    trashClearing.value = true
+    deletedRecords.value = []
+
+    try {
+      for (const recordId of recordIds) {
+        try {
+          await http.delete(`/api/internship/records/${encodeURIComponent(recordId)}?permanent=1`)
+        } catch (error) {
+          if (isOfflineRequestError(error)) {
+            await queueInternshipOperation('delete-permanently', { recordId })
+            queuedCount += 1
+          } else {
+            failedRecordIds.push(recordId)
+          }
+        }
+      }
+
+      if (failedRecordIds.length) {
+        const failedIdSet = new Set(failedRecordIds)
+        deletedRecords.value = previousDeletedRecords.filter((record) => failedIdSet.has(record.id))
+        notify(`已清空 ${recordIds.length - failedRecordIds.length} 条，${failedRecordIds.length} 条失败`, 'danger')
+        return
+      }
+
+      clearTrashConfirmOpen.value = false
+      notify(queuedCount ? '已清空本机回收站，联网后同步' : '回收站已清空')
+      return
+    } finally {
+      trashClearing.value = false
+    }
   }
 
   trashClearing.value = true
@@ -3490,5 +3996,400 @@ function handleBackToTools() {
   .internship-confirm__actions button {
     width: 100%;
   }
+}
+
+/* Android app layout is deliberately isolated from the website breakpoints. */
+.internship-page.internship-page--android {
+  min-height: 100dvh;
+  height: auto;
+  padding: max(18px, env(safe-area-inset-top, 0px)) 10px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: #f3f4f6;
+  overflow: visible;
+}
+
+.internship-page--android .internship-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: auto;
+}
+
+.internship-page--android .internship-summary {
+  display: none;
+}
+
+.internship-page--android .internship-stat {
+  min-height: 68px;
+  gap: 5px;
+  border-radius: 17px;
+  padding: 10px 5px;
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.055);
+}
+
+.internship-page--android .internship-stat span {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.internship-page--android .internship-stat strong {
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.internship-page--android .internship-stat--button {
+  text-align: center;
+}
+
+.internship-page--android .internship-stat--button.is-active {
+  box-shadow: inset 0 -3px 0 #111827, 0 8px 22px rgba(17, 24, 39, 0.06);
+}
+
+.internship-page--android .internship-board {
+  gap: 14px;
+  min-height: 0;
+  border-radius: 24px;
+  padding: 15px;
+  overflow: visible;
+  box-shadow: 0 12px 30px rgba(17, 24, 39, 0.065);
+}
+
+.internship-page--android .internship-board__content,
+.internship-page--android .internship-board__records-view,
+.internship-page--android .internship-list-switcher,
+.internship-page--android .internship-records,
+.internship-page--android .internship-management-view {
+  overflow: visible;
+}
+
+.internship-page--android .internship-board__head {
+  align-items: center;
+  gap: 10px;
+}
+
+.internship-page--android .internship-board__head h1 {
+  font-size: 1.72rem;
+  line-height: 1.05;
+}
+
+.internship-page--android .internship-board__actions {
+  gap: 7px;
+}
+
+.internship-page--android .internship-logout {
+  display: none;
+}
+
+.internship-page--android .internship-trash-button,
+.internship-page--android .internship-add-button {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+.internship-page--android .internship-board__toolbar,
+.internship-page--android .internship-board__toolbar.has-trash-action {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.internship-page--android .internship-search {
+  display: none;
+}
+
+.internship-page--android .internship-filter {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.internship-page--android .internship-filter > span:first-child {
+  color: var(--internship-muted);
+  font-size: 0.78rem;
+}
+
+.internship-page--android .internship-select-trigger {
+  min-height: 44px;
+  border-radius: 13px;
+  padding: 10px 12px;
+  font-size: 16px;
+}
+
+.internship-page--android .internship-select-menu {
+  z-index: 80;
+  border-radius: 13px;
+}
+
+.internship-page--android .internship-clear-trash--toolbar {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  margin: 0;
+}
+
+.internship-page--android .internship-records {
+  gap: 10px;
+  padding-right: 0;
+}
+
+.internship-page--android .internship-record {
+  min-height: 62px;
+  gap: 0;
+  border-radius: 19px;
+  padding: 13px 14px;
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.055);
+}
+
+.internship-page--android .internship-record__head {
+  align-items: center;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.internship-page--android .internship-record h2 {
+  display: -webkit-box;
+  width: auto;
+  overflow: hidden;
+  font-size: 1.03rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.internship-page--android .internship-record__meta {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+.internship-page--android .internship-record__meta time {
+  min-height: 0;
+  padding: 0;
+  color: var(--internship-muted);
+  background: transparent;
+  font-size: 0.72rem;
+}
+
+.internship-page--android .internship-record__meta span,
+.internship-page--android .internship-record__body {
+  display: none;
+}
+
+.internship-page--android .internship-empty {
+  border-radius: 18px;
+  padding: 36px 16px;
+}
+
+.internship-page--android .internship-modal {
+  position: fixed;
+  inset: 0 0 0 var(--android-sidebar-collapsed);
+  z-index: 40;
+  display: grid;
+  place-items: start stretch;
+  padding:
+    max(18px, env(safe-area-inset-top, 0px))
+    10px
+    calc(18px + env(safe-area-inset-bottom, 0px));
+  background: #f3f4f6;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: left 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:global(.android-shell.is-sidebar-expanded) .internship-page--android .internship-modal {
+  left: var(--android-sidebar-expanded);
+}
+
+.internship-page--android .internship-dialog,
+.internship-page--android .internship-confirm-dialog,
+.internship-page--android .internship-detail-dialog {
+  width: 100%;
+  max-height: none;
+  min-height: calc(100dvh - max(36px, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px));
+  border-radius: 24px;
+  border-bottom: 1px solid var(--internship-line);
+  padding: 0 16px 18px;
+  overflow: visible;
+  transform-origin: right center;
+}
+
+.internship-page--android .internship-dialog__head {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  align-items: center;
+  margin: 0 -2px;
+  border-bottom: 1px solid var(--internship-line);
+  padding: 17px 2px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px);
+}
+
+.internship-page--android .internship-dialog__head h2 {
+  font-size: 1.28rem;
+}
+
+.internship-page--android .internship-dialog__actions {
+  gap: 7px;
+}
+
+.internship-page--android .internship-dialog__close,
+.internship-page--android .internship-dialog__edit,
+.internship-page--android .internship-dialog__save,
+.internship-page--android .internship-dialog__restore,
+.internship-page--android .internship-dialog__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border: 1px solid var(--internship-line);
+  border-radius: 13px;
+  padding: 0;
+  color: var(--internship-copy);
+  background: #ffffff;
+}
+
+.internship-page--android .internship-dialog__delete {
+  border-color: rgba(185, 28, 28, 0.16);
+  color: #991b1b;
+  background: #fff1f2;
+}
+
+.internship-page--android .internship-dialog__restore {
+  color: #14532d;
+  background: #ecfdf3;
+}
+
+.internship-page--android .internship-dialog__restore svg,
+.internship-page--android .internship-dialog__delete svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.internship-page--android .internship-dialog .internship-form {
+  grid-template-columns: 1fr;
+  gap: 16px;
+  min-height: auto;
+  margin-top: 16px;
+}
+
+.internship-page--android .internship-form__left,
+.internship-page--android .internship-form__record {
+  min-height: auto;
+  gap: 14px;
+}
+
+.internship-page--android .internship-field input,
+.internship-page--android .internship-field textarea,
+.internship-page--android .internship-form__record textarea,
+.internship-page--android .internship-field .internship-select-trigger {
+  font-size: 16px;
+}
+
+.internship-page--android .internship-form__record textarea {
+  min-height: 260px;
+  height: auto;
+}
+
+.internship-page--android .internship-confirm,
+.internship-page--android .internship-detail {
+  margin-top: 16px;
+}
+
+.internship-page--android .internship-confirm__actions {
+  flex-direction: row;
+}
+
+.internship-page--android .internship-confirm__actions button {
+  flex: 1 1 0;
+  width: auto;
+  min-height: 44px;
+}
+
+.internship-page--android .internship-detail__head {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.internship-page--android .internship-detail__meta {
+  justify-content: flex-start;
+}
+
+.internship-page--android .internship-detail__content {
+  max-height: none;
+  border-radius: 15px;
+  padding: 14px;
+  font-size: 0.88rem;
+}
+
+.internship-page--android .internship-contributions {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.internship-page--android .internship-contributions__year-row {
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+
+.internship-page--android .internship-contributions__year-side {
+  order: -1;
+}
+
+.internship-page--android .internship-contributions__year-button {
+  display: flex;
+  width: auto;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+}
+
+.internship-page--android .internship-contributions__chart {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.internship-page--android .internship-contributions__months,
+.internship-page--android .internship-contributions__body,
+.internship-page--android .internship-contributions__legend {
+  min-width: 680px;
+}
+
+.internship-page--android .internship-contributions__legend {
+  width: 680px;
+}
+
+.internship-page--android .internship-contributions__details-item {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.internship-page--android .internship-contributions__details-meta {
+  justify-content: flex-start;
+}
+
+.internship-page--android .internship-window-enter-from .internship-dialog {
+  transform: translate3d(24px, 0, 0) scale(0.99);
+}
+
+.internship-page--android .internship-window-leave-to .internship-dialog {
+  transform: translate3d(18px, 0, 0) scale(0.995);
 }
 </style>

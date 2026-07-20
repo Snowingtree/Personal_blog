@@ -9,7 +9,7 @@
     </div>
 
     <form class="login-form" @submit.prevent="submitLogin">
-      <label class="field">
+      <label v-if="!passwordOnly" class="field">
         <span>用户名</span>
         <WMInput
           v-model="form.username"
@@ -39,7 +39,7 @@
 
       <div class="login-actions">
         <button class="primary-btn login-btn" type="submit" :disabled="submitting">
-          {{ submitting ? '登录中...' : '登录' }}
+          {{ submitting ? (passwordOnly ? '验证中...' : '登录中...') : (passwordOnly ? '解锁' : '登录') }}
         </button>
         <a class="secondary-btn login-home-link" :href="homeHref">
           返回首页
@@ -77,6 +77,10 @@ const props = defineProps({
   homeHref: {
     type: String,
     default: ''
+  },
+  passwordOnly: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -116,17 +120,16 @@ function handleInput() {
 function submitLogin() {
   const username = form.username.trim()
 
-  if (!username || !form.password) {
-    validationError.value = '用户名和密码不能为空'
+  if ((!props.passwordOnly && !username) || !form.password) {
+    validationError.value = props.passwordOnly ? '密码不能为空' : '用户名和密码不能为空'
     return
   }
 
   validationError.value = ''
   dismissServerError.value = false
 
-  emit('login', {
-    username,
-    password: form.password
-  })
+  emit('login', props.passwordOnly
+    ? { password: form.password }
+    : { username, password: form.password })
 }
 </script>

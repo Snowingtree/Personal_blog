@@ -1,8 +1,12 @@
 <template>
-  <main v-if="privateAppAvailable" class="display-layout display-layout--wide note-display-layout notes-agent-theme">
+  <main
+    v-if="privateAppAvailable"
+    class="display-layout display-layout--wide note-display-layout notes-agent-theme"
+    :class="{ 'notes-agent-theme--android': isAndroidApp }"
+  >
     <AppHeader
       tag=""
-      title="仓库笔记浏览"
+      :title="isAndroidApp ? '笔记' : '仓库笔记浏览'"
       description=""
       :show-user="false"
       logout-label="返回"
@@ -10,26 +14,44 @@
     >
       <template #actions>
         <button
+          v-if="isAndroidApp"
           type="button"
-          class="secondary-btn"
-          :disabled="repoBusy"
-          @click="handleUpdateRepository"
+          class="note-mobile-directory-trigger note-mobile-directory-trigger--header"
+          :aria-expanded="String(mobileDirectoryVisible)"
+          aria-controls="note-mobile-directory-dialog"
+          aria-label="打开笔记目录"
+          @click="openMobileDirectory"
         >
-          更新
+          <span class="note-mobile-directory-trigger__bars" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span class="note-mobile-directory-trigger__text">目录</span>
         </button>
-        <button
-          type="button"
-          class="primary-btn"
-          :disabled="repoBusy"
-          @click="openCommitDialog"
-        >
-          提交
-        </button>
+        <template v-else>
+          <button
+            type="button"
+            class="secondary-btn"
+            :disabled="repoBusy"
+            @click="handleUpdateRepository"
+          >
+            更新
+          </button>
+          <button
+            type="button"
+            class="primary-btn"
+            :disabled="repoBusy"
+            @click="openCommitDialog"
+          >
+            提交
+          </button>
+        </template>
       </template>
     </AppHeader>
 
     <button
-      v-if="showStickyMobileDirectoryTrigger"
+      v-if="showStickyMobileDirectoryTrigger && !isAndroidApp"
       type="button"
       class="note-mobile-directory-trigger note-mobile-directory-trigger--floating"
       aria-controls="note-mobile-directory-dialog"
@@ -45,7 +67,7 @@
     </button>
 
     <section class="panel-card note-browser-panel">
-      <div class="panel-head">
+      <div v-if="!isAndroidApp" class="panel-head">
         <div class="note-panel-actions">
           <button
             v-if="isMobileView"
@@ -146,7 +168,7 @@
               ></div>
 
               <section class="note-view-pane">
-                <div class="note-view-toolbar">
+                <div v-if="!isAndroidApp" class="note-view-toolbar">
                   <div>
                     <div class="note-view-title-bar">
                       <div class="note-view-title">
@@ -157,7 +179,7 @@
                       </div>
 
                       <button
-                        v-if="isMobileView"
+                        v-if="isMobileView && (!isAndroidApp || activePath)"
                         type="button"
                         class="secondary-btn note-view-mobile-action"
                         :disabled="!activePath || loadingFile"
@@ -225,7 +247,7 @@
                       editor-id="notes-markdown-editor"
                       language="zh-CN"
                       theme="light"
-                      preview-theme="smart-blue"
+                      :preview-theme="isAndroidApp ? 'default' : 'smart-blue'"
                       code-theme="github"
                       :preview="false"
                       :html-preview="false"
@@ -254,7 +276,7 @@
                       editor-id="notes-markdown-preview"
                       language="zh-CN"
                       theme="light"
-                      preview-theme="smart-blue"
+                      :preview-theme="isAndroidApp ? 'default' : 'smart-blue'"
                       code-theme="github"
                       :model-value="previewContent"
                       :md-heading-id="resolveMarkdownHeadingId"
@@ -265,7 +287,9 @@
                     />
                   </div>
 
-                  <p v-else class="empty-state note-view-empty">请选择左侧 Markdown 文件查看内容。</p>
+                  <p v-else class="empty-state note-view-empty">
+                    {{ isAndroidApp ? '请从目录中选择 Markdown 文件查看内容。' : '请选择左侧 Markdown 文件查看内容。' }}
+                  </p>
                 </div>
               </section>
           </div>
@@ -273,95 +297,98 @@
       </div>
     </section>
 
-    <Transition name="note-mobile-directory">
-      <div
-        v-if="isMobileView && mobileDirectoryVisible"
-        class="note-mobile-directory-dialog"
-        @click.self="closeMobileDirectory"
-      >
-        <section
-          id="note-mobile-directory-dialog"
-          class="note-mobile-directory-dialog__panel"
-          role="dialog"
-          aria-modal="true"
-          aria-label="笔记目录"
+    <Teleport to="body" :disabled="!isAndroidApp">
+      <Transition name="note-mobile-directory">
+        <div
+          v-if="isMobileView && mobileDirectoryVisible"
+          class="note-mobile-directory-dialog"
+          :class="{ 'note-mobile-directory-dialog--android': isAndroidApp }"
+          @click.self="closeMobileDirectory"
         >
-          <div class="note-mobile-directory-dialog__head">
-            <div>
-              <p class="section-tag">目录</p>
-              <h3>笔记目录</h3>
+          <section
+            id="note-mobile-directory-dialog"
+            class="note-mobile-directory-dialog__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="笔记目录"
+          >
+            <div class="note-mobile-directory-dialog__head">
+              <div>
+                <p class="section-tag">目录</p>
+                <h3>笔记目录</h3>
+              </div>
+              <button
+                type="button"
+                class="ghost-btn note-mobile-directory-dialog__close"
+                @click="closeMobileDirectory"
+              >
+                关闭
+              </button>
             </div>
-            <button
-              type="button"
-              class="ghost-btn note-mobile-directory-dialog__close"
-              @click="closeMobileDirectory"
-            >
-              关闭
-            </button>
-          </div>
 
-          <div class="note-mobile-directory-dialog__body">
-            <div class="note-tree-meta note-tree-meta--dialog">
-              <div class="note-tree-meta-bar">
-                <div class="note-sidebar-switch" role="tablist" aria-label="目录展示切换">
-                  <button
-                    type="button"
-                    class="note-sidebar-switch__button"
-                    :class="{ 'is-active': sidebarMode === 'tree' }"
-                    @click="setSidebarMode('tree')"
-                  >
-                    文件树
-                  </button>
-                  <button
-                    type="button"
-                    class="note-sidebar-switch__button"
-                    :class="{ 'is-active': sidebarMode === 'titles' }"
-                    @click="setSidebarMode('titles')"
-                  >
-                    标题
-                  </button>
+            <div class="note-mobile-directory-dialog__body">
+              <div class="note-tree-meta note-tree-meta--dialog">
+                <div class="note-tree-meta-bar">
+                  <div class="note-sidebar-switch" role="tablist" aria-label="目录展示切换">
+                    <button
+                      type="button"
+                      class="note-sidebar-switch__button"
+                      :class="{ 'is-active': sidebarMode === 'tree' }"
+                      @click="setSidebarMode('tree')"
+                    >
+                      文件树
+                    </button>
+                    <button
+                      type="button"
+                      class="note-sidebar-switch__button"
+                      :class="{ 'is-active': sidebarMode === 'titles' }"
+                      @click="setSidebarMode('titles')"
+                    >
+                      标题
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div
-              ref="mobileDirectoryContentRef"
-              class="note-tree-content note-tree-content--dialog"
-            >
-              <ul
-                v-if="sidebarMode === 'tree' && tree.length"
-                class="note-tree-list note-tree-list--root"
+              <div
+                ref="mobileDirectoryContentRef"
+                class="note-tree-content note-tree-content--dialog"
               >
-                <NoteTreeNode
-                  v-for="node in tree"
-                  :key="node.path"
-                  :node="node"
-                  :active-path="activePath"
-                  :open-folders="openFolderList"
-                  @toggle-folder="toggleFolder"
-                  @select-file="handleSelectFile"
-                />
-              </ul>
+                <ul
+                  v-if="sidebarMode === 'tree' && tree.length"
+                  class="note-tree-list note-tree-list--root"
+                >
+                  <NoteTreeNode
+                    v-for="node in tree"
+                    :key="node.path"
+                    :node="node"
+                    :active-path="activePath"
+                    :open-folders="openFolderList"
+                    @toggle-folder="toggleFolder"
+                    @select-file="handleSelectFile"
+                  />
+                </ul>
 
-              <ul v-else-if="activeHeadings.length" class="note-outline-list">
-                <li v-for="heading in activeHeadings" :key="heading.id" class="note-outline-item">
-                  <button
-                    type="button"
-                    class="note-outline-button"
-                    :style="{ '--outline-indent': `${headingIndentBase + (heading.level - 1) * 16}px` }"
-                    @click="handleMobileHeadingSelect(heading.id)"
-                  >
-                    {{ heading.text }}
-                  </button>
-                </li>
-              </ul>
+                <ul v-else-if="activeHeadings.length" class="note-outline-list">
+                  <li v-for="heading in activeHeadings" :key="heading.id" class="note-outline-item">
+                    <button
+                      type="button"
+                      class="note-outline-button"
+                      :style="{ '--outline-indent': `${headingIndentBase + (heading.level - 1) * 16}px` }"
+                      @click="handleMobileHeadingSelect(heading.id)"
+                    >
+                      {{ heading.text }}
+                    </button>
+                  </li>
+                </ul>
 
-              <p v-else class="empty-state">{{ sidebarEmptyState }}</p>
+                <p v-else class="empty-state">{{ sidebarEmptyState }}</p>
+              </div>
             </div>
-          </div>
-        </section>
-      </div>
-    </Transition>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
 
     <Transition name="note-repo-update">
       <div
@@ -430,6 +457,12 @@ import { MdEditor, MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { createMessage } from 'snowingress-my-components'
 import { useRouter } from 'vue-router'
+import {
+  getAndroidCache,
+  getAndroidCacheBucket,
+  pruneAndroidCacheBucket,
+  setAndroidCache
+} from '../../android/offlineCache'
 import AppHeader from '../../components/AppHeader/AppHeader.vue'
 import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOverlay/PrivateAccessLoadingOverlay.vue'
 import CommitDialog from '../../components/notes/CommitDialog/CommitDialog.vue'
@@ -470,6 +503,8 @@ const commitTypeOptions = [
 
 const REPO_ACTION_TIMEOUT = 60000
 const MOBILE_PREVIEW_BREAKPOINT = 900
+const NOTE_META_CACHE_BUCKET = 'notes-meta'
+const NOTE_FILE_CACHE_BUCKET = 'notes-files'
 const headingIndentBase = 14
 const noteEditorToolbarExcludes = [
   'catalog',
@@ -511,6 +546,7 @@ function writeStorageArray(key, value) {
 }
 
 const router = useRouter()
+const isAndroidApp = import.meta.env.MODE === 'android'
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const files = ref([])
 const activePath = ref(readStorageValue(NOTE_ACTIVE_PATH_KEY))
@@ -543,6 +579,7 @@ const isMobileView = ref(false)
 const mobileDirectoryVisible = ref(false)
 const isMobileDirectoryTriggerInView = ref(true)
 const mobileDirectoryScrollTop = ref(0)
+let offlineNoteSyncPromise = null
 
 const tree = computed(() => buildTree(files.value))
 const openFolderList = computed(() => [...openFolders.value])
@@ -855,18 +892,17 @@ function sanitizeMarkdownHtml(html) {
   return rewriteRenderedNoteHtml(html, activePath.value)
 }
 
-async function loadTree() {
-  const data = await http.get('/api/notes/tree')
-  const nextFiles = Array.isArray(data.files) ? data.files : []
-  const nextTree = buildTree(nextFiles)
+function applyNoteTree(nextFiles) {
+  const normalizedFiles = Array.isArray(nextFiles) ? nextFiles : []
+  const nextTree = buildTree(normalizedFiles)
   const validFolderPaths = new Set(collectFolderPaths(nextTree))
 
-  files.value = nextFiles
+  files.value = normalizedFiles
   openFolders.value = new Set(
     [...openFolders.value].filter((folderPath) => validFolderPaths.has(folderPath))
   )
 
-  if (!nextFiles.length) {
+  if (!normalizedFiles.length) {
     activePath.value = ''
     activeContent.value = ''
     draftContent.value = ''
@@ -876,7 +912,7 @@ async function loadTree() {
     return
   }
 
-  const hasStoredPath = nextFiles.some((file) => file.path === activePath.value)
+  const hasStoredPath = normalizedFiles.some((file) => file.path === activePath.value)
 
   if (!hasStoredPath) {
     activePath.value = ''
@@ -892,8 +928,7 @@ async function loadTree() {
   persistOpenFolders()
 }
 
-async function loadRepoStatus() {
-  const data = await http.get('/api/notes/repo/status')
+function applyRepoStatus(data = {}) {
   repoBranch.value = typeof data.branch === 'string' ? data.branch : ''
   repoHead.value = typeof data.head === 'string' ? data.head : ''
   repoChangedFiles.value = Array.isArray(data.changedFiles)
@@ -901,10 +936,164 @@ async function loadRepoStatus() {
     : []
 }
 
+function applyNoteFile(data, fallbackPath) {
+  activePath.value = typeof data?.path === 'string' ? data.path : fallbackPath
+  activeContent.value = typeof data?.content === 'string' ? data.content : ''
+  draftContent.value = activeContent.value
+  activeUpdatedAt.value = typeof data?.updatedAt === 'string' ? data.updatedAt : ''
+  persistActivePath()
+  ensureActivePathFoldersOpen(activePath.value)
+}
+
+async function hydrateNotesFromAndroidCache() {
+  if (!isAndroidApp) {
+    return { hasCachedContent: false, isFresh: false }
+  }
+
+  try {
+    const [cachedTree, cachedRepoStatus] = await Promise.all([
+      getAndroidCache(NOTE_META_CACHE_BUCKET, 'tree'),
+      getAndroidCache(NOTE_META_CACHE_BUCKET, 'repo-status')
+    ])
+
+    if (Array.isArray(cachedTree?.files)) {
+      applyNoteTree(cachedTree.files)
+    }
+
+    if (cachedRepoStatus && typeof cachedRepoStatus === 'object') {
+      applyRepoStatus(cachedRepoStatus)
+    }
+
+    if (activePath.value) {
+      const cachedFile = await getAndroidCache(NOTE_FILE_CACHE_BUCKET, activePath.value)
+
+      if (cachedFile && typeof cachedFile.content === 'string') {
+        applyNoteFile(cachedFile, activePath.value)
+      }
+    }
+
+    return {
+      hasCachedContent: Boolean(cachedTree || activeContent.value)
+    }
+  } catch {
+    return { hasCachedContent: false }
+  }
+}
+
+async function syncNotesToAndroidCache(fileList) {
+  if (!isAndroidApp || offlineNoteSyncPromise) {
+    return offlineNoteSyncPromise
+  }
+
+  const syncPromise = (async () => {
+    const normalizedFiles = Array.isArray(fileList) ? fileList : []
+    let cachedEntries = []
+
+    try {
+      cachedEntries = await getAndroidCacheBucket(NOTE_FILE_CACHE_BUCKET)
+    } catch {
+      return
+    }
+
+    const cachedFiles = new Map(cachedEntries.map((entry) => [entry.key, entry.value]))
+    const pendingFiles = normalizedFiles.filter((file) => {
+      const cachedFile = cachedFiles.get(file.path)
+      return !cachedFile || cachedFile.updatedAt !== file.updatedAt
+    })
+    let nextIndex = 0
+    let stopped = false
+
+    async function syncWorker() {
+      while (!stopped && nextIndex < pendingFiles.length) {
+        const file = pendingFiles[nextIndex]
+        nextIndex += 1
+
+        try {
+          const data = await http.get('/api/notes/file', {
+            params: { path: file.path }
+          })
+          await setAndroidCache(NOTE_FILE_CACHE_BUCKET, file.path, {
+            path: typeof data.path === 'string' ? data.path : file.path,
+            content: typeof data.content === 'string' ? data.content : '',
+            updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : file.updatedAt
+          })
+        } catch {
+          stopped = true
+        }
+      }
+    }
+
+    await Promise.all([syncWorker(), syncWorker()])
+
+    try {
+      await pruneAndroidCacheBucket(
+        NOTE_FILE_CACHE_BUCKET,
+        normalizedFiles.map((file) => file.path)
+      )
+    } catch {}
+  })()
+
+  offlineNoteSyncPromise = syncPromise
+
+  try {
+    await syncPromise
+  } finally {
+    if (offlineNoteSyncPromise === syncPromise) {
+      offlineNoteSyncPromise = null
+    }
+  }
+}
+
+async function loadTree() {
+  const data = await http.get('/api/notes/tree')
+  const nextFiles = Array.isArray(data.files) ? data.files : []
+  const nextTree = buildTree(nextFiles)
+  applyNoteTree(nextFiles)
+
+  if (isAndroidApp) {
+    try {
+      await setAndroidCache(NOTE_META_CACHE_BUCKET, 'tree', {
+        files: nextFiles,
+        cachedAt: new Date().toISOString()
+      })
+    } catch {}
+
+    void syncNotesToAndroidCache(nextFiles)
+  }
+
+  return nextTree
+}
+
+async function loadRepoStatus() {
+  const data = await http.get('/api/notes/repo/status')
+  applyRepoStatus(data)
+
+  if (isAndroidApp) {
+    try {
+      await setAndroidCache(NOTE_META_CACHE_BUCKET, 'repo-status', {
+        branch: repoBranch.value,
+        head: repoHead.value,
+        changedFiles: repoChangedFiles.value
+      })
+    } catch {}
+  }
+}
+
 async function openFile(path, { showSuccess = false } = {}) {
   loadingFile.value = true
   loadError.value = ''
   saveError.value = ''
+  let cachedFile = null
+
+  if (isAndroidApp) {
+    try {
+      cachedFile = await getAndroidCache(NOTE_FILE_CACHE_BUCKET, path)
+
+      if (cachedFile && typeof cachedFile.content === 'string') {
+        applyNoteFile(cachedFile, path)
+      }
+    } catch {}
+  }
 
   try {
     const data = await http.get('/api/notes/file', {
@@ -913,21 +1102,28 @@ async function openFile(path, { showSuccess = false } = {}) {
       }
     })
 
-    activePath.value = typeof data.path === 'string' ? data.path : path
-    activeContent.value = typeof data.content === 'string' ? data.content : ''
-    draftContent.value = activeContent.value
-    activeUpdatedAt.value = typeof data.updatedAt === 'string' ? data.updatedAt : ''
-    persistActivePath()
-    ensureActivePathFoldersOpen(activePath.value)
+    applyNoteFile(data, path)
+
+    if (isAndroidApp) {
+      try {
+        await setAndroidCache(NOTE_FILE_CACHE_BUCKET, activePath.value, {
+          path: activePath.value,
+          content: activeContent.value,
+          updatedAt: activeUpdatedAt.value
+        })
+      } catch {}
+    }
 
     if (showSuccess) {
       notify('读取成功')
     }
   } catch (error) {
-    activeContent.value = ''
-    draftContent.value = ''
-    activeUpdatedAt.value = ''
-    loadError.value = error instanceof Error ? error.message : '读取失败，请确认服务端已经启动。'
+    if (!cachedFile) {
+      activeContent.value = ''
+      draftContent.value = ''
+      activeUpdatedAt.value = ''
+      loadError.value = error instanceof Error ? error.message : '读取失败，请确认服务端已经启动。'
+    }
   } finally {
     loadingFile.value = false
   }
@@ -1001,6 +1197,16 @@ async function saveActiveFile() {
 
     activeContent.value = draftContent.value
     activeUpdatedAt.value = typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString()
+
+    if (isAndroidApp) {
+      try {
+        await setAndroidCache(NOTE_FILE_CACHE_BUCKET, activePath.value, {
+          path: activePath.value,
+          content: activeContent.value,
+          updatedAt: activeUpdatedAt.value
+        })
+      } catch {}
+    }
 
     try {
       await loadRepoStatus()
@@ -1300,6 +1506,31 @@ function handleBackToTools() {
   router.push('/tools')
 }
 
+async function refreshAndroidNotes(hasCachedContent) {
+  const [treeResult, repoStatusResult] = await Promise.allSettled([
+    loadTree(),
+    loadRepoStatus()
+  ])
+
+  if (activePath.value) {
+    await openFile(activePath.value)
+  }
+
+  if (treeResult.status === 'rejected' && !hasCachedContent) {
+    loadError.value = treeResult.reason instanceof Error
+      ? treeResult.reason.message
+      : '读取文件列表失败，请确认服务端已经启动。'
+  }
+
+  if (treeResult.status === 'fulfilled' && repoStatusResult.status === 'fulfilled') {
+    try {
+      await setAndroidCache(NOTE_META_CACHE_BUCKET, 'last-sync', {
+        syncedAt: new Date().toISOString()
+      })
+    } catch {}
+  }
+}
+
 watch(
   () => isMobileView.value,
   () => {
@@ -1316,6 +1547,20 @@ onMounted(async () => {
   window.addEventListener('pointerup', stopSidebarResize)
   window.addEventListener('resize', syncSidebarWidthToLayout)
   syncViewportState()
+
+  if (isAndroidApp) {
+    const cacheState = await hydrateNotesFromAndroidCache()
+
+    await nextTick()
+    await syncMobileDirectoryTriggerObserver()
+    syncSidebarWidthToLayout()
+
+    if (!cacheState.hasCachedContent) {
+      void refreshAndroidNotes(cacheState.hasCachedContent)
+    }
+
+    return
+  }
 
   try {
     await loadTree()
@@ -1671,5 +1916,465 @@ onBeforeUnmount(() => {
 
 .notes-agent-theme :deep(.note-repo-update-dialog__status-text) {
   color: var(--mono-copy);
+}
+
+/* Android keeps the application navigation fixed and gives the note reader its own scroll area. */
+.notes-agent-theme--android {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  gap: 8px;
+  padding:
+    max(18px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    8px
+    max(20px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  overflow: hidden;
+  background: var(--android-canvas, #f2f3f0);
+}
+
+.notes-agent-theme--android::before {
+  background: var(--android-canvas, #f2f3f0);
+}
+
+.notes-agent-theme--android :deep(.app-header) {
+  min-height: 52px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 18px;
+  box-shadow: 0 8px 22px rgba(31, 35, 32, 0.055);
+}
+
+.notes-agent-theme--android :deep(.app-header > div:first-child) {
+  min-width: 0;
+  flex: 1;
+}
+
+.notes-agent-theme--android :deep(.app-header h1) {
+  font-size: 1.22rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.notes-agent-theme--android :deep(.header-actions) {
+  width: auto;
+  margin-left: auto;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.notes-agent-theme--android :deep(.header-actions .primary-btn),
+.notes-agent-theme--android :deep(.header-actions .secondary-btn) {
+  width: auto;
+  min-width: 52px;
+  padding: 8px 11px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.notes-agent-theme--android :deep(.header-actions > .ghost-btn) {
+  display: none;
+}
+
+.notes-agent-theme--android .note-browser-panel {
+  min-height: 0;
+  flex: 1;
+  gap: 7px;
+  padding: 5px;
+  overflow: hidden;
+  border: 1px solid var(--android-line, #dedfdb);
+  border-radius: 16px;
+  background: var(--android-surface, #fdfdfc);
+  box-shadow: 0 8px 24px rgba(31, 35, 32, 0.05);
+}
+
+.notes-agent-theme--android .note-browser-panel > .panel-head {
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  margin: 0;
+}
+
+.notes-agent-theme--android .note-panel-actions {
+  width: auto;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.notes-agent-theme--android .note-mobile-directory-trigger {
+  width: auto;
+  min-height: 34px;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 11px;
+  font-size: 0.82rem;
+}
+
+.notes-agent-theme--android .note-workspace-shell,
+.notes-agent-theme--android .note-workspace-page,
+.notes-agent-theme--android .note-browser-layout {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.notes-agent-theme--android .note-browser-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  align-content: stretch;
+  background: transparent;
+}
+
+.notes-agent-theme--android .note-layout-resizer {
+  display: none;
+}
+
+.notes-agent-theme--android .note-view-pane {
+  height: 100%;
+  min-height: 0;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.notes-agent-theme--android .note-view-toolbar {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.notes-agent-theme--android .note-view-title-bar {
+  min-height: 32px;
+  align-items: center;
+}
+
+.notes-agent-theme--android .note-view-title {
+  min-width: 0;
+  gap: 2px;
+}
+
+.notes-agent-theme--android .note-view-toolbar h3 {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-agent-theme--android .note-view-updated {
+  font-size: 0.72rem;
+}
+
+.notes-agent-theme--android .note-view-title-bar .note-view-mobile-action {
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 10px;
+}
+
+.notes-agent-theme--android .note-view-status {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+}
+
+.notes-agent-theme--android .note-view-body {
+  min-height: 0 !important;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.notes-agent-theme--android .note-editor-shell,
+.notes-agent-theme--android .note-preview-shell,
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-previewOnly),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview-wrapper) {
+  height: 100%;
+  min-height: 0;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor) {
+  border: 0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-previewOnly),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview-wrapper) {
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-gutter: auto;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview) {
+  padding: 14px 14px 28px;
+  color: #303632;
+  background: #ffffff;
+  background-image: none;
+  font-size: 1rem;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview > :first-child) {
+  margin-top: 0;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h1),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h2),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h3),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h4),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h5),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h6) {
+  padding: 0;
+  margin: 1.15em 0 0.55em;
+  line-height: 1.32;
+  text-align: left;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h1) {
+  font-size: 1.55rem;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h2) {
+  font-size: 1.3rem;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview h3) {
+  font-size: 1.12rem;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview p) {
+  margin: 0.58em 0;
+  line-height: 1.62;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview ul),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview ol) {
+  margin: 0.58em 0;
+  padding-inline-start: 1.35em;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview li) {
+  margin: 0.18em 0;
+  line-height: 1.58;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview blockquote) {
+  margin: 0.75em 0;
+  padding: 0.55em 0.8em;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview pre),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview table) {
+  margin-block: 0.75em;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code pre code) {
+  padding: 0.85em;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview hr) {
+  margin: 1.1em 0;
+}
+
+.notes-agent-theme--android .note-view-empty {
+  min-height: 100%;
+  padding: 18px;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  text-align: center;
+}
+
+.notes-agent-theme--android :deep(.note-dialog),
+.notes-agent-theme--android .note-repo-update-dialog {
+  inset: 0 0 0 var(--android-sidebar-collapsed, 56px);
+  padding:
+    max(18px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    8px
+    max(20px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
+
+:global(.android-shell.is-sidebar-expanded) .notes-agent-theme--android :deep(.note-dialog),
+:global(.android-shell.is-sidebar-expanded) .notes-agent-theme--android .note-repo-update-dialog {
+  left: var(--android-sidebar-expanded, 228px);
+}
+
+.note-mobile-directory-dialog--android {
+  inset: 0;
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+  z-index: 20020;
+  isolation: isolate;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(20, 24, 22, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-code-head) {
+  z-index: 2;
+}
+
+.note-mobile-directory-dialog--android .note-mobile-directory-dialog__panel {
+  width: min(84vw, 348px);
+  max-width: calc(100vw - 42px);
+  height: 100%;
+  max-height: 100%;
+  gap: 10px;
+  padding:
+    max(16px, var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))
+    12px
+    max(16px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  border-width: 0 1px 0 0;
+  border-color: var(--android-line, #dedfdb);
+  border-radius: 0 18px 18px 0;
+  color: #343a36;
+  background: var(--android-surface, #fdfdfc);
+  box-shadow: 18px 0 48px rgba(20, 24, 22, 0.2);
+  transform-origin: left center;
+}
+
+.note-mobile-directory-dialog--android .note-mobile-directory-dialog__head {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  padding: 0 2px 2px;
+}
+
+.note-mobile-directory-dialog--android .section-tag {
+  color: #3f4541;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+.note-mobile-directory-dialog--android .note-mobile-directory-dialog__close {
+  width: auto;
+  min-width: 58px;
+  margin-left: auto;
+  padding: 8px 12px;
+  color: #4f5652;
+  border-color: var(--android-line, #dedfdb);
+  border-radius: 10px;
+  background: #f2f3f0;
+  box-shadow: none;
+}
+
+.note-mobile-directory-dialog--android .note-mobile-directory-dialog__body,
+.note-mobile-directory-dialog--android .note-tree-content--dialog {
+  min-height: 0;
+  flex: 1;
+}
+
+.note-mobile-directory-dialog--android .note-tree-content--dialog {
+  max-height: none;
+  padding-right: 3px;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.note-mobile-directory-dialog--android .note-tree-meta--dialog {
+  border: 0;
+  background: transparent;
+}
+
+.note-mobile-directory-dialog--android .note-sidebar-switch {
+  padding: 4px;
+  border: 1px solid #e2e4e0;
+  background: #eff0ed;
+}
+
+.note-mobile-directory-dialog--android .note-sidebar-switch__button {
+  padding: 8px 11px;
+  color: #59615c;
+  font-size: 0.82rem;
+  background: transparent;
+  box-shadow: none;
+}
+
+.note-mobile-directory-dialog--android .note-sidebar-switch__button.is-active {
+  color: #ffffff;
+  background: #353a37;
+  box-shadow: 0 6px 14px rgba(35, 40, 37, 0.13);
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button),
+.note-mobile-directory-dialog--android .note-outline-button {
+  color: #3f4742;
+  border-color: transparent;
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button:hover),
+.note-mobile-directory-dialog--android .note-outline-button:hover {
+  color: #252a27;
+  background: #eff0ed;
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button--file.is-active) {
+  color: #262b28;
+  background: #e3e5e2;
+  box-shadow: inset 3px 0 0 #4b514d;
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button__caret) {
+  color: #69716c;
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button__icon--folder) {
+  background: linear-gradient(180deg, #737b76 0%, #505752 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button__icon--folder::before) {
+  background: #a9afab;
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button__icon--file) {
+  border-color: #b8bdb9;
+  background: #f3f4f2;
+}
+
+.note-mobile-directory-dialog--android :deep(.note-tree-button__icon--file::before) {
+  background: #c8ccc9;
+}
+
+.note-mobile-directory-dialog--android .note-tree-content::-webkit-scrollbar-thumb {
+  background: #b8bdb9;
+}
+
+.note-mobile-directory-dialog--android .empty-state {
+  color: #7a817c;
+}
+
+.note-mobile-directory-enter-from.note-mobile-directory-dialog--android .note-mobile-directory-dialog__panel,
+.note-mobile-directory-leave-to.note-mobile-directory-dialog--android .note-mobile-directory-dialog__panel {
+  opacity: 1;
+  transform: translate3d(-100%, 0, 0);
+  box-shadow: none;
+}
+
+.notes-agent-theme--android :deep(.note-dialog__panel),
+.notes-agent-theme--android .note-repo-update-dialog__panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 100%;
+  overflow-y: auto;
+  border-radius: 18px;
 }
 </style>

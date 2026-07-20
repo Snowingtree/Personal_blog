@@ -6,11 +6,20 @@ import {
   setRuntimePrivateAppAccess
 } from '../utils/privateAccess'
 
+const IS_ANDROID_APP = import.meta.env.MODE === 'android'
+
 export function usePrivateAppAccess() {
-  const privateAppAvailable = ref(isPrivateAppHost())
+  const privateAppAvailable = ref(IS_ANDROID_APP || isPrivateAppHost())
   const privateAppChecking = ref(!privateAppAvailable.value)
 
   onMounted(async () => {
+    if (IS_ANDROID_APP) {
+      setRuntimePrivateAppAccess(true)
+      privateAppAvailable.value = true
+      privateAppChecking.value = false
+      return
+    }
+
     const isCurrentHostPrivate = isPrivateAppHost()
 
     if (privateAppAvailable.value) {

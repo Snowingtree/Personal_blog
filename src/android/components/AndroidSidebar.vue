@@ -48,15 +48,10 @@
 import { RouterLink, useRoute } from 'vue-router'
 import {
   ArrowUpRight,
-  BriefcaseBusiness,
-  FileText,
   Fish,
-  Github,
   House,
-  Images,
   NotebookPen,
-  Settings,
-  Sparkles
+  Settings
 } from 'lucide-vue-next'
 
 defineProps({
@@ -75,27 +70,12 @@ const navigationGroups = [
     items: [{ key: 'home', label: '首页', to: '/', icon: House }]
   },
   {
-    label: '内容',
-    items: [
-      { key: 'articles', label: '文章', to: '/articles', icon: FileText },
-      { key: 'ai-shares', label: 'AI 分享', to: '/ai-shares', icon: Sparkles },
-      { key: 'photo-wall', label: '照片墙', to: '/photo-wall', icon: Images }
-    ]
-  },
-  {
     label: '工作区',
     items: [{ key: 'xianyu', label: '闲鱼', to: '/xianyu', icon: Fish }]
   },
   {
     label: '私人工具',
-    items: [
-      { key: 'internship', label: '实习管理', to: '/internship', icon: BriefcaseBusiness, private: true },
-      { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen, private: true }
-    ]
-  },
-  {
-    label: '外部管理',
-    items: [{ key: 'github', label: 'GitHub', to: '/github', icon: Github }]
+    items: [{ key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen, private: true }]
   },
   {
     label: '设置',

@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
@@ -26,7 +27,9 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,15 +39,23 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import org.json.JSONObject;
+
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int STORAGE_PERMISSION_REQUEST = 1002;
     private static final int MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+    private static final int MAX_LEGACY_MIGRATION_BYTES = 128 * 1024 * 1024;
     private static final String APP_ASSET_HOST = "appassets.local";
-    private static final String APP_START_URL = "https://" + APP_ASSET_HOST + "/index.html";
+    private static final String APP_START_URL = "http://" + APP_ASSET_HOST + "/index.html";
+    private static final String LEGACY_MIGRATION_URL = "file:///android_asset/legacy-record-migration.html";
+    private static final String LEGACY_MIGRATION_FILE = "legacy-record-migration.json";
+    private static final String MIGRATION_PREFERENCES = "record_upgrade";
+    private static final String MIGRATION_COMPLETE_KEY = "legacy_record_migration_complete";
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
+    private volatile boolean acceptingLegacyMigrationPayload;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,7 +76,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccessFromFileURLs(true);
         settings.setAllowUniversalAccessFromFileURLs(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }
 
         webView.setWebViewClient(new WebViewClient() {
@@ -101,7 +112,19 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
-        webView.loadUrl(APP_START_URL);
+
+        SharedPreferences migrationPreferences = getSharedPreferences(MIGRATION_PREFERENCES, MODE_PRIVATE);
+        if (migrationPreferences.getBoolean(MIGRATION_COMPLETE_KEY, false)) {
+            loadMainApp();
+        } else {
+            acceptingLegacyMigrationPayload = true;
+            webView.loadUrl(LEGACY_MIGRATION_URL);
+            webView.postDelayed(() -> {
+                if (acceptingLegacyMigrationPayload && webView != null) {
+                    loadMainApp();
+                }
+            }, 8_000L);
+        }
     }
 
     @Override
@@ -171,7 +194,7 @@ public class MainActivity extends Activity {
     private WebResourceResponse interceptAppAsset(Uri uri) {
         if (
                 uri == null
-                || !"https".equalsIgnoreCase(uri.getScheme())
+                || !"http".equalsIgnoreCase(uri.getScheme())
                 || !APP_ASSET_HOST.equalsIgnoreCase(uri.getHost())
         ) {
             return null;
@@ -190,6 +213,9 @@ public class MainActivity extends Activity {
 
         try {
             InputStream stream = getAssets().open(assetPath, AssetManager.ACCESS_STREAMING);
+            if ("index.html".equals(assetPath)) {
+                stream = injectLegacyRecordPayload(stream);
+            }
             Map<String, String> headers = new HashMap<>();
             headers.put("Cache-Control", "no-cache");
             headers.put("Access-Control-Allow-Origin", "*");
@@ -204,6 +230,65 @@ public class MainActivity extends Activity {
             );
         } catch (IOException error) {
             return createErrorResponse(404, "Not Found");
+        }
+    }
+
+    private InputStream injectLegacyRecordPayload(InputStream stream) throws IOException {
+        String payload = readLegacyRecordPayload();
+        if (payload.isEmpty()) {
+            return stream;
+        }
+
+        String html;
+        try (InputStream source = stream) {
+            html = new String(readAllBytes(source, MAX_LEGACY_MIGRATION_BYTES), StandardCharsets.UTF_8);
+        }
+
+        String script = "<script>window.__LEGACY_RECORD_DATA__="
+                + JSONObject.quote(payload)
+                + ";</script>";
+        String injectedHtml = html.contains("</head>")
+                ? html.replace("</head>", script + "</head>")
+                : script + html;
+
+        return new ByteArrayInputStream(injectedHtml.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private byte[] readAllBytes(InputStream stream, int maximumBytes) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[16 * 1024];
+        int total = 0;
+        int count;
+
+        while ((count = stream.read(buffer)) != -1) {
+            total += count;
+            if (total > maximumBytes) {
+                throw new IOException("迁移数据过大");
+            }
+            output.write(buffer, 0, count);
+        }
+
+        return output.toByteArray();
+    }
+
+    private String readLegacyRecordPayload() throws IOException {
+        File file = new File(getFilesDir(), LEGACY_MIGRATION_FILE);
+        if (!file.exists()) {
+            return "";
+        }
+
+        try (FileInputStream stream = new FileInputStream(file)) {
+            return new String(
+                    readAllBytes(stream, MAX_LEGACY_MIGRATION_BYTES),
+                    StandardCharsets.UTF_8
+            );
+        }
+    }
+
+    private void loadMainApp() {
+        acceptingLegacyMigrationPayload = false;
+        if (webView != null) {
+            webView.loadUrl(APP_START_URL);
         }
     }
 
@@ -247,6 +332,47 @@ public class MainActivity extends Activity {
     }
 
     public class AndroidBridge {
+        @JavascriptInterface
+        public String saveLegacyRecordData(String payload) {
+            if (!acceptingLegacyMigrationPayload || payload == null) {
+                return "迁移请求无效";
+            }
+
+            byte[] bytes = payload.getBytes(StandardCharsets.UTF_8);
+            if (bytes.length > MAX_LEGACY_MIGRATION_BYTES) {
+                return "迁移数据过大";
+            }
+
+            File file = new File(getFilesDir(), LEGACY_MIGRATION_FILE);
+            try (FileOutputStream stream = new FileOutputStream(file, false)) {
+                stream.write(bytes);
+                return "OK";
+            } catch (IOException error) {
+                return "迁移记录保存失败";
+            }
+        }
+
+        @JavascriptInterface
+        public void finishLegacyRecordMigration() {
+            if (!acceptingLegacyMigrationPayload) {
+                return;
+            }
+
+            getSharedPreferences(MIGRATION_PREFERENCES, MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(MIGRATION_COMPLETE_KEY, true)
+                    .apply();
+            runOnUiThread(MainActivity.this::loadMainApp);
+        }
+
+        @JavascriptInterface
+        public void clearLegacyRecordData() {
+            File file = new File(getFilesDir(), LEGACY_MIGRATION_FILE);
+            if (file.exists()) {
+                file.delete();
+            }
+        }
+
         @JavascriptInterface
         public String saveImage(String dataUrl, String filename) {
             try {

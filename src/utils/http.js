@@ -173,14 +173,17 @@ function shouldClearAuthAfterRefreshError(error) {
   return Boolean(error && typeof error === 'object' && error.shouldClearAuth)
 }
 
-let refreshAccessTokenPromise = null
+const refreshAccessTokenPromises = new Map()
 
-export async function refreshAccessToken() {
-  if (refreshAccessTokenPromise) {
-    return refreshAccessTokenPromise
+export async function refreshAccessToken(requestBaseUrl = '') {
+  const refreshBaseUrl = String(requestBaseUrl || resolveApiBaseUrl()).trim().replace(/\/$/, '')
+  const refreshKey = refreshBaseUrl || '__same_origin__'
+
+  if (refreshAccessTokenPromises.has(refreshKey)) {
+    return refreshAccessTokenPromises.get(refreshKey)
   }
 
-  refreshAccessTokenPromise = (async () => {
+  const refreshPromise = (async () => {
     const currentRefreshToken = getStoredToken(AUTH_REFRESH_TOKEN_KEY)
 
     if (!currentRefreshToken) {
@@ -198,7 +201,7 @@ export async function refreshAccessToken() {
           refresh_token: currentRefreshToken
         },
         {
-          baseURL: resolveApiBaseUrl(),
+          baseURL: refreshBaseUrl,
           timeout: 10000,
           headers: {
             Accept: 'application/json',
@@ -239,10 +242,14 @@ export async function refreshAccessToken() {
     return nextToken
   })()
 
+  refreshAccessTokenPromises.set(refreshKey, refreshPromise)
+
   try {
-    return await refreshAccessTokenPromise
+    return await refreshPromise
   } finally {
-    refreshAccessTokenPromise = null
+    if (refreshAccessTokenPromises.get(refreshKey) === refreshPromise) {
+      refreshAccessTokenPromises.delete(refreshKey)
+    }
   }
 }
 
@@ -322,7 +329,7 @@ http.interceptors.response.use(
         && !isLoginRequest(requestUrl)
       ) {
         try {
-          const nextToken = await refreshAccessToken()
+          const nextToken = await refreshAccessToken(originalConfig.baseURL)
 
           if (getStoredToken(AUTH_TOKEN_KEY) !== nextToken) {
             return Promise.reject(createHttpError(error))

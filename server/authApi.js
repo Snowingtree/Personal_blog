@@ -393,7 +393,10 @@ export function createAuthApiMiddleware(env = process.env) {
   }
 
   return async (req, res, next) => {
-    if (!req.url?.startsWith('/api/login')) {
+    const requestPath = new URL(req.url || '/', 'http://127.0.0.1').pathname
+    const isLoginRequest = requestPath === '/api/login'
+
+    if (!isLoginRequest) {
       next()
       return
     }
@@ -411,13 +414,15 @@ export function createAuthApiMiddleware(env = process.env) {
         return
       }
 
-      const username = typeof body.username === 'string' ? body.username.trim() : ''
+      const submittedUsername = typeof body.username === 'string' ? body.username.trim() : ''
       const password = typeof body.password === 'string' ? body.password : ''
 
-      if (!username || !password) {
+      if (!submittedUsername || !password) {
         writeJson(res, 400, { message: 'username and password are required' })
         return
       }
+
+      const username = submittedUsername
 
       const now = Date.now()
       const clientIp = getClientIp(req)
@@ -517,9 +522,7 @@ export function createAuthApiMiddleware(env = process.env) {
         console.warn('[auth] password mismatch', {
           database: config.database,
           table: config.table,
-          username,
-          hashPrefix: user.password.slice(0, 4),
-          hashLength: user.password.length
+          username
         })
 
         if (accountEntry.blockedUntil > now || ipEntry.blockedUntil > now) {
@@ -550,13 +553,22 @@ export function createAuthApiMiddleware(env = process.env) {
         user: userPayload
       })
     } catch (error) {
+      const statusCode = Number(error?.statusCode || 500)
+      const safeStatusCode = Number.isInteger(statusCode) && statusCode >= 400 && statusCode < 600
+        ? statusCode
+        : 500
+
       console.error('[auth] login failed', {
         message: error instanceof Error ? error.message : 'Unknown server error',
         stack: error instanceof Error ? error.stack : undefined
       })
 
-      writeJson(res, 500, {
-        message: error instanceof Error ? error.message : 'Unknown server error'
+      writeJson(res, safeStatusCode, {
+        message: safeStatusCode >= 500
+          ? 'Authentication service is temporarily unavailable.'
+          : error instanceof Error
+            ? error.message
+            : 'Authentication failed.'
       })
     }
   }

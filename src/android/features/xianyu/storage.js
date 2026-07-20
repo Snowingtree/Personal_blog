@@ -1,7 +1,10 @@
+import { migrateLegacyShippingCoupon } from './coupon';
+
 const DB_NAME = 'meituan_coupon_record';
 const DB_VERSION = 1;
 const STORE_NAME = 'coupons';
 const BACKUP_KEY = 'meituan_coupon_record_backup_v1';
+const STATS_MONTH_STORAGE_KEY = 'meituan_coupon_stats_month';
 
 let dbPromise;
 
@@ -102,60 +105,170 @@ function writeBackup(coupons) {
   }
 }
 
+function readLegacyMigrationPayload() {
+  const raw = window.__LEGACY_RECORD_DATA__;
+  if (typeof raw !== 'string' || !raw) {
+    return { found: false, coupons: [], statsMonth: '' };
+  }
+
+  try {
+    const payload = JSON.parse(raw);
+    if (Array.isArray(payload)) {
+      return { found: true, coupons: payload, statsMonth: '' };
+    }
+
+    return {
+      found: true,
+      coupons: Array.isArray(payload?.coupons) ? payload.coupons : [],
+      statsMonth: typeof payload?.statsMonth === 'string' ? payload.statsMonth : ''
+    };
+  } catch {
+    return { found: false, coupons: [], statsMonth: '' };
+  }
+}
+
+function clearLegacyMigrationPayload() {
+  try {
+    delete window.__LEGACY_RECORD_DATA__;
+    window.AndroidBridge?.clearLegacyRecordData?.();
+  } catch {
+    // The imported records are already stored locally, so bridge cleanup can be retried later.
+  }
+}
+
+function recordTimestamp(coupon) {
+  const timestamp = new Date(coupon.updatedAt || coupon.usedAt || coupon.createdAt).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function mergeCouponCollections(...collections) {
+  const couponsById = new Map();
+
+  collections.flat().forEach((coupon) => {
+    if (!coupon?.id) return;
+
+    const current = couponsById.get(coupon.id);
+    if (!current || recordTimestamp(coupon) >= recordTimestamp(current)) {
+      couponsById.set(coupon.id, coupon);
+    }
+  });
+
+  return sortCoupons(Array.from(couponsById.values()));
+}
+
 async function listCouponsFromDb() {
   const coupons = await withStore('readonly', (store) => store.getAll());
   return sortCoupons(Array.isArray(coupons) ? coupons : []);
 }
 
-async function restoreCouponsToDb(coupons) {
+async function replaceCouponsInDb(coupons) {
   const db = await openDb();
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
 
+    store.clear();
     coupons.forEach((coupon) => store.put(coupon));
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error || new Error('恢复本地记录失败'));
-    transaction.onabort = () => reject(transaction.error || new Error('恢复本地记录失败'));
+    transaction.onerror = () => reject(transaction.error || new Error('更新本地记录失败'));
+    transaction.onabort = () => reject(transaction.error || new Error('更新本地记录失败'));
   });
 }
 
-export async function listCoupons() {
-  const backupCoupons = readBackup();
+function filterCoupons(coupons, options = {}) {
+  return options.includeDeleted ? coupons : coupons.filter((coupon) => !coupon.deletedAt);
+}
+
+function migrateLegacyStatuses(coupons) {
+  const completedAt = new Date().toISOString();
+  let changed = false;
+  const migratedCoupons = coupons.map((coupon) => {
+    const migratedCoupon = migrateLegacyShippingCoupon(coupon, completedAt);
+    if (migratedCoupon !== coupon) {
+      changed = true;
+    }
+    return migratedCoupon;
+  });
+
+  return {
+    coupons: sortCoupons(migratedCoupons),
+    changed
+  };
+}
+
+export async function listCoupons(options = {}) {
+  const legacyPayload = readLegacyMigrationPayload();
+  if (legacyPayload.statsMonth && !localStorage.getItem(STATS_MONTH_STORAGE_KEY)) {
+    localStorage.setItem(STATS_MONTH_STORAGE_KEY, legacyPayload.statsMonth);
+  }
+
+  const backupMigration = migrateLegacyStatuses(
+    mergeCouponCollections(readBackup(), legacyPayload.coupons)
+  );
+  const backupCoupons = backupMigration.coupons;
+  if (backupMigration.changed || legacyPayload.coupons.length) {
+    writeBackup(backupCoupons);
+  }
 
   try {
-    const coupons = await listCouponsFromDb();
+    const databaseMigration = migrateLegacyStatuses(await listCouponsFromDb());
+    const coupons = mergeCouponCollections(databaseMigration.coupons, backupCoupons);
 
-    if (!coupons.length && backupCoupons.length) {
-      await restoreCouponsToDb(backupCoupons);
-      return backupCoupons;
+    if (
+      legacyPayload.found
+      || databaseMigration.changed
+      || databaseMigration.coupons.length !== coupons.length
+    ) {
+      await replaceCouponsInDb(coupons);
     }
 
     writeBackup(coupons);
-    return coupons;
+    if (legacyPayload.found) {
+      clearLegacyMigrationPayload();
+    }
+    return filterCoupons(coupons, options);
   } catch {
-    return backupCoupons;
+    return filterCoupons(backupCoupons, options);
   }
 }
 
-export async function saveCoupon(coupon) {
+export async function replaceCoupons(coupons) {
+  const normalizedCoupons = migrateLegacyStatuses(
+    Array.isArray(coupons) ? coupons : []
+  ).coupons;
+
   try {
-    await withStore('readwrite', (store) => store.put(coupon));
+    await replaceCouponsInDb(normalizedCoupons);
+    writeBackup(normalizedCoupons);
+  } catch (error) {
+    if (!writeBackup(normalizedCoupons)) {
+      throw error;
+    }
+  }
+
+  return normalizedCoupons;
+}
+
+export async function saveCoupon(coupon) {
+  const normalizedCoupon = migrateLegacyShippingCoupon(coupon, new Date().toISOString());
+
+  try {
+    await withStore('readwrite', (store) => store.put(normalizedCoupon));
     writeBackup(await listCouponsFromDb());
-    return coupon;
+    return normalizedCoupon;
   } catch (error) {
     const coupons = readBackup();
     const nextCoupons = sortCoupons([
-      coupon,
-      ...coupons.filter((item) => item.id !== coupon.id)
+      normalizedCoupon,
+      ...coupons.filter((item) => item.id !== normalizedCoupon.id)
     ]);
 
     if (!writeBackup(nextCoupons)) {
       throw error;
     }
 
-    return coupon;
+    return normalizedCoupon;
   }
 }
 
@@ -170,4 +283,3 @@ export async function removeCoupon(id) {
     }
   }
 }
-

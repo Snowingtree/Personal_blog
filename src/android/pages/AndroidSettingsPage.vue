@@ -46,6 +46,33 @@
 
     <section class="android-settings-card">
       <div class="android-settings-card__heading">
+        <Database :size="18" />
+        <div>
+          <small>LOCAL DATA</small>
+          <h2>本机数据</h2>
+        </div>
+      </div>
+
+      <div class="android-settings-row android-settings-row--action">
+        <div>
+          <strong>更新笔记</strong>
+          <span>{{ formatSyncTime(notesLastSyncedAt) }}</span>
+        </div>
+        <button
+          type="button"
+          class="android-settings-action"
+          :disabled="notesSyncing"
+          @click="updateNotes"
+        >
+          <RefreshCw :size="14" :class="{ 'is-spinning': notesSyncing }" />
+          {{ notesSyncing ? '更新中' : '更新' }}
+        </button>
+      </div>
+
+    </section>
+
+    <section class="android-settings-card">
+      <div class="android-settings-card__heading">
         <Info :size="18" />
         <div>
           <small>ABOUT</small>
@@ -65,11 +92,67 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Info, Settings, SlidersHorizontal } from 'lucide-vue-next'
+import { onMounted, ref } from 'vue'
+import { createMessage } from 'snowingress-my-components'
+import { Database, Info, RefreshCw, Settings, SlidersHorizontal } from 'lucide-vue-next'
+import {
+  NOTE_META_CACHE_BUCKET,
+  syncAndroidNotesCache
+} from '../dataSync'
+import { getAndroidCache } from '../offlineCache'
 
-const appVersion = '1.0.7'
+const appVersion = '1.0.12'
 const reducedMotion = ref(localStorage.getItem('android-reduced-motion') === 'true')
+const notesSyncing = ref(false)
+const notesLastSyncedAt = ref('')
+
+function notify(message, type = 'success') {
+  createMessage({
+    message,
+    type,
+    duration: 1400,
+    offset: 24
+  })
+}
+
+function formatSyncTime(value) {
+  const timestamp = new Date(value || '').getTime()
+
+  if (!Number.isFinite(timestamp)) {
+    return '尚未下载到本机'
+  }
+
+  return `上次更新：${new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(timestamp)}`
+}
+
+async function loadSyncTimes() {
+  try {
+    const notesState = await getAndroidCache(NOTE_META_CACHE_BUCKET, 'last-sync')
+    notesLastSyncedAt.value = notesState?.syncedAt || ''
+  } catch {}
+}
+
+async function updateNotes() {
+  if (notesSyncing.value) return
+  notesSyncing.value = true
+
+  try {
+    const result = await syncAndroidNotesCache()
+    notesLastSyncedAt.value = result.syncedAt
+    notify(`笔记更新完成，共 ${result.fileCount} 篇`)
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '笔记更新失败', 'danger')
+  } finally {
+    notesSyncing.value = false
+  }
+}
+
+onMounted(loadSyncTimes)
 
 function saveMotionPreference() {
   localStorage.setItem('android-reduced-motion', String(reducedMotion.value))
@@ -193,6 +276,49 @@ function saveMotionPreference() {
   background: #eceeeb;
   font-size: 0.64rem;
   font-weight: 700;
+}
+
+.android-settings-row--action > div {
+  padding-right: 4px;
+}
+
+.android-settings-action {
+  flex: 0 0 auto;
+  min-width: 78px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid #d8dad6;
+  border-radius: 11px;
+  color: #f7f8f6;
+  background: #343a36;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition: opacity 160ms ease, transform 160ms ease, background-color 160ms ease;
+}
+
+.android-settings-action:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.android-settings-action:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.android-settings-action .is-spinning {
+  animation: android-settings-spin 800ms linear infinite;
+}
+
+@keyframes android-settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .android-settings-row--switch {

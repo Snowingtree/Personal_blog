@@ -1,6 +1,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { isServerEnabled, uploadCoupon } from './api';
+import {
+  deleteCoupon as deleteServerCoupon,
+  fetchCoupons,
+  getServerDisabledReason,
+  isServerEnabled,
+  uploadCoupon
+} from './api';
 import {
   FEE_RATE,
   MAX_IMAGE_BYTES,
@@ -13,9 +19,10 @@ import {
   isValidMoney,
   normalizeCoupon,
   statusLabel,
+  sumCompletedProfit,
   sumMoney
 } from './coupon';
-import { listCoupons, removeCoupon, saveCoupon } from './storage';
+import { listCoupons, removeCoupon, replaceCoupons, saveCoupon } from './storage';
 
 const ACTION_WIDTH = 216;
 const STATS_MONTH_STORAGE_KEY = 'meituan_coupon_stats_month';
@@ -32,12 +39,15 @@ const description = ref('');
 const preview = ref('');
 const imageName = ref('');
 const topMessage = ref('');
+const detailTarget = ref(null);
 const deleteTarget = ref(null);
 const showMonthPicker = ref(false);
 const statsYear = ref(currentDate.getFullYear());
 const statsMonth = ref(currentDate.getMonth() + 1);
 const isBusy = ref(false);
+const isDetailSaving = ref(false);
 const openRowId = ref('');
+const syncStatus = ref(isServerEnabled() ? '等待同步' : getServerDisabledReason());
 const swipeState = ref({
   id: '',
   startX: 0,
@@ -51,6 +61,7 @@ const pageSwipe = ref({
 });
 const fileInput = ref(null);
 let messageTimer = 0;
+let suppressRecordClickUntil = 0;
 
 const normalizedCoupons = computed(() => coupons.value.map(normalizeCoupon));
 const filteredCoupons = computed(() => {
@@ -62,15 +73,10 @@ const filteredCoupons = computed(() => {
 });
 const couponCount = computed(() => normalizedCoupons.value.length);
 const pendingCount = computed(() => countByStatus('pending'));
-const shippingCount = computed(() => countByStatus('shipping'));
 const doneCount = computed(() => countByStatus('done'));
 const totalCost = computed(() => sumMoney(normalizedCoupons.value, 'costPrice'));
 const totalSale = computed(() => sumMoney(normalizedCoupons.value, 'salePrice'));
-const totalProfit = computed(() => {
-  return normalizedCoupons.value
-    .reduce((sum, coupon) => sum + getCouponProfit(coupon), 0)
-    .toFixed(2);
-});
+const totalProfit = computed(() => sumCompletedProfit(normalizedCoupons.value));
 const statsMonthLabel = computed(() => `${statsYear.value}-${String(statsMonth.value).padStart(2, '0')}`);
 const statsYears = computed(() => {
   const years = new Set([
@@ -133,6 +139,7 @@ const dailyChartMaxValue = computed(() => {
 onMounted(async () => {
   loadStatsSelection();
   await loadCoupons();
+  loadStatsSelection();
 });
 
 onBeforeUnmount(() => {
@@ -141,10 +148,88 @@ onBeforeUnmount(() => {
 
 async function loadCoupons() {
   try {
-    coupons.value = await listCoupons();
+    const localCoupons = await listCoupons({ includeDeleted: true });
+    coupons.value = localCoupons.filter((coupon) => !coupon.deletedAt);
+
+    if (!isServerEnabled()) {
+      syncStatus.value = getServerDisabledReason();
+      return;
+    }
+
+    syncStatus.value = '正在同步';
+    await syncCoupons(localCoupons);
+    syncStatus.value = '已安全同步';
   } catch (error) {
-    setMessage(error.message || '读取本地记录失败');
+    syncStatus.value = '同步失败，本地可用';
+    setMessage(error.message || '已读取本地记录，服务器同步失败');
   }
+}
+
+function recordTimestamp(coupon) {
+  const timestamp = new Date(coupon.updatedAt || coupon.usedAt || coupon.createdAt).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function markAsSynced(coupon) {
+  return {
+    ...coupon,
+    _syncPending: false,
+    _syncImagePending: false,
+    hasImage: Boolean(coupon.imageDataUrl || coupon.hasImage)
+  };
+}
+
+async function syncCoupons(localCoupons) {
+  const deletedCoupons = localCoupons.filter((coupon) => coupon.deletedAt);
+
+  for (const coupon of deletedCoupons) {
+    await deleteServerCoupon(coupon.id);
+    await removeCoupon(coupon.id);
+  }
+
+  const activeLocalCoupons = localCoupons.filter((coupon) => !coupon.deletedAt);
+  const serverCoupons = await fetchCoupons();
+  const localMap = new Map(activeLocalCoupons.map((coupon) => [coupon.id, coupon]));
+  const serverMap = new Map(serverCoupons.map((coupon) => [coupon.id, coupon]));
+  const mergedCoupons = [];
+
+  for (const localCoupon of activeLocalCoupons) {
+    const serverCoupon = serverMap.get(localCoupon.id);
+    const localIsNewer = !serverCoupon || recordTimestamp(localCoupon) > recordTimestamp(serverCoupon);
+    const shouldUpload = localCoupon._syncPending || localCoupon._syncImagePending || localIsNewer;
+
+    if (shouldUpload) {
+      await uploadCoupon(localCoupon, {
+        includeImage: Boolean(localCoupon.imageDataUrl) && (
+          localCoupon._syncImagePending || !serverCoupon?.hasImage
+        )
+      });
+      mergedCoupons.push(markAsSynced(localCoupon));
+    } else {
+      mergedCoupons.push(markAsSynced(serverCoupon));
+    }
+  }
+
+  for (const serverCoupon of serverCoupons) {
+    if (!localMap.has(serverCoupon.id)) {
+      mergedCoupons.push(markAsSynced(serverCoupon));
+    }
+  }
+
+  await replaceCoupons(mergedCoupons);
+  coupons.value = mergedCoupons;
+}
+
+async function saveSyncedCoupon(id) {
+  const allCoupons = await listCoupons({ includeDeleted: true });
+  const currentCoupon = allCoupons.find((coupon) => coupon.id === id && !coupon.deletedAt);
+
+  if (!currentCoupon) return;
+
+  const syncedCoupon = markAsSynced(currentCoupon);
+  await saveCoupon(syncedCoupon);
+  coupons.value = coupons.value.map((coupon) => (coupon.id === id ? syncedCoupon : coupon));
+  syncStatus.value = '已安全同步';
 }
 
 function loadStatsSelection() {
@@ -233,8 +318,8 @@ function handleFileChange(event) {
     return;
   }
 
-  if (!file.type.startsWith('image/')) {
-    setMessage('请选择图片文件');
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+    setMessage('请选择 JPEG、PNG、WebP 或 GIF 图片');
     event.target.value = '';
     return;
   }
@@ -290,7 +375,10 @@ async function addCoupon() {
     imageDataUrl: preview.value,
     imageName: imageName.value || 'coupon.png',
     createdAt: new Date().toISOString(),
-    usedAt: ''
+    updatedAt: new Date().toISOString(),
+    usedAt: '',
+    _syncPending: true,
+    _syncImagePending: true
   };
 
   try {
@@ -298,9 +386,15 @@ async function addCoupon() {
     coupons.value = [coupon, ...coupons.value];
     resetForm();
 
-    uploadCoupon(coupon).catch(() => {
-      setMessage('已本地保存，服务器同步失败');
-    });
+    if (isServerEnabled()) {
+      syncStatus.value = '正在同步';
+      uploadCoupon(coupon)
+        .then(() => saveSyncedCoupon(coupon.id))
+        .catch((error) => {
+          syncStatus.value = '同步失败，本地可用';
+          setMessage(`已保存到本机；${error.message || '云端同步失败，请稍后重试'}`);
+        });
+    }
 
     setMessage('券码已保存');
     setTab('records', 'slide-right');
@@ -324,9 +418,9 @@ function resetForm() {
 
 async function completeCoupon(coupon) {
   try {
-    await updateCouponStatus(coupon, 'done');
+    const synced = await updateCouponStatus(coupon, 'done');
     closeSwipe();
-    setMessage('已标记完成');
+    setMessage(synced ? '已标记完成并同步' : '已本地标记，云端待同步');
   } catch (error) {
     setMessage(error.message || '更新状态失败');
   }
@@ -336,16 +430,132 @@ async function updateCouponStatus(coupon, status) {
   const updated = {
     ...coupon,
     status,
-    usedAt: status === 'done' ? coupon.usedAt || new Date().toISOString() : ''
+    usedAt: status === 'done' ? coupon.usedAt || new Date().toISOString() : '',
+    updatedAt: new Date().toISOString(),
+    _syncPending: true,
+    _syncImagePending: Boolean(coupon._syncImagePending)
   };
 
   await saveCoupon(updated);
   coupons.value = coupons.value.map((item) => (item.id === updated.id ? updated : item));
+
+  if (!isServerEnabled()) return false;
+
+  try {
+    syncStatus.value = '正在同步';
+    await uploadCoupon(updated, { includeImage: false });
+    await saveSyncedCoupon(updated.id);
+    return true;
+  } catch {
+    syncStatus.value = '同步失败，本地可用';
+    return false;
+  }
 }
 
 function requestDeleteCoupon(coupon) {
   deleteTarget.value = coupon;
   closeSwipe();
+}
+
+function openCouponDetails(coupon) {
+  if (Date.now() < suppressRecordClickUntil) {
+    return;
+  }
+
+  if (openRowId.value === coupon.id) {
+    closeSwipe();
+    return;
+  }
+
+  detailTarget.value = normalizeCoupon(coupon);
+  closeSwipe();
+}
+
+function closeCouponDetails() {
+  detailTarget.value = null;
+}
+
+function buildDetailPriceUpdate() {
+  if (!detailTarget.value) {
+    return null;
+  }
+
+  const normalizedCost = String(detailTarget.value.costPrice ?? '').trim();
+  const normalizedSale = String(detailTarget.value.salePrice ?? '').trim();
+
+  if (!isValidMoney(normalizedCost)) {
+    setMessage('请输入正确的成本价格');
+    return null;
+  }
+
+  if (!isValidMoney(normalizedSale)) {
+    setMessage('请输入正确的售价');
+    return null;
+  }
+
+  return {
+    costPrice: Number(normalizedCost).toFixed(2),
+    salePrice: Number(normalizedSale).toFixed(2),
+    price: Number(normalizedSale).toFixed(2)
+  };
+}
+
+async function persistDetailChanges({ complete = false } = {}) {
+  const priceUpdate = buildDetailPriceUpdate();
+  if (!priceUpdate || !detailTarget.value) {
+    return;
+  }
+
+  const updated = {
+    ...detailTarget.value,
+    ...priceUpdate,
+    status: complete ? 'done' : detailTarget.value.status,
+    usedAt: complete ? detailTarget.value.usedAt || new Date().toISOString() : detailTarget.value.usedAt,
+    updatedAt: new Date().toISOString(),
+    _syncPending: true,
+    _syncImagePending: Boolean(detailTarget.value._syncImagePending)
+  };
+
+  isDetailSaving.value = true;
+  try {
+    await saveCoupon(updated);
+    coupons.value = coupons.value.map((coupon) => (coupon.id === updated.id ? updated : coupon));
+    detailTarget.value = updated;
+
+    if (isServerEnabled()) {
+      try {
+        syncStatus.value = '正在同步';
+        await uploadCoupon(updated, { includeImage: false });
+        await saveSyncedCoupon(updated.id);
+        detailTarget.value = normalizeCoupon(
+          coupons.value.find((coupon) => coupon.id === updated.id) || updated
+        );
+        setMessage(complete ? '已标记完成并同步' : '价格已更新并同步');
+      } catch {
+        syncStatus.value = '同步失败，本地可用';
+        setMessage(complete ? '已本地标记，云端待同步' : '价格已保存，云端待同步');
+      }
+    } else {
+      setMessage(complete ? '已标记完成' : '价格已更新');
+    }
+  } catch (error) {
+    setMessage(error.message || (complete ? '完成操作失败' : '修改保存失败'));
+  } finally {
+    isDetailSaving.value = false;
+  }
+}
+
+function saveCouponDetails() {
+  return persistDetailChanges();
+}
+
+function completeDetailCoupon() {
+  if (detailTarget.value?.status === 'done') {
+    setMessage('该订单已完成');
+    return;
+  }
+
+  return persistDetailChanges({ complete: true });
 }
 
 function cancelDelete() {
@@ -359,11 +569,32 @@ async function confirmDeleteCoupon() {
   }
 
   try {
-    await removeCoupon(coupon.id);
+    const tombstone = {
+      ...coupon,
+      deletedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      _syncPending: true
+    };
+
+    await saveCoupon(tombstone);
     coupons.value = coupons.value.filter((item) => item.id !== coupon.id);
     deleteTarget.value = null;
     closeSwipe();
-    setMessage('记录已删除');
+
+    if (isServerEnabled()) {
+      try {
+        syncStatus.value = '正在同步';
+        await deleteServerCoupon(coupon.id);
+        await removeCoupon(coupon.id);
+        syncStatus.value = '已安全同步';
+        setMessage('记录已删除并同步');
+      } catch {
+        syncStatus.value = '同步失败，本地可用';
+        setMessage('已从本机删除，云端稍后同步');
+      }
+    } else {
+      setMessage('已从本机删除');
+    }
   } catch (error) {
     setMessage(error.message || '删除失败');
   }
@@ -429,6 +660,9 @@ function moveSwipe(event) {
   }
 
   const delta = event.clientX - swipeState.value.startX;
+  if (Math.abs(delta) > 8) {
+    suppressRecordClickUntil = Date.now() + 350;
+  }
   const nextOffset = clamp(swipeState.value.startOffset + delta, -ACTION_WIDTH, 0);
   swipeState.value = {
     ...swipeState.value,
@@ -601,11 +835,17 @@ function clamp(value, min, max) {
               <div
                 :class="['record-front', { dragging: swipeState.id === coupon.id }]"
                 :style="{ transform: `translateX(${rowOffset(coupon)}px)` }"
+                role="button"
+                tabindex="0"
+                :aria-label="`查看${coupon.description || '美团券码'}详情`"
                 @pointerdown="startSwipe($event, coupon)"
                 @pointermove="moveSwipe"
                 @pointerup="endSwipe"
                 @pointercancel="endSwipe"
                 @lostpointercapture="endSwipe"
+                @click="openCouponDetails(coupon)"
+                @keydown.enter="openCouponDetails(coupon)"
+                @keydown.space.prevent="openCouponDetails(coupon)"
               >
                 <div class="record-main">
                   <strong>{{ coupon.description || '美团券码' }}</strong>
@@ -692,10 +932,6 @@ function clamp(value, min, max) {
               <strong>{{ pendingCount }}</strong>
             </div>
             <div>
-              <span>待收货</span>
-              <strong>{{ shippingCount }}</strong>
-            </div>
-            <div>
               <span>已完成</span>
               <strong>{{ doneCount }}</strong>
             </div>
@@ -711,7 +947,7 @@ function clamp(value, min, max) {
               <strong>¥{{ totalSale }}</strong>
             </div>
             <div class="profit-total">
-              <span>总利润</span>
+              <span>总利润（已完成）</span>
               <strong>¥{{ totalProfit }}</strong>
             </div>
           </div>
@@ -787,7 +1023,7 @@ function clamp(value, min, max) {
             </div>
             <div>
               <span>服务器</span>
-              <strong>{{ isServerEnabled() ? '已配置' : '未配置' }}</strong>
+              <strong>{{ syncStatus }}</strong>
             </div>
             <div>
               <span>记录</span>
@@ -801,6 +1037,69 @@ function clamp(value, min, max) {
     <Transition name="message-slide">
       <div v-if="topMessage" class="top-message" role="status" @click="clearMessage">
         {{ topMessage }}
+      </div>
+    </Transition>
+
+    <Transition name="detail-pop">
+      <div v-if="detailTarget" class="dialog-backdrop" @click.self="closeCouponDetails">
+        <article class="detail-dialog" role="dialog" aria-modal="true" aria-label="记录详情">
+          <header class="detail-dialog-header">
+            <strong>记录详情</strong>
+            <button class="detail-close" type="button" aria-label="关闭详情" @click="closeCouponDetails">×</button>
+          </header>
+
+          <div v-if="detailTarget.imageDataUrl" class="detail-image">
+            <img :src="detailTarget.imageDataUrl" :alt="`${detailTarget.description || '券码'}图片`" />
+          </div>
+
+          <div class="detail-money-grid">
+            <label>
+              <span>成本价格</span>
+              <div class="detail-money-input">
+                <b>¥</b>
+                <input v-model="detailTarget.costPrice" inputmode="decimal" autocomplete="off" aria-label="成本价格" />
+              </div>
+            </label>
+            <label>
+              <span>售价</span>
+              <div class="detail-money-input">
+                <b>¥</b>
+                <input v-model="detailTarget.salePrice" inputmode="decimal" autocomplete="off" aria-label="售价" />
+              </div>
+            </label>
+            <div class="detail-profit-card">
+              <span>预计利润</span>
+              <strong>¥{{ formatMoney(getCouponProfit(detailTarget)) }}</strong>
+            </div>
+          </div>
+
+          <div class="detail-action-row">
+            <button
+              class="detail-download-button"
+              type="button"
+              :disabled="!detailTarget.imageDataUrl"
+              @click="downloadCouponImage(detailTarget)"
+            >
+              下载图片
+            </button>
+            <button
+              class="detail-complete-button"
+              type="button"
+              :disabled="isDetailSaving || detailTarget.status === 'done'"
+              @click="completeDetailCoupon"
+            >
+              {{ detailTarget.status === 'done' ? '已完成' : '完成' }}
+            </button>
+            <button
+              class="detail-done-button"
+              type="button"
+              :disabled="isDetailSaving"
+              @click="saveCouponDetails"
+            >
+              {{ isDetailSaving ? '保存中…' : '保存修改' }}
+            </button>
+          </div>
+        </article>
       </div>
     </Transition>
 

@@ -13,7 +13,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import LoginForm from '../../components/LoginForm/LoginForm.vue'
 import {
   AUTH_KEY,
@@ -25,6 +25,7 @@ import {
 } from '../../constants/storage'
 import http from '../../utils/http'
 
+const route = useRoute()
 const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
@@ -66,7 +67,9 @@ async function handleLogin(payload) {
       localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY)
     }
 
-    router.push('/tools')
+    const requestedRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+    const isSafeRedirect = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')
+    router.push(import.meta.env.MODE === 'android' && isSafeRedirect ? requestedRedirect : import.meta.env.MODE === 'android' ? '/notes' : '/tools')
   } catch (error) {
     localStorage.removeItem(AUTH_KEY)
     localStorage.removeItem(NOTE_AUTH_KEY)
