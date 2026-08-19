@@ -1,16 +1,6 @@
 <template>
-  <main
-    class="auth-layout tool-login-layout"
-    :class="{ 'xianyu-login-layout': isXianyuLogin }"
-  >
-    <XianyuLoginCard
-      v-if="isXianyuLogin"
-      :submitting="submitting"
-      :server-error="serverError"
-      @login="handleLogin"
-    />
+  <main class="auth-layout tool-login-layout">
     <LoginForm
-      v-else
       :submitting="submitting"
       :server-error="serverError"
       brand-tag=""
@@ -25,7 +15,6 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import LoginForm from '../../components/LoginForm/LoginForm.vue'
-import XianyuLoginCard from '../../android/features/xianyu/XianyuLoginCard.vue'
 import {
   AUTH_KEY,
   AUTH_REFRESH_TOKEN_KEY,
@@ -35,52 +24,17 @@ import {
   USERNAME_KEY
 } from '../../constants/storage'
 import http from '../../utils/http'
-import { getXianyuApiBaseUrl } from '../../android/features/xianyu/api'
 
 const route = useRoute()
 const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
-const isXianyuLogin = route.name === 'xianyu-login'
 const isAndroidApp = import.meta.env.MODE === 'android'
 const loginTitle = '\u5DE5\u5177\u767B\u5F55'
 
 function getLoginErrorMessage(error) {
   const rawMessage = error instanceof Error ? String(error.message || '').trim() : ''
-
-  if (!isXianyuLogin) {
-    return rawMessage || '登录失败，请稍后重试'
-  }
-
-  if (/invalid username or password|invalid password/i.test(rawMessage)) {
-    return '用户名或密码错误'
-  }
-
-  if (/username and password are required|password is required/i.test(rawMessage)) {
-    return '请输入用户名和密码'
-  }
-
-  if (/too many|rate limit|retry after|429/i.test(rawMessage)) {
-    return '登录尝试次数过多，请稍后再试'
-  }
-
-  if (/network error|failed to fetch|connection|err_/i.test(rawMessage)) {
-    return '无法连接公网登录服务，请检查网络后重试'
-  }
-
-  if (/timeout|timed out/i.test(rawMessage)) {
-    return '连接登录服务超时，请稍后重试'
-  }
-
-  if (/authentication service is temporarily unavailable|server returned 500/i.test(rawMessage)) {
-    return '登录服务暂时不可用，请稍后重试'
-  }
-
-  if (/[\u3400-\u9fff]/.test(rawMessage)) {
-    return rawMessage
-  }
-
-  return '登录失败，请检查用户名和密码后重试'
+  return rawMessage || '登录失败，请稍后重试'
 }
 
 async function handleLogin(payload) {
@@ -88,12 +42,7 @@ async function handleLogin(payload) {
   submitting.value = true
 
   try {
-    const xianyuBaseUrl = isXianyuLogin ? getXianyuApiBaseUrl() : ''
-    const data = await http.post(
-      '/api/login',
-      payload,
-      xianyuBaseUrl ? { baseURL: xianyuBaseUrl } : undefined
-    )
+    const data = await http.post('/api/login', payload)
     const username = typeof data.user?.username === 'string'
       ? data.user.username
       : typeof payload.username === 'string'
@@ -129,7 +78,7 @@ async function handleLogin(payload) {
     }
 
     const requestedRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-    const defaultRedirect = isXianyuLogin ? '/xianyu' : isAndroidApp ? '/notes' : '/tools'
+    const defaultRedirect = isAndroidApp ? '/notes' : '/tools'
     const safeRedirect = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')
       ? requestedRedirect
       : defaultRedirect
@@ -225,19 +174,6 @@ async function handleLogin(payload) {
   color: #d14c3e;
 }
 
-.tool-login-layout.xianyu-login-layout {
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding:
-    max(28px, env(safe-area-inset-top, 0px))
-    22px
-    max(28px, env(safe-area-inset-bottom, 0px));
-  background:
-    radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.96) 0, rgba(255, 255, 255, 0) 42%),
-    #f1f2ef;
-}
-
 @media (max-width: 720px) {
   .tool-login-layout {
     width: min(100% - 24px, 1120px);
@@ -259,12 +195,5 @@ async function handleLogin(payload) {
     display: grid;
   }
 
-  .tool-login-layout.xianyu-login-layout {
-    width: 100%;
-    padding:
-      max(20px, env(safe-area-inset-top, 0px))
-      14px
-      max(20px, env(safe-area-inset-bottom, 0px));
-  }
 }
 </style>

@@ -735,7 +735,6 @@ onMounted(() => {
 }
 
 @media print {
-  :global(.android-sidebar),
   :global(.android-resume-header),
   :global(.android-resume-toolbar),
   .android-resume-preview-actions {

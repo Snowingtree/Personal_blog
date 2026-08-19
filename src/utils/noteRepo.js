@@ -22,16 +22,31 @@ function isAbsoluteUrl(value) {
   return /^(?:[a-z]+:)?\/\//i.test(value)
 }
 
+function isInlineAssetUrl(value) {
+  return /^(?:data|blob):/i.test(value)
+}
+
+function decodeRepoPath(value) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+const NOTE_IMAGE_PLACEHOLDER =
+  'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='
+
 function resolveRepoRelativePath(currentFilePath, targetPath) {
   if (!targetPath || targetPath.startsWith('#') || targetPath.startsWith('mailto:')) {
     return targetPath
   }
 
-  if (isAbsoluteUrl(targetPath)) {
+  if (isAbsoluteUrl(targetPath) || isInlineAssetUrl(targetPath)) {
     return targetPath
   }
 
-  const normalizedTarget = targetPath.replace(/\\/g, '/')
+  const normalizedTarget = decodeRepoPath(targetPath).replace(/\\/g, '/')
 
   if (normalizedTarget.startsWith('/')) {
     return normalizeRepoPath(normalizedTarget)
@@ -50,7 +65,7 @@ function buildNoteAssetUrl(currentFilePath, targetPath) {
     return resolvedPath
   }
 
-  if (isAbsoluteUrl(resolvedPath)) {
+  if (isAbsoluteUrl(resolvedPath) || isInlineAssetUrl(resolvedPath)) {
     return resolvedPath
   }
 
@@ -68,7 +83,18 @@ function rewriteRenderedNoteHtml(html, currentFilePath) {
 
   wrapper.querySelectorAll('img[src]').forEach((element) => {
     const source = element.getAttribute('src') || ''
-    element.setAttribute('src', buildNoteAssetUrl(currentFilePath, source))
+    const resolvedPath = resolveRepoRelativePath(currentFilePath, source)
+
+    if (
+      !resolvedPath
+      || isAbsoluteUrl(resolvedPath)
+      || isInlineAssetUrl(resolvedPath)
+    ) {
+      return
+    }
+
+    element.setAttribute('data-note-asset-path', resolvedPath)
+    element.setAttribute('src', NOTE_IMAGE_PLACEHOLDER)
   })
 
   wrapper.querySelectorAll('a[href]').forEach((element) => {
@@ -88,4 +114,10 @@ function rewriteRenderedNoteHtml(html, currentFilePath) {
   return wrapper.innerHTML
 }
 
-export { buildNoteAssetUrl, rewriteRenderedNoteHtml }
+export {
+  buildNoteAssetUrl,
+  isAbsoluteUrl,
+  isInlineAssetUrl,
+  resolveRepoRelativePath,
+  rewriteRenderedNoteHtml
+}

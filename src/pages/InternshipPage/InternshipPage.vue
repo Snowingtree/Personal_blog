@@ -4188,7 +4188,7 @@ function handleBackToTools() {
 
 .internship-page--android .internship-modal {
   position: fixed;
-  inset: 0 0 0 var(--android-sidebar-collapsed);
+  inset: 0;
   z-index: 40;
   display: grid;
   place-items: start stretch;
@@ -4199,11 +4199,6 @@ function handleBackToTools() {
   background: #f3f4f6;
   overflow-x: hidden;
   overflow-y: auto;
-  transition: left 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-:global(.android-shell.is-sidebar-expanded) .internship-page--android .internship-modal {
-  left: var(--android-sidebar-expanded);
 }
 
 .internship-page--android .internship-dialog,

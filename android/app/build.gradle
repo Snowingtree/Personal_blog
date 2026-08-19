@@ -16,7 +16,7 @@ android {
 
     sourceSets {
         main {
-            assets.srcDirs = [file('../../dist-android'), file('src/main/legacy-assets')]
+            assets.srcDirs = [file('../../dist-android')]
         }
     }
 

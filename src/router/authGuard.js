@@ -22,10 +22,6 @@ function getAuthKeyByScope(scope) {
 }
 
 function getLoginRouteByScope(scope) {
-  if (scope === 'xianyu') {
-    return 'xianyu-login'
-  }
-
   if (scope === 'tools') {
     return 'login'
   }
@@ -67,13 +63,6 @@ export function siteAuthGuard(to) {
     return { name: IS_ANDROID_APP ? 'notes' : 'tool-selector' }
   }
 
-  if (to.name === 'xianyu-login' && hasAnyPrivateAppAuth) {
-    const requestedRedirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
-    return requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//')
-      ? requestedRedirect
-      : { name: 'android-xianyu' }
-  }
-
   const isAuthenticated =
     isUnifiedPrivateAuthScope(to.meta.authScope)
       ? hasAnyPrivateAppAuth
@@ -82,7 +71,7 @@ export function siteAuthGuard(to) {
   if (to.meta.requiresAuth && !isAuthenticated) {
     const loginRoute = { name: getLoginRouteByScope(to.meta.authScope) }
 
-    if (IS_ANDROID_APP || to.meta.authScope === 'xianyu') {
+    if (IS_ANDROID_APP) {
       loginRoute.query = { redirect: to.fullPath }
     }
 
