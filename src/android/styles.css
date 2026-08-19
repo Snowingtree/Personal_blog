@@ -70,7 +70,7 @@ body.is-android-app button:focus-visible {
   width: 100%;
   height: var(--android-bottom-nav-space);
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
   padding:
@@ -323,6 +323,33 @@ body.is-android-app button:focus-visible {
   align-items: center;
 }
 
+.android-calendar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.android-calendar__date {
+  min-width: 0;
+}
+
+.android-calendar__date p {
+  margin: 0 0 5px;
+  color: var(--android-accent);
+  font-size: 0.6rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+}
+
+.android-calendar__date h2 {
+  margin: 0;
+  color: var(--android-ink);
+  font-size: clamp(1.08rem, 3vw, 1.5rem);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
 .android-calendar__checkin {
   min-height: 38px;
   display: inline-flex;
@@ -345,6 +372,64 @@ body.is-android-app button:focus-visible {
   background: #eceeeb;
   box-shadow: none;
   cursor: default;
+}
+
+.android-calendar__week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 17px;
+}
+
+.android-calendar__week-day {
+  min-width: 0;
+  min-height: 68px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  padding: 7px 2px;
+  border: 1px solid #e7e9e5;
+  border-radius: 12px;
+  color: #777d78;
+  background: #f7f8f6;
+}
+
+.android-calendar__week-day span {
+  font-size: 0.61rem;
+  font-weight: 700;
+}
+
+.android-calendar__week-day strong {
+  color: #3e443f;
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+.android-calendar__week-day i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.android-calendar__week-day.is-checked i {
+  background: #6f7671;
+}
+
+.android-calendar__week-day.is-today {
+  color: #f7f8f6;
+  border-color: var(--android-accent);
+  background: var(--android-accent);
+  box-shadow: 0 7px 16px rgba(40, 45, 42, 0.15);
+}
+
+.android-calendar__week-day.is-today strong {
+  color: #ffffff;
+}
+
+.android-calendar__week-day.is-today i {
+  background: rgba(255, 255, 255, 0.75);
 }
 
 .android-calendar__stats {
@@ -898,6 +983,18 @@ body.is-android-app button:focus-visible {
     align-items: center;
   }
 
+  .android-calendar__top {
+    gap: 10px;
+  }
+
+  .android-calendar__date p {
+    font-size: 0.55rem;
+  }
+
+  .android-calendar__date h2 {
+    font-size: 1rem;
+  }
+
   .android-calendar__checkin {
     min-height: 36px;
     padding-inline: 9px;
@@ -906,6 +1003,26 @@ body.is-android-app button:focus-visible {
 
   .android-calendar__checkin span {
     white-space: nowrap;
+  }
+
+  .android-calendar__week-strip {
+    gap: 3px;
+    margin-top: 14px;
+  }
+
+  .android-calendar__week-day {
+    min-height: 58px;
+    gap: 3px;
+    padding: 6px 1px;
+    border-radius: 9px;
+  }
+
+  .android-calendar__week-day span {
+    font-size: 0.55rem;
+  }
+
+  .android-calendar__week-day strong {
+    font-size: 0.76rem;
   }
 
   .android-calendar__stats {

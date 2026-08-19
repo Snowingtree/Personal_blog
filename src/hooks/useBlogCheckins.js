@@ -80,6 +80,25 @@ function createCalendarDays(monthValue, checkinMap, todayValue) {
   })
 }
 
+function createCenteredCalendarDays(todayValue, checkinMap) {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(todayValue)
+    date.setDate(todayValue.getDate() + index - 3)
+    const dateKey = formatDateKey(date)
+    const checked = Boolean(checkinMap[dateKey])
+    const isToday = index === 3
+
+    return {
+      key: dateKey,
+      date,
+      label: date.getDate(),
+      isToday,
+      checked,
+      ariaLabel: `${dateKey} ${checked ? '已打卡' : isToday ? '今日可打卡' : '未打卡'}`
+    }
+  })
+}
+
 function countMonthCheckins(monthValue, checkinMap) {
   const monthKey = formatMonthKey(monthValue)
   return Object.keys(checkinMap).filter((dateKey) => dateKey.startsWith(monthKey)).length
@@ -113,6 +132,9 @@ export function useBlogCheckins({ notify = () => {} } = {}) {
   const streakCount = computed(() => calculateStreak(currentDate.value, checkins.value))
   const calendarDays = computed(() =>
     createCalendarDays(currentDate.value, checkins.value, currentDate.value)
+  )
+  const centeredCalendarDays = computed(() =>
+    createCenteredCalendarDays(currentDate.value, checkins.value)
   )
 
   async function refreshCheckins({ showError = true } = {}) {
@@ -190,6 +212,7 @@ export function useBlogCheckins({ notify = () => {} } = {}) {
 
   return {
     calendarDays,
+    centeredCalendarDays,
     checkInDate,
     checkInToday,
     currentMonthLabel,

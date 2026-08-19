@@ -1,13 +1,31 @@
 <template>
-  <section class="android-page android-settings-page">
-    <header class="android-settings-header">
-      <span class="android-settings-header__icon"><Settings :size="23" /></span>
-      <div>
-        <p>APP PREFERENCES</p>
-        <h1>设置</h1>
-        <span>管理安卓专属界面的显示偏好。</span>
+  <section class="android-page android-home android-settings-page">
+    <section class="android-profile-hero">
+      <div class="android-profile-hero__avatar-wrap">
+        <img :src="profileAvatar" alt="Liu An 的头像" class="android-profile-hero__avatar" />
+        <span class="android-profile-hero__online" aria-label="持续更新中" />
       </div>
-    </header>
+
+      <div class="android-profile-hero__copy">
+        <p class="android-profile-hero__eyebrow">{{ siteHero.eyebrow }}</p>
+        <h1>Liu An</h1>
+        <p class="android-profile-hero__title">{{ siteHero.title }}</p>
+        <p class="android-profile-hero__lead">{{ siteHero.lead }}</p>
+
+        <ul class="android-profile-hero__tags" aria-label="个人方向">
+          <li>前端开发</li>
+          <li>AI 实验</li>
+          <li>日常记录</li>
+        </ul>
+      </div>
+
+      <div class="android-profile-hero__edition" aria-hidden="true">
+        <span>ANDROID</span>
+        <strong>01</strong>
+      </div>
+    </section>
+
+    <AndroidCalendarCard />
 
     <section class="android-settings-card">
       <div class="android-settings-card__heading">
@@ -29,9 +47,9 @@
       <div class="android-settings-row">
         <div>
           <strong>底部导航</strong>
-          <span>主页、笔记和设置固定显示在页面底部。</span>
+          <span>笔记和我的固定显示在页面底部。</span>
         </div>
-        <span class="android-settings-value">三项</span>
+        <span class="android-settings-value">两项</span>
       </div>
 
       <label class="android-settings-row android-settings-row--switch">
@@ -216,11 +234,13 @@ import {
   FolderOpen,
   Info,
   RefreshCw,
-  Settings,
   SlidersHorizontal,
   X
 } from 'lucide-vue-next'
+import profileAvatar from '../../assets/images/headerPH.png'
 import { NOTE_ROOT_PATH_KEY } from '../../constants/storage'
+import { siteHero } from '../../data/siteOverview'
+import AndroidCalendarCard from '../components/AndroidCalendarCard.vue'
 import {
   NOTE_META_CACHE_BUCKET,
   syncAndroidNotesCache

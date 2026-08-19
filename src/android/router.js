@@ -1,6 +1,5 @@
 import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
 import { siteAuthGuard } from '../router/authGuard'
-import AndroidHomePage from './pages/AndroidHomePage.vue'
 import NotesLoginPage from '../pages/NotesLoginPage/NotesLoginPage.vue'
 
 const AndroidSettingsPage = () => import('./pages/AndroidSettingsPage.vue')
@@ -18,15 +17,13 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'android-home',
-      component: AndroidHomePage,
-      meta: { androidNavKey: 'home', androidSurface: 'home' }
+      name: 'android-profile',
+      component: AndroidSettingsPage,
+      meta: { androidNavKey: 'profile', androidSurface: 'home' }
     },
     {
       path: '/settings',
-      name: 'android-settings',
-      component: AndroidSettingsPage,
-      meta: { androidNavKey: 'settings', androidSurface: 'public' }
+      redirect: '/'
     },
     { path: '/login', redirect: '/notes' },
     {
