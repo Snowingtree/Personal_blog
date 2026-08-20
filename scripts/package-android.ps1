@@ -51,6 +51,7 @@ if (-not $javaHome) {
 $env:JAVA_HOME = $javaHome
 $env:WM_ANDROID_VERSION_NAME = $nextVersionName
 $env:WM_ANDROID_VERSION_CODE = [string]$nextVersionCode
+$env:VITE_ANDROID_APP_VERSION = $nextVersionName
 
 if (-not $env:ANDROID_HOME) {
   $sdkCandidate = Join-Path $env:LOCALAPPDATA 'Android\Sdk'
@@ -87,5 +88,6 @@ try {
 } finally {
   Remove-Item Env:WM_ANDROID_VERSION_NAME -ErrorAction SilentlyContinue
   Remove-Item Env:WM_ANDROID_VERSION_CODE -ErrorAction SilentlyContinue
+  Remove-Item Env:VITE_ANDROID_APP_VERSION -ErrorAction SilentlyContinue
   Pop-Location
 }

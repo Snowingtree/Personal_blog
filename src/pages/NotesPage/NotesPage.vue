@@ -2180,6 +2180,39 @@ onBeforeUnmount(() => {
   background: var(--android-canvas, #f2f3f0);
 }
 
+:global(html[data-android-theme='warm']) .notes-agent-theme--android {
+  --mono-ink: var(--android-ink);
+  --mono-copy: var(--android-copy);
+  --mono-muted: var(--android-muted);
+  --mono-line: color-mix(in srgb, var(--android-ink) 9%, transparent);
+  --mono-line-strong: color-mix(in srgb, var(--android-ink) 16%, transparent);
+  --mono-soft: var(--android-surface-soft);
+  --mono-soft-strong: var(--android-surface-muted);
+  --mono-surface: var(--android-surface);
+}
+
+:global(html[data-android-theme='warm']) .notes-agent-theme--android :deep(.primary-btn),
+:global(html[data-android-theme='warm']) .notes-agent-theme--android :deep(.note-mode-switch__button.is-active),
+:global(html[data-android-theme='warm']) .notes-agent-theme--android :deep(.note-sidebar-switch__button.is-active) {
+  color: var(--android-accent-contrast);
+  background: linear-gradient(
+    135deg,
+    var(--android-accent) 0%,
+    color-mix(in srgb, var(--android-accent) 76%, #3f2c20) 100%
+  );
+  box-shadow: 0 12px 24px var(--android-accent-shadow);
+}
+
+:global(html[data-android-theme='warm']) .notes-agent-theme--android :deep(.note-tree-button--file.is-active) {
+  color: var(--android-ink);
+  background: var(--android-accent-soft);
+  box-shadow: inset 3px 0 0 var(--android-accent);
+}
+
+:global(html[data-android-theme='warm']) .notes-agent-theme--android :deep(.note-tree-button__icon--folder) {
+  background: linear-gradient(180deg, #b18462 0%, var(--android-accent) 100%);
+}
+
 .notes-agent-theme--android::before {
   background: var(--android-canvas, #f2f3f0);
 }
@@ -2302,7 +2335,7 @@ onBeforeUnmount(() => {
   min-height: 0 !important;
   overflow: hidden;
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--android-surface-high, #ffffff);
 }
 
 .notes-agent-theme--android .note-editor-shell,
@@ -2321,7 +2354,7 @@ onBeforeUnmount(() => {
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor) {
   border: 0;
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--android-surface-high, #ffffff);
   box-shadow: none;
 }
 
@@ -2339,8 +2372,8 @@ onBeforeUnmount(() => {
   min-width: 0;
   max-width: 100%;
   padding: 14px 14px 28px;
-  color: #303632;
-  background: #ffffff;
+  color: var(--android-text-strong, #303632);
+  background: var(--android-surface-high, #ffffff);
   background-image: none;
   font-size: 0.9rem;
   line-height: 1.56;

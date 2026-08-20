@@ -1,5 +1,8 @@
 <template>
-  <main class="auth-layout notes-login-layout">
+  <main
+    class="auth-layout notes-login-layout"
+    :class="{ 'notes-login-layout--android': isAndroidApp }"
+  >
     <LoginForm
       :submitting="submitting"
       :server-error="serverError"
@@ -30,6 +33,7 @@ const router = useRouter()
 const submitting = ref(false)
 const serverError = ref('')
 const notesTitle = '\u7B14\u8BB0\u767B\u5F55'
+const isAndroidApp = import.meta.env.MODE === 'android'
 
 async function handleLogin(payload) {
   serverError.value = ''
@@ -92,23 +96,77 @@ async function handleLogin(payload) {
   --agent-soft: #f5f9ff;
   --agent-accent: #2f7dff;
   --agent-accent-end: #4bb6ff;
+  --agent-page-background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+  --agent-card-border: rgba(18, 52, 78, 0.08);
+  --agent-card-background: rgba(255, 255, 255, 0.98);
+  --agent-card-shadow: 0 24px 56px rgba(24, 67, 115, 0.1), 0 4px 14px rgba(24, 67, 115, 0.05);
+  --agent-brand-border: rgba(18, 52, 78, 0.07);
+  --agent-brand-background:
+    radial-gradient(circle at top right, rgba(47, 125, 255, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(250, 252, 255, 0.99), rgba(245, 249, 255, 0.96));
+  --agent-brand-inset: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --agent-field-border: rgba(18, 52, 78, 0.08);
+  --agent-field-background: rgba(248, 252, 255, 0.96);
+  --agent-focus-border: rgba(47, 125, 255, 0.46);
+  --agent-focus-ring: 0 0 0 4px rgba(47, 125, 255, 0.1);
+  --agent-primary-text: #f6fbff;
+  --agent-primary-shadow: 0 14px 26px rgba(47, 125, 255, 0.22);
+  --agent-primary-shadow-hover: 0 18px 34px rgba(47, 125, 255, 0.27);
+  --agent-secondary-border: rgba(18, 52, 78, 0.08);
+  --agent-secondary-background: rgba(245, 249, 255, 0.96);
+  --agent-secondary-background-hover: rgba(47, 125, 255, 0.07);
+  --agent-error: #c34a3a;
   width: 100%;
   min-height: 100vh;
   padding: 32px 16px;
   justify-content: center;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+  background: var(--agent-page-background);
+}
+
+.notes-login-layout--android {
+  --agent-ink: var(--android-text-strong);
+  --agent-copy: var(--android-copy);
+  --agent-muted: var(--android-text-soft);
+  --agent-soft: var(--android-surface-soft);
+  --agent-accent: var(--android-accent);
+  --agent-accent-end: var(--android-accent);
+  --agent-page-background: var(--android-canvas);
+  --agent-card-border: var(--android-line);
+  --agent-card-background: var(--android-surface-high);
+  --agent-card-shadow: var(--android-shadow);
+  --agent-brand-border: var(--android-line);
+  --agent-brand-background: var(--android-hero-background);
+  --agent-brand-inset: inset 0 1px 0 color-mix(in srgb, var(--android-surface-high) 82%, transparent);
+  --agent-field-border: var(--android-line);
+  --agent-field-background: var(--android-surface-soft);
+  --agent-focus-border: var(--android-accent);
+  --agent-focus-ring: 0 0 0 4px var(--android-focus-outline);
+  --agent-primary-text: var(--android-accent-contrast);
+  --agent-primary-shadow: 0 12px 24px var(--android-accent-shadow);
+  --agent-primary-shadow-hover: 0 16px 30px var(--android-accent-shadow);
+  --agent-secondary-border: var(--android-line);
+  --agent-secondary-background: var(--android-accent-soft);
+  --agent-secondary-background-hover: var(--android-navy-soft);
+}
+
+.notes-login-layout--android :deep(.field .wm-input) {
+  --wm-input-text-color: var(--android-text-strong);
+  --wm-input-border-color: var(--android-line-strong);
+  --wm-input-hover-border-color: var(--android-line-strong);
+  --wm-input-focus-border-color: var(--android-accent);
+  --wm-input-bg-color: var(--android-surface-soft);
+  --wm-input-icon-color: var(--android-text-faint);
+  --wm-input-placeholder-color: var(--android-text-faint);
 }
 
 .notes-login-layout :deep(.auth-card) {
   width: min(920px, 100%);
   grid-template-columns: 0.95fr 1.05fr;
   gap: 18px;
-  border: 1px solid rgba(18, 52, 78, 0.08);
+  border: 1px solid var(--agent-card-border);
   border-radius: 30px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 24px 56px rgba(24, 67, 115, 0.1),
-    0 4px 14px rgba(24, 67, 115, 0.05);
+  background: var(--agent-card-background);
+  box-shadow: var(--agent-card-shadow);
   backdrop-filter: none;
 }
 
@@ -116,13 +174,11 @@ async function handleLogin(payload) {
   align-items: center;
   justify-content: center;
   min-height: 360px;
-  border: 1px solid rgba(18, 52, 78, 0.07);
+  border: 1px solid var(--agent-brand-border);
   border-radius: 24px;
   color: var(--agent-ink);
-  background:
-    radial-gradient(circle at top right, rgba(47, 125, 255, 0.1), transparent 34%),
-    linear-gradient(180deg, rgba(250, 252, 255, 0.99), rgba(245, 249, 255, 0.96));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  background: var(--agent-brand-background);
+  box-shadow: var(--agent-brand-inset);
 }
 
 .notes-login-layout :deep(.brand-block h1) {
@@ -148,39 +204,48 @@ async function handleLogin(payload) {
 }
 
 .notes-login-layout :deep(.field .wm-input__wrapper) {
-  border-color: rgba(18, 52, 78, 0.08);
-  background: rgba(248, 252, 255, 0.96);
+  border-color: var(--agent-field-border);
+  background: var(--agent-field-background);
   color: var(--agent-ink);
 }
 
 .notes-login-layout :deep(.field .wm-input.is-isFocus .wm-input__wrapper),
 .notes-login-layout :deep(.field .wm-input__wrapper:focus-within) {
-  border-color: rgba(47, 125, 255, 0.46);
-  box-shadow: 0 0 0 4px rgba(47, 125, 255, 0.1);
+  border-color: var(--agent-focus-border);
+  box-shadow: var(--agent-focus-ring);
 }
 
 .notes-login-layout :deep(.primary-btn) {
-  color: #f6fbff;
+  color: var(--agent-primary-text);
   background: linear-gradient(135deg, var(--agent-accent) 0%, var(--agent-accent-end) 100%);
-  box-shadow: 0 14px 26px rgba(47, 125, 255, 0.22);
+  box-shadow: var(--agent-primary-shadow);
 }
 
 .notes-login-layout :deep(.primary-btn:hover) {
-  box-shadow: 0 18px 34px rgba(47, 125, 255, 0.27);
+  box-shadow: var(--agent-primary-shadow-hover);
 }
 
 .notes-login-layout :deep(.secondary-btn) {
   color: var(--agent-copy);
-  border: 1px solid rgba(18, 52, 78, 0.08);
-  background: rgba(245, 249, 255, 0.96);
+  border: 1px solid var(--agent-secondary-border);
+  background: var(--agent-secondary-background);
 }
 
 .notes-login-layout :deep(.secondary-btn:hover) {
-  background: rgba(47, 125, 255, 0.07);
+  background: var(--agent-secondary-background-hover);
 }
 
 .notes-login-layout :deep(.form-error) {
-  color: #c34a3a;
+  color: var(--agent-error);
+}
+
+.notes-login-layout--android :deep(.field .wm-input__inner) {
+  color: var(--android-text-strong);
+}
+
+.notes-login-layout--android :deep(.field .wm-input__inner::placeholder),
+.notes-login-layout--android :deep(.field .wm-input__suffix) {
+  color: var(--android-text-faint);
 }
 
 @media (max-width: 760px) {

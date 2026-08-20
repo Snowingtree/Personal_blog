@@ -12,9 +12,52 @@
   --android-accent-soft: #e7e9e5;
   --android-navy: #f8f8f6;
   --android-navy-soft: #e9eae7;
+  --android-text-strong: #303532;
+  --android-copy: #5e645f;
+  --android-text-soft: #747a75;
+  --android-text-faint: #929791;
+  --android-surface-high: #ffffff;
+  --android-surface-soft: #f7f8f6;
+  --android-surface-muted: #eceeeb;
+  --android-nav-background: rgba(253, 253, 252, 0.96);
+  --android-hero-background: linear-gradient(145deg, #ffffff 0%, #f7f7f5 68%, #f0f1ee 100%);
+  --android-hero-ring: rgba(52, 57, 54, 0.08);
+  --android-hero-ring-soft: rgba(52, 57, 54, 0.02);
+  --android-hero-ring-faint: rgba(52, 57, 54, 0.012);
+  --android-accent-contrast: #ffffff;
+  --android-accent-shadow: rgba(40, 45, 42, 0.15);
+  --android-focus-outline: rgba(52, 57, 54, 0.34);
   --android-radius-lg: 22px;
   --android-radius-md: 16px;
   --android-shadow: 0 10px 28px rgba(31, 35, 32, 0.055);
+}
+
+html[data-android-theme='warm'] {
+  --android-ink: #352f2a;
+  --android-muted: #84796f;
+  --android-line: #e5ddd2;
+  --android-line-strong: #d8ccbd;
+  --android-surface: #fffdf8;
+  --android-canvas: #f5efe6;
+  --android-accent: #8a5f3d;
+  --android-accent-soft: #eadbc9;
+  --android-navy: #fbf7f0;
+  --android-navy-soft: #efe5d9;
+  --android-text-strong: #3a312a;
+  --android-copy: #6d6055;
+  --android-text-soft: #84776c;
+  --android-text-faint: #9b8d80;
+  --android-surface-high: #fffefa;
+  --android-surface-soft: #faf4eb;
+  --android-surface-muted: #efe5d8;
+  --android-nav-background: rgba(255, 253, 248, 0.96);
+  --android-hero-background: linear-gradient(145deg, #fffdf8 0%, #faf3e9 68%, #f1e5d5 100%);
+  --android-hero-ring: rgba(138, 95, 61, 0.12);
+  --android-hero-ring-soft: rgba(138, 95, 61, 0.045);
+  --android-hero-ring-faint: rgba(138, 95, 61, 0.025);
+  --android-accent-shadow: rgba(114, 75, 47, 0.18);
+  --android-focus-outline: rgba(138, 95, 61, 0.38);
+  --android-shadow: 0 10px 28px rgba(84, 61, 42, 0.08);
 }
 
 html.is-android-app,
@@ -42,7 +85,7 @@ body.is-android-app button {
 
 body.is-android-app a:focus-visible,
 body.is-android-app button:focus-visible {
-  outline: 2px solid rgba(52, 57, 54, 0.34);
+  outline: 2px solid var(--android-focus-outline);
   outline-offset: 2px;
 }
 
@@ -81,7 +124,7 @@ body.is-android-app button:focus-visible {
   border: 0;
   border-top: 1px solid var(--android-line, #dedfdb);
   border-radius: 0;
-  background: rgba(253, 253, 252, 0.96);
+  background: var(--android-nav-background);
   box-shadow: none;
   backdrop-filter: blur(18px);
 }
@@ -97,7 +140,7 @@ body.is-android-app button:focus-visible {
   padding: 0;
   border: 0;
   border-radius: 15px;
-  color: #747a75;
+  color: var(--android-text-soft);
   font: inherit;
   background: transparent;
   text-decoration: none;
@@ -116,9 +159,9 @@ body.is-android-app button:focus-visible {
 }
 
 .android-bottom-nav__item.is-active {
-  color: #f8f9f7;
-  background: #353a37;
-  box-shadow: 0 7px 16px rgba(31, 35, 32, 0.14);
+  color: var(--android-accent-contrast);
+  background: var(--android-accent);
+  box-shadow: 0 7px 16px var(--android-accent-shadow);
 }
 
 .android-bottom-nav__item:active {
@@ -150,7 +193,7 @@ body.is-android-app button:focus-visible {
   padding: clamp(22px, 4.4vw, 42px);
   border-radius: var(--android-radius-lg);
   color: var(--android-ink);
-  background: linear-gradient(145deg, #ffffff 0%, #f7f7f5 68%, #f0f1ee 100%);
+  background: var(--android-hero-background);
   border: 1px solid var(--android-line);
   box-shadow: var(--android-shadow);
   overflow: hidden;
@@ -163,11 +206,11 @@ body.is-android-app button:focus-visible {
   bottom: -96px;
   width: 230px;
   height: 230px;
-  border: 1px solid rgba(52, 57, 54, 0.08);
+  border: 1px solid var(--android-hero-ring);
   border-radius: 50%;
   box-shadow:
-    0 0 0 30px rgba(52, 57, 54, 0.02),
-    0 0 0 64px rgba(52, 57, 54, 0.012);
+    0 0 0 30px var(--android-hero-ring-soft),
+    0 0 0 64px var(--android-hero-ring-faint);
 }
 
 .android-profile-hero__avatar-wrap {
@@ -215,7 +258,7 @@ body.is-android-app button:focus-visible {
 
 .android-profile-hero h1 {
   margin: 0;
-  color: #202225;
+  color: var(--android-ink);
   font-size: clamp(2rem, 6.2vw, 4rem);
   line-height: 0.98;
   letter-spacing: -0.055em;
@@ -224,7 +267,7 @@ body.is-android-app button:focus-visible {
 .android-profile-hero__title {
   max-width: 620px;
   margin: 12px 0 0;
-  color: #383b40;
+  color: var(--android-text-strong);
   font-size: clamp(0.96rem, 2.2vw, 1.18rem);
   font-weight: 680;
   line-height: 1.5;
@@ -233,7 +276,7 @@ body.is-android-app button:focus-visible {
 .android-profile-hero__lead {
   max-width: 620px;
   margin: 6px 0 0;
-  color: #6f7379;
+  color: var(--android-text-soft);
   font-size: 0.82rem;
   line-height: 1.65;
 }
@@ -252,10 +295,10 @@ body.is-android-app button:focus-visible {
 
 .android-profile-hero__tags li {
   padding: 5px 9px;
-  border: 1px solid #d2d4d7;
+  border: 1px solid var(--android-line-strong);
   border-radius: 999px;
-  color: #5e645f;
-  background: rgba(255, 255, 255, 0.7);
+  color: var(--android-copy);
+  background: color-mix(in srgb, var(--android-surface-high) 76%, transparent);
   font-size: 0.68rem;
 }
 
@@ -313,7 +356,7 @@ body.is-android-app button:focus-visible {
 }
 
 .android-section-heading__count {
-  color: #929791;
+  color: var(--android-text-faint);
   font-size: 0.65rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -359,17 +402,17 @@ body.is-android-app button:focus-visible {
   border: 0;
   border-radius: 11px;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--android-accent-contrast);
   background: var(--android-accent);
-  box-shadow: 0 7px 16px rgba(40, 45, 42, 0.15);
+  box-shadow: 0 7px 16px var(--android-accent-shadow);
   font-size: 0.76rem;
   font-weight: 750;
   cursor: pointer;
 }
 
 .android-calendar__checkin:disabled {
-  color: #8b908b;
-  background: #eceeeb;
+  color: var(--android-text-faint);
+  background: var(--android-surface-muted);
   box-shadow: none;
   cursor: default;
 }
@@ -389,10 +432,10 @@ body.is-android-app button:focus-visible {
   align-content: center;
   gap: 4px;
   padding: 7px 2px;
-  border: 1px solid #e7e9e5;
+  border: 1px solid var(--android-line);
   border-radius: 12px;
-  color: #777d78;
-  background: #f7f8f6;
+  color: var(--android-muted);
+  background: var(--android-surface-soft);
 }
 
 .android-calendar__week-day span {
@@ -401,7 +444,7 @@ body.is-android-app button:focus-visible {
 }
 
 .android-calendar__week-day strong {
-  color: #3e443f;
+  color: var(--android-text-strong);
   font-size: 0.88rem;
   line-height: 1;
 }
@@ -414,18 +457,18 @@ body.is-android-app button:focus-visible {
 }
 
 .android-calendar__week-day.is-checked i {
-  background: #6f7671;
+  background: var(--android-accent);
 }
 
 .android-calendar__week-day.is-today {
-  color: #f7f8f6;
+  color: var(--android-accent-contrast);
   border-color: var(--android-accent);
   background: var(--android-accent);
-  box-shadow: 0 7px 16px rgba(40, 45, 42, 0.15);
+  box-shadow: 0 7px 16px var(--android-accent-shadow);
 }
 
 .android-calendar__week-day.is-today strong {
-  color: #ffffff;
+  color: var(--android-accent-contrast);
 }
 
 .android-calendar__week-day.is-today i {
@@ -446,9 +489,9 @@ body.is-android-app button:focus-visible {
   gap: 2px 7px;
   align-items: center;
   padding: 11px;
-  border: 1px solid #e9eae7;
+  border: 1px solid var(--android-line);
   border-radius: 13px;
-  background: #f7f8f6;
+  background: var(--android-surface-soft);
 }
 
 .android-calendar__stats article svg {
@@ -457,13 +500,13 @@ body.is-android-app button:focus-visible {
 }
 
 .android-calendar__stats span {
-  color: #929791;
+  color: var(--android-text-faint);
   font-size: 0.66rem;
 }
 
 .android-calendar__stats strong {
   min-width: 0;
-  color: #343936;
+  color: var(--android-text-strong);
   font-size: 0.79rem;
   line-height: 1.3;
 }
@@ -481,7 +524,7 @@ body.is-android-app button:focus-visible {
 }
 
 .android-calendar__month-row span {
-  color: #929791;
+  color: var(--android-text-faint);
   font-size: 0.7rem;
 }
 
@@ -498,7 +541,7 @@ body.is-android-app button:focus-visible {
 
 .android-calendar__weekdays span {
   padding: 5px 0;
-  color: #a1a5a0;
+  color: var(--android-text-faint);
   font-size: 0.63rem;
   font-weight: 750;
   text-align: center;
@@ -511,15 +554,15 @@ body.is-android-app button:focus-visible {
   place-items: center;
   border: 0;
   border-radius: 10px;
-  color: #5d635f;
-  background: #f5f6f4;
+  color: var(--android-copy);
+  background: var(--android-surface-soft);
   font-size: clamp(0.65rem, 2.4vw, 0.8rem);
   cursor: default;
 }
 
 .android-calendar__day.is-outside {
-  color: #c2c5c1;
-  background: #fafaf9;
+  color: color-mix(in srgb, var(--android-text-faint) 55%, transparent);
+  background: var(--android-surface-high);
 }
 
 .android-calendar__day.is-today {
@@ -530,20 +573,20 @@ body.is-android-app button:focus-visible {
 }
 
 .android-calendar__day.is-checked {
-  color: #ffffff;
+  color: var(--android-accent-contrast);
   background: var(--android-accent);
   box-shadow: none;
 }
 
 .android-calendar__day.is-outside.is-checked {
-  color: #858b86;
-  background: #e8eae6;
+  color: var(--android-muted);
+  background: var(--android-surface-muted);
 }
 
 .android-calendar__feedback {
   min-height: 18px;
   margin: 12px 2px 0;
-  color: #929791;
+  color: var(--android-text-faint);
   font-size: 0.68rem;
 }
 

@@ -34,13 +34,21 @@
         </div>
       </div>
 
-      <div class="android-settings-row">
+      <label class="android-settings-row android-settings-row--switch android-settings-row--theme">
         <div>
-          <strong>灰白主题</strong>
-          <span>安卓端固定使用简洁的灰白配色。</span>
+          <strong>界面主题</strong>
+          <span>{{ selectedTheme === 'warm' ? '正在使用柔和温暖的米色调。' : '正在使用简洁克制的中性灰。' }}</span>
         </div>
-        <span class="android-settings-value">已启用</span>
-      </div>
+        <span class="android-theme-switch-control">
+          <span :class="{ 'is-active': selectedTheme === 'gray' }">灰白</span>
+          <input
+            v-model="warmThemeEnabled"
+            type="checkbox"
+          />
+          <span class="android-settings-switch" aria-hidden="true"><i /></span>
+          <span :class="{ 'is-active': selectedTheme === 'warm' }">暖白</span>
+        </span>
+      </label>
 
       <label class="android-settings-row android-settings-row--switch">
         <div>
@@ -248,10 +256,19 @@ import {
   syncAndroidNotesCache
 } from '../dataSync'
 import { getAndroidCache } from '../offlineCache'
+import {
+  readAndroidTheme,
+  saveAndroidTheme
+} from '../theme'
 
-const appVersion = '1.0.12'
+const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.9'
 const reducedMotion = ref(localStorage.getItem('android-reduced-motion') === 'true')
 const lightCodeBlocks = ref(localStorage.getItem(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true')
+const selectedTheme = ref(readAndroidTheme())
+const warmThemeEnabled = computed({
+  get: () => selectedTheme.value === 'warm',
+  set: (enabled) => selectInterfaceTheme(enabled ? 'warm' : 'gray')
+})
 const notesSyncing = ref(false)
 const notesLastSyncedAt = ref('')
 const noteRootPath = ref(normalizeFolderPath(localStorage.getItem(NOTE_ROOT_PATH_KEY) || ''))
@@ -479,6 +496,11 @@ function saveMotionPreference() {
   )
 }
 
+function selectInterfaceTheme(theme) {
+  selectedTheme.value = saveAndroidTheme(theme)
+  notify(`界面已切换为${selectedTheme.value === 'warm' ? '暖白' : '灰白'}主题`)
+}
+
 function saveCodeBlockPreference() {
   localStorage.setItem(ANDROID_LIGHT_CODE_BLOCKS_KEY, String(lightCodeBlocks.value))
   notify(lightCodeBlocks.value ? '代码框已切换为白色' : '代码框已切换为黑色')
@@ -535,10 +557,10 @@ function saveCodeBlockPreference() {
 
 .android-settings-card {
   padding: 17px;
-  border: 1px solid #dedfdb;
+  border: 1px solid var(--android-line);
   border-radius: 19px;
-  background: #fdfdfc;
-  box-shadow: 0 10px 28px rgba(31, 35, 32, 0.055);
+  background: var(--android-surface);
+  box-shadow: var(--android-shadow);
 }
 
 .android-settings-card__heading {
@@ -546,11 +568,11 @@ function saveCodeBlockPreference() {
   align-items: center;
   gap: 10px;
   padding-bottom: 13px;
-  color: #484e49;
+  color: var(--android-accent);
 }
 
 .android-settings-card__heading small {
-  color: #909590;
+  color: var(--android-text-faint);
   font-size: 0.56rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -558,7 +580,7 @@ function saveCodeBlockPreference() {
 
 .android-settings-card__heading h2 {
   margin: 2px 0 0;
-  color: #303532;
+  color: var(--android-text-strong);
   font-size: 1rem;
 }
 
@@ -569,7 +591,25 @@ function saveCodeBlockPreference() {
   justify-content: space-between;
   gap: 14px;
   padding: 12px 0;
-  border-top: 1px solid #e9eae7;
+  border-top: 1px solid var(--android-line);
+}
+
+.android-theme-switch-control {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.android-theme-switch-control > span:not(.android-settings-switch) {
+  color: var(--android-text-faint);
+  font-size: 0.64rem;
+  font-weight: 750;
+  transition: color 160ms ease;
+}
+
+.android-theme-switch-control > span.is-active {
+  color: var(--android-accent);
 }
 
 .android-settings-row > div {
@@ -579,12 +619,12 @@ function saveCodeBlockPreference() {
 }
 
 .android-settings-row strong {
-  color: #363b38;
+  color: var(--android-text-strong);
   font-size: 0.84rem;
 }
 
 .android-settings-row > div > span {
-  color: #7b817c;
+  color: var(--android-muted);
   font-size: 0.7rem;
   line-height: 1.45;
 }
@@ -593,8 +633,8 @@ function saveCodeBlockPreference() {
   flex: 0 0 auto;
   padding: 5px 8px;
   border-radius: 999px;
-  color: #626862;
-  background: #eceeeb;
+  color: var(--android-accent);
+  background: var(--android-accent-soft);
   font-size: 0.64rem;
   font-weight: 700;
 }
@@ -612,10 +652,10 @@ function saveCodeBlockPreference() {
   justify-content: center;
   gap: 6px;
   padding: 0 12px;
-  border: 1px solid #d8dad6;
+  border: 1px solid var(--android-line-strong);
   border-radius: 11px;
-  color: #f7f8f6;
-  background: #343a36;
+  color: var(--android-accent-contrast);
+  background: var(--android-accent);
   font: inherit;
   font-size: 0.7rem;
   font-weight: 750;
@@ -634,8 +674,8 @@ function saveCodeBlockPreference() {
 
 .android-settings-action--folder {
   min-width: 104px;
-  color: #3e4540;
-  background: #eceeeb;
+  color: var(--android-text-strong);
+  background: var(--android-surface-muted);
 }
 
 .android-settings-action .is-spinning {
@@ -667,7 +707,7 @@ function saveCodeBlockPreference() {
   width: 42px;
   height: 24px;
   border-radius: 999px;
-  background: #d8dbd6;
+  background: var(--android-line-strong);
   transition: background-color 160ms ease;
 }
 
@@ -684,7 +724,7 @@ function saveCodeBlockPreference() {
 }
 
 .android-settings-row--switch input:checked + .android-settings-switch {
-  background: #3c423e;
+  background: var(--android-accent);
 }
 
 .android-settings-row--switch input:checked + .android-settings-switch i {
