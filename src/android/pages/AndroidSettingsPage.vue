@@ -261,7 +261,7 @@ import {
   saveAndroidTheme
 } from '../theme'
 
-const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.9'
+const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.10'
 const reducedMotion = ref(localStorage.getItem('android-reduced-motion') === 'true')
 const lightCodeBlocks = ref(localStorage.getItem(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true')
 const selectedTheme = ref(readAndroidTheme())

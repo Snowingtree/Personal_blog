@@ -2363,7 +2363,7 @@ onBeforeUnmount(() => {
   overflow-x: hidden !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
   scrollbar-gutter: auto;
 }
 
@@ -2449,6 +2449,23 @@ onBeforeUnmount(() => {
   padding: 0.78em 0.88em;
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code pre code),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code-block) {
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code pre code::-webkit-scrollbar),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code-block::-webkit-scrollbar) {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .notes-agent-theme--android.notes-agent-theme--light-code :deep(.note-preview-shell .md-editor-preview) {
