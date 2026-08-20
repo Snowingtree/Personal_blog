@@ -2,6 +2,17 @@ plugins {
     id 'com.android.application'
 }
 
+def wmVersionProperties = new Properties()
+def wmVersionFile = rootProject.file('version.properties')
+if (wmVersionFile.exists()) {
+    wmVersionFile.withInputStream { wmVersionProperties.load(it) }
+}
+
+def wmVersionCode = (System.getenv('WM_ANDROID_VERSION_CODE')
+    ?: wmVersionProperties.getProperty('VERSION_CODE', '5')).toInteger()
+def wmVersionName = System.getenv('WM_ANDROID_VERSION_NAME')
+    ?: wmVersionProperties.getProperty('VERSION_NAME', '2.0.0')
+
 android {
     namespace 'com.wm.personalblog'
     compileSdk 35
@@ -10,8 +21,8 @@ android {
         applicationId 'com.example.meituancouponrecord'
         minSdk 23
         targetSdk 35
-        versionCode 5
-        versionName '2.0.0'
+        versionCode wmVersionCode
+        versionName wmVersionName
     }
 
     sourceSets {

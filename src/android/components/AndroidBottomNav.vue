@@ -17,15 +17,15 @@
 </template>
 
 <script setup>
-import { ListTree, NotebookPen, UserRound } from 'lucide-vue-next'
+import { House, ListTree, NotebookPen } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { toggleAndroidNotesDirectory } from '../events'
 
 const route = useRoute()
 const router = useRouter()
 const navigationItems = [
-  { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen },
-  { key: 'profile', label: '我的', to: '/', icon: UserRound }
+  { key: 'profile', label: '主页', to: '/', icon: House },
+  { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
 ]
 
 function isActive(item) {

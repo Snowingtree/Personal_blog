@@ -2167,6 +2167,8 @@ onBeforeUnmount(() => {
 /* Android keeps the application navigation fixed and gives the note reader its own scroll area. */
 .notes-agent-theme--android {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: calc(100dvh - var(--android-bottom-nav-space, 84px));
   min-height: 0;
   gap: 8px;
@@ -2183,6 +2185,7 @@ onBeforeUnmount(() => {
 }
 
 .notes-agent-theme--android .note-browser-panel {
+  min-width: 0;
   min-height: 0;
   flex: 1;
   gap: 7px;
@@ -2220,6 +2223,9 @@ onBeforeUnmount(() => {
 .notes-agent-theme--android .note-workspace-shell,
 .notes-agent-theme--android .note-workspace-page,
 .notes-agent-theme--android .note-browser-layout {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -2238,6 +2244,8 @@ onBeforeUnmount(() => {
 }
 
 .notes-agent-theme--android .note-view-pane {
+  min-width: 0;
+  max-width: 100%;
   height: 100%;
   min-height: 0;
   gap: 0;
@@ -2289,6 +2297,8 @@ onBeforeUnmount(() => {
 }
 
 .notes-agent-theme--android .note-view-body {
+  min-width: 0;
+  max-width: 100%;
   min-height: 0 !important;
   overflow: hidden;
   border-radius: 12px;
@@ -2298,8 +2308,12 @@ onBeforeUnmount(() => {
 .notes-agent-theme--android .note-editor-shell,
 .notes-agent-theme--android .note-preview-shell,
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-content),
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-content-wrapper),
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-previewOnly),
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview-wrapper) {
+  min-width: 0;
+  max-width: 100%;
   height: 100%;
   min-height: 0;
 }
@@ -2313,6 +2327,7 @@ onBeforeUnmount(() => {
 
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-previewOnly),
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview-wrapper) {
+  overflow-x: hidden !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
   touch-action: pan-y;
@@ -2320,6 +2335,9 @@ onBeforeUnmount(() => {
 }
 
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: 14px 14px 28px;
   color: #303632;
   background: #ffffff;
@@ -2383,6 +2401,15 @@ onBeforeUnmount(() => {
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview pre),
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview table) {
   margin-block: 0.75em;
+}
+
+.notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-code pre code) {

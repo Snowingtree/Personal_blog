@@ -9,8 +9,6 @@
       <div class="android-profile-hero__copy">
         <p class="android-profile-hero__eyebrow">{{ siteHero.eyebrow }}</p>
         <h1>Liu An</h1>
-        <p class="android-profile-hero__title">{{ siteHero.title }}</p>
-        <p class="android-profile-hero__lead">{{ siteHero.lead }}</p>
 
         <ul class="android-profile-hero__tags" aria-label="个人方向">
           <li>前端开发</li>
