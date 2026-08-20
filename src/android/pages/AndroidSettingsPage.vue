@@ -44,13 +44,14 @@
         <span class="android-settings-value">已启用</span>
       </div>
 
-      <div class="android-settings-row">
+      <label class="android-settings-row android-settings-row--switch">
         <div>
-          <strong>底部导航</strong>
-          <span>笔记和我的固定显示在页面底部。</span>
+          <strong>代码框主题</strong>
+          <span>{{ lightCodeBlocks ? '笔记代码框使用白色背景。' : '笔记代码框使用黑色背景。' }}</span>
         </div>
-        <span class="android-settings-value">两项</span>
-      </div>
+        <input v-model="lightCodeBlocks" type="checkbox" @change="saveCodeBlockPreference" />
+        <span class="android-settings-switch" aria-hidden="true"><i /></span>
+      </label>
 
       <label class="android-settings-row android-settings-row--switch">
         <div>
@@ -238,7 +239,10 @@ import {
   X
 } from 'lucide-vue-next'
 import profileAvatar from '../../assets/images/headerPH.png'
-import { NOTE_ROOT_PATH_KEY } from '../../constants/storage'
+import {
+  ANDROID_LIGHT_CODE_BLOCKS_KEY,
+  NOTE_ROOT_PATH_KEY
+} from '../../constants/storage'
 import { siteHero } from '../../data/siteOverview'
 import AndroidCalendarCard from '../components/AndroidCalendarCard.vue'
 import {
@@ -249,6 +253,7 @@ import { getAndroidCache } from '../offlineCache'
 
 const appVersion = '1.0.12'
 const reducedMotion = ref(localStorage.getItem('android-reduced-motion') === 'true')
+const lightCodeBlocks = ref(localStorage.getItem(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true')
 const notesSyncing = ref(false)
 const notesLastSyncedAt = ref('')
 const noteRootPath = ref(normalizeFolderPath(localStorage.getItem(NOTE_ROOT_PATH_KEY) || ''))
@@ -474,6 +479,11 @@ function saveMotionPreference() {
       detail: { enabled: reducedMotion.value }
     })
   )
+}
+
+function saveCodeBlockPreference() {
+  localStorage.setItem(ANDROID_LIGHT_CODE_BLOCKS_KEY, String(lightCodeBlocks.value))
+  notify(lightCodeBlocks.value ? '代码框已切换为白色' : '代码框已切换为黑色')
 }
 </script>
 

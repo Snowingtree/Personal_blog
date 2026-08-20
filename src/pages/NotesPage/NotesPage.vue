@@ -2,7 +2,10 @@
   <main
     v-if="privateAppAvailable"
     class="display-layout display-layout--wide note-display-layout notes-agent-theme"
-    :class="{ 'notes-agent-theme--android': isAndroidApp }"
+    :class="{
+      'notes-agent-theme--android': isAndroidApp,
+      'notes-agent-theme--light-code': isAndroidApp && lightCodeBlocks
+    }"
   >
     <AppHeader
       v-if="!isAndroidApp"
@@ -456,6 +459,7 @@ import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOv
 import CommitDialog from '../../components/notes/CommitDialog/CommitDialog.vue'
 import NoteTreeNode from '../../components/notes/NoteTreeNode/NoteTreeNode.vue'
 import {
+  ANDROID_LIGHT_CODE_BLOCKS_KEY,
   NOTE_ACTIVE_PATH_KEY,
   NOTE_OPEN_FOLDERS_KEY,
   NOTE_ROOT_PATH_KEY,
@@ -539,6 +543,9 @@ const router = useRouter()
 const isAndroidApp = import.meta.env.MODE === 'android'
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const files = ref([])
+const lightCodeBlocks = ref(
+  isAndroidApp && readStorageValue(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true'
+)
 const noteRootPath = ref(isAndroidApp ? normalizeFolderPath(readStorageValue(NOTE_ROOT_PATH_KEY)) : '')
 const activePath = ref(readStorageValue(NOTE_ACTIVE_PATH_KEY))
 const activeContent = ref('')
@@ -2382,6 +2389,27 @@ onBeforeUnmount(() => {
   padding: 0.78em 0.88em;
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+.notes-agent-theme--android.notes-agent-theme--light-code :deep(.note-preview-shell .md-editor-preview) {
+  --md-theme-code-block-color: #24292f;
+  --md-theme-code-block-bg-color: #ffffff;
+  --md-theme-code-before-bg-color: #f6f8fa;
+  --md-theme-code-copy-tips-color: #24292f;
+  --md-theme-code-copy-tips-bg-color: #ffffff;
+  --md-theme-code-active-color: #0969da;
+}
+
+.notes-agent-theme--android.notes-agent-theme--light-code :deep(.note-preview-shell .md-editor-code) {
+  overflow: hidden;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.notes-agent-theme--android.notes-agent-theme--light-code :deep(.note-preview-shell .md-editor-code-head) {
+  color: #57606a;
+  box-shadow: inset 0 -1px #d8dee4;
 }
 
 .notes-agent-theme--android :deep(.note-preview-shell .md-editor-preview .md-editor-scrn span[rn-wrapper]) {
