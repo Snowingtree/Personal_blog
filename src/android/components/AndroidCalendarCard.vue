@@ -35,12 +35,15 @@
     </div>
 
     <p
-      v-if="feedbackMessage || isLoading"
       class="android-calendar__feedback"
-      :class="{ 'is-error': feedbackType === 'danger' }"
+      :class="{
+        'is-error': feedbackType === 'danger',
+        'is-idle': !feedbackMessage && !isLoading
+      }"
+      :aria-hidden="!feedbackMessage && !isLoading ? 'true' : undefined"
       aria-live="polite"
     >
-      {{ feedbackMessage || '正在同步打卡数据…' }}
+      {{ feedbackMessage || (isLoading ? '正在同步打卡数据…' : '') }}
     </p>
   </section>
 </template>

@@ -302,7 +302,7 @@ import {
   saveAndroidAppendixEnabled
 } from '../appendix'
 
-const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.11'
+const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.13'
 const reducedMotion = ref(localStorage.getItem('android-reduced-motion') === 'true')
 const lightCodeBlocks = ref(localStorage.getItem(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true')
 const selectedTheme = ref(readAndroidTheme())

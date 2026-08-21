@@ -103,6 +103,36 @@ body.is-android-app button:focus-visible {
   padding-bottom: var(--android-bottom-nav-space);
 }
 
+.android-route-stage {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  display: grid;
+}
+
+.android-route-stage > * {
+  min-width: 0;
+  max-width: 100%;
+  grid-area: 1 / 1;
+}
+
+.android-route-stage--workspace {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+.android-route-stage.is-workspace-dragging > * {
+  transform: translate3d(var(--android-workspace-swipe-x, 0px), 0, 0);
+  transition: none !important;
+  will-change: transform;
+}
+
+.android-route-stage.is-workspace-settling > * {
+  transform: translate3d(var(--android-workspace-swipe-x, 0px), 0, 0);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: transform;
+}
+
 .android-bottom-nav {
   box-sizing: border-box;
   position: fixed;
@@ -394,6 +424,8 @@ body.is-android-app button:focus-visible {
 }
 
 .android-calendar__checkin {
+  flex: 0 0 116px;
+  width: 116px;
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -592,6 +624,10 @@ body.is-android-app button:focus-visible {
 
 .android-calendar__feedback.is-error {
   color: #d25743;
+}
+
+.android-calendar__feedback.is-idle {
+  visibility: hidden;
 }
 
 .android-projects__grid {
@@ -896,9 +932,59 @@ body.is-android-app button:focus-visible {
   transform: translateY(8px);
 }
 
+.android-shell__content--home .android-route-enter-from {
+  transform: none;
+}
+
 .android-route-leave-to {
   opacity: 0;
   transform: translateY(-5px);
+}
+
+.android-workspace-next-enter-active,
+.android-workspace-next-leave-active,
+.android-workspace-previous-enter-active,
+.android-workspace-previous-leave-active {
+  transition:
+    transform 270ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 210ms ease;
+  will-change: transform, opacity;
+}
+
+.android-workspace-next-enter-active,
+.android-workspace-previous-enter-active {
+  z-index: 2;
+}
+
+.android-workspace-next-leave-active,
+.android-workspace-previous-leave-active {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.android-workspace-next-enter-from {
+  opacity: 0.94;
+  transform: translate3d(calc(100% + var(--android-workspace-swipe-x, 0px)), 0, 0);
+}
+
+.android-workspace-next-leave-from,
+.android-workspace-previous-leave-from {
+  transform: translate3d(var(--android-workspace-swipe-x, 0px), 0, 0);
+}
+
+.android-workspace-next-leave-to {
+  opacity: 0.94;
+  transform: translate3d(-100%, 0, 0);
+}
+
+.android-workspace-previous-enter-from {
+  opacity: 0.94;
+  transform: translate3d(calc(-100% + var(--android-workspace-swipe-x, 0px)), 0, 0);
+}
+
+.android-workspace-previous-leave-to {
+  opacity: 0.94;
+  transform: translate3d(100%, 0, 0);
 }
 
 @media (max-width: 740px) {
@@ -1039,6 +1125,8 @@ body.is-android-app button:focus-visible {
   }
 
   .android-calendar__checkin {
+    flex-basis: 108px;
+    width: 108px;
     min-height: 36px;
     padding-inline: 9px;
     font-size: 0.7rem;
@@ -1235,16 +1323,26 @@ body.is-android-app button:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .android-bottom-nav__item,
+  .android-route-stage.is-workspace-settling > *,
   .android-route-enter-active,
   .android-route-leave-active,
+  .android-workspace-next-enter-active,
+  .android-workspace-next-leave-active,
+  .android-workspace-previous-enter-active,
+  .android-workspace-previous-leave-active,
   .android-library-card {
     transition-duration: 1ms !important;
   }
 }
 
 html.android-reduced-motion .android-bottom-nav__item,
+html.android-reduced-motion .android-route-stage.is-workspace-settling > *,
 html.android-reduced-motion .android-route-enter-active,
 html.android-reduced-motion .android-route-leave-active,
+html.android-reduced-motion .android-workspace-next-enter-active,
+html.android-reduced-motion .android-workspace-next-leave-active,
+html.android-reduced-motion .android-workspace-previous-enter-active,
+html.android-reduced-motion .android-workspace-previous-leave-active,
 html.android-reduced-motion .android-library-card {
   transition-duration: 1ms !important;
 }
