@@ -113,7 +113,7 @@ body.is-android-app button:focus-visible {
   width: 100%;
   height: var(--android-bottom-nav-space);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--android-nav-count, 2), minmax(0, 1fr));
   align-items: center;
   gap: 4px;
   padding:

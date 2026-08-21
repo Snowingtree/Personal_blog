@@ -41,7 +41,7 @@
       type="button"
       class="note-mobile-directory-trigger note-mobile-directory-trigger--floating"
       aria-controls="note-mobile-directory-dialog"
-      aria-label="打开笔记目录"
+      :aria-label="`打开${workspaceLabel}目录`"
       @click="openMobileDirectory"
     >
       <span class="note-mobile-directory-trigger__bars" aria-hidden="true">
@@ -62,7 +62,7 @@
             class="note-mobile-directory-trigger"
             :aria-expanded="String(mobileDirectoryVisible)"
             aria-controls="note-mobile-directory-dialog"
-            aria-label="打开笔记目录"
+            :aria-label="`打开${workspaceLabel}目录`"
             @click="openMobileDirectory"
           >
             <span class="note-mobile-directory-trigger__bars" aria-hidden="true">
@@ -299,12 +299,12 @@
             class="note-mobile-directory-dialog__panel"
             role="dialog"
             aria-modal="true"
-            aria-label="笔记目录"
+            :aria-label="`${workspaceLabel}目录`"
           >
             <div v-if="!isAndroidApp" class="note-mobile-directory-dialog__head">
               <div>
                 <p class="section-tag">目录</p>
-                <h3>笔记目录</h3>
+                <h3>{{ workspaceLabel }}目录</h3>
               </div>
               <button
                 type="button"
@@ -459,6 +459,9 @@ import PrivateAccessLoadingOverlay from '../../components/PrivateAccessLoadingOv
 import CommitDialog from '../../components/notes/CommitDialog/CommitDialog.vue'
 import NoteTreeNode from '../../components/notes/NoteTreeNode/NoteTreeNode.vue'
 import {
+  APPENDIX_ACTIVE_PATH_KEY,
+  APPENDIX_OPEN_FOLDERS_KEY,
+  APPENDIX_ROOT_PATH_KEY,
   ANDROID_LIGHT_CODE_BLOCKS_KEY,
   NOTE_ACTIVE_PATH_KEY,
   NOTE_OPEN_FOLDERS_KEY,
@@ -475,6 +478,14 @@ import { loadNoteAssetBlob } from '../../utils/noteAssets'
 import { usePrivateAppAccess } from '../../hooks/usePrivateAppAccess'
 import { rewriteRenderedNoteHtml } from '../../utils/noteRepo'
 import http from '../../utils/http'
+
+const props = defineProps({
+  workspace: {
+    type: String,
+    default: 'notes',
+    validator: (value) => value === 'notes' || value === 'appendix'
+  }
+})
 
 const formatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -541,13 +552,18 @@ function writeStorageArray(key, value) {
 
 const router = useRouter()
 const isAndroidApp = import.meta.env.MODE === 'android'
+const isAppendixView = isAndroidApp && props.workspace === 'appendix'
+const workspaceLabel = isAppendixView ? '附录' : '笔记'
+const rootPathStorageKey = isAppendixView ? APPENDIX_ROOT_PATH_KEY : NOTE_ROOT_PATH_KEY
+const activePathStorageKey = isAppendixView ? APPENDIX_ACTIVE_PATH_KEY : NOTE_ACTIVE_PATH_KEY
+const openFoldersStorageKey = isAppendixView ? APPENDIX_OPEN_FOLDERS_KEY : NOTE_OPEN_FOLDERS_KEY
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const files = ref([])
 const lightCodeBlocks = ref(
   isAndroidApp && readStorageValue(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true'
 )
-const noteRootPath = ref(isAndroidApp ? normalizeFolderPath(readStorageValue(NOTE_ROOT_PATH_KEY)) : '')
-const activePath = ref(readStorageValue(NOTE_ACTIVE_PATH_KEY))
+const noteRootPath = ref(isAndroidApp ? normalizeFolderPath(readStorageValue(rootPathStorageKey)) : '')
+const activePath = ref(readStorageValue(activePathStorageKey))
 const activeContent = ref('')
 const draftContent = ref('')
 const activeUpdatedAt = ref('')
@@ -561,7 +577,7 @@ const repoHead = ref('')
 const repoChangedFiles = ref([])
 const loadError = ref('')
 const saveError = ref('')
-const openFolders = ref(new Set(readStorageArray(NOTE_OPEN_FOLDERS_KEY)))
+const openFolders = ref(new Set(readStorageArray(openFoldersStorageKey)))
 const sidebarMode = ref(readStorageValue(NOTE_SIDEBAR_MODE_KEY, 'tree') === 'titles' ? 'titles' : 'tree')
 const commitDialogVisible = ref(false)
 const commitType = ref('feat')
@@ -718,11 +734,11 @@ function collectFolderPaths(nodes, target = []) {
 }
 
 function persistActivePath() {
-  writeStorageValue(NOTE_ACTIVE_PATH_KEY, activePath.value)
+  writeStorageValue(activePathStorageKey, activePath.value)
 }
 
 function persistOpenFolders() {
-  writeStorageArray(NOTE_OPEN_FOLDERS_KEY, [...openFolders.value])
+  writeStorageArray(openFoldersStorageKey, [...openFolders.value])
 }
 
 function persistSidebarWidth() {
@@ -1155,7 +1171,7 @@ function applyNoteTree(nextFiles) {
 
   if (noteRootPath.value && !visibleNoteFiles.length) {
     noteRootPath.value = ''
-    writeStorageValue(NOTE_ROOT_PATH_KEY, '')
+    writeStorageValue(rootPathStorageKey, '')
     visibleNoteFiles = normalizedFiles
   }
 
@@ -1295,7 +1311,7 @@ async function openFile(path, { showSuccess = false } = {}) {
         draftContent.value = ''
         activeUpdatedAt.value = ''
         persistActivePath()
-        loadError.value = '这篇笔记尚未下载到本机，请前往设置更新笔记。'
+        loadError.value = `这篇${workspaceLabel}内容尚未下载到本机，请前往设置更新笔记。`
       }
     } catch {
       activePath.value = path
@@ -1303,7 +1319,7 @@ async function openFile(path, { showSuccess = false } = {}) {
       draftContent.value = ''
       activeUpdatedAt.value = ''
       persistActivePath()
-      loadError.value = '读取本机笔记失败，请前往设置重新更新笔记。'
+      loadError.value = `读取本机${workspaceLabel}失败，请前往设置重新更新笔记。`
     } finally {
       loadingFile.value = false
     }
@@ -1769,7 +1785,7 @@ onMounted(async () => {
     const cacheState = await hydrateNotesFromAndroidCache()
 
     if (!cacheState.hasCachedContent) {
-      loadError.value = '本机还没有笔记，请前往设置点击“更新笔记”。'
+      loadError.value = `本机还没有${workspaceLabel}，请前往设置点击“更新笔记”。`
     }
 
     await nextTick()

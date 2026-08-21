@@ -1,5 +1,9 @@
 <template>
-  <nav class="android-bottom-nav" aria-label="安卓应用导航">
+  <nav
+    class="android-bottom-nav"
+    aria-label="安卓应用导航"
+    :style="{ '--android-nav-count': navigationItems.length }"
+  >
     <button
       v-for="item in navigationItems"
       :key="item.key"
@@ -17,35 +21,64 @@
 </template>
 
 <script setup>
-import { House, ListTree, NotebookPen } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { BookOpen, House, ListTree, NotebookPen } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { toggleAndroidNotesDirectory } from '../events'
 
+const props = defineProps({
+  appendixEnabled: {
+    type: Boolean,
+    default: false
+  }
+})
+
 const route = useRoute()
 const router = useRouter()
-const navigationItems = [
-  { key: 'profile', label: '主页', to: '/', icon: House },
-  { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
-]
+const navigationItems = computed(() => {
+  const items = [
+    { key: 'profile', label: '主页', to: '/', icon: House },
+    { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
+  ]
+
+  if (props.appendixEnabled) {
+    items.push({ key: 'appendix', label: '附录', to: '/appendix', icon: BookOpen })
+  }
+
+  return items
+})
+const activeNavigationKey = computed(() => {
+  if (
+    route.name === 'notes-login'
+    && route.query.redirect === '/appendix'
+    && props.appendixEnabled
+  ) {
+    return 'appendix'
+  }
+
+  return route.meta.androidNavKey
+})
 
 function isActive(item) {
-  return route.meta.androidNavKey === item.key
+  return activeNavigationKey.value === item.key
 }
 
-function isActiveNotesItem(item) {
-  return item.key === 'notes' && isActive(item)
+function isActiveDirectoryItem(item) {
+  return (item.key === 'notes' || item.key === 'appendix')
+    && route.name === item.key
+    && isActive(item)
 }
 
 function resolveLabel(item) {
-  return isActiveNotesItem(item) ? '目录' : item.label
+  return isActiveDirectoryItem(item) ? '目录' : item.label
 }
 
 function resolveIcon(item) {
-  return isActiveNotesItem(item) ? ListTree : item.icon
+  return isActiveDirectoryItem(item) ? ListTree : item.icon
 }
 
 function handleNavigation(item) {
-  if (isActiveNotesItem(item)) {
+  if (isActiveDirectoryItem(item)) {
     toggleAndroidNotesDirectory()
     return
   }

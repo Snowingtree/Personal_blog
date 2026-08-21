@@ -71,6 +71,41 @@
 
     <section class="android-settings-card">
       <div class="android-settings-card__heading">
+        <Brain :size="18" />
+        <div>
+          <small>MEMORY</small>
+          <h2>记忆</h2>
+        </div>
+      </div>
+
+      <label class="android-settings-row android-settings-row--switch">
+        <div>
+          <strong>随心看</strong>
+          <span>{{ appendixEnabled ? '底部导航已显示附录入口。' : '开启后在底部导航显示附录入口。' }}</span>
+        </div>
+        <input v-model="appendixEnabled" type="checkbox" @change="saveAppendixPreference" />
+        <span class="android-settings-switch" aria-hidden="true"><i /></span>
+      </label>
+
+      <div class="android-settings-row android-settings-row--action">
+        <div>
+          <strong>附录根目录</strong>
+          <span>{{ appendixRootLabel }}</span>
+        </div>
+        <button
+          type="button"
+          class="android-settings-action android-settings-action--folder"
+          :disabled="!noteFolders.length"
+          @click="openFolderPicker('appendix')"
+        >
+          <FolderOpen :size="14" />
+          打开文件夹
+        </button>
+      </div>
+    </section>
+
+    <section class="android-settings-card">
+      <div class="android-settings-card__heading">
         <Database :size="18" />
         <div>
           <small>LOCAL DATA</small>
@@ -103,7 +138,7 @@
           type="button"
           class="android-settings-action android-settings-action--folder"
           :disabled="!noteFolders.length"
-          @click="openFolderPicker"
+          @click="openFolderPicker('notes')"
         >
           <FolderOpen :size="14" />
           打开文件夹
@@ -141,12 +176,12 @@
             class="android-folder-picker__panel"
             role="dialog"
             aria-modal="true"
-            aria-label="选择笔记根目录"
+            :aria-label="folderPickerTitle"
           >
             <header class="android-folder-picker__header">
               <div>
-                <small>NOTE ROOT</small>
-                <h2>选择笔记根目录</h2>
+                <small>{{ folderPickerEyebrow }}</small>
+                <h2>{{ folderPickerTitle }}</h2>
               </div>
               <button
                 type="button"
@@ -165,25 +200,25 @@
               role="tree"
             >
               <button
-                key="all-notes"
+                key="all-content"
                 type="button"
                 class="android-folder-picker__item android-folder-picker__item--all"
-                :class="{ 'is-selected': !noteRootPath }"
-                @click="selectNoteRoot('')"
+                :class="{ 'is-selected': !folderPickerRootPath }"
+                @click="selectFolderRoot('')"
               >
                 <span class="android-folder-picker__folder"><FolderOpen :size="18" /></span>
                 <span>
-                  <strong>全部笔记</strong>
-                  <small>显示仓库中的全部文件夹</small>
+                  <strong>{{ folderPickerAllLabel }}</strong>
+                  <small>{{ folderPickerAllDescription }}</small>
                 </span>
-                <Check v-if="!noteRootPath" :size="17" />
+                <Check v-if="!folderPickerRootPath" :size="17" />
               </button>
 
               <div
                 v-for="folder in visibleNoteFolders"
                 :key="folder.path"
                 class="android-folder-picker__item android-folder-picker__item--folder"
-                :class="{ 'is-selected': noteRootPath === folder.path }"
+                :class="{ 'is-selected': folderPickerRootPath === folder.path }"
                 :style="{ '--folder-depth': folder.depth }"
                 role="treeitem"
                 :aria-level="folder.depth + 1"
@@ -204,8 +239,8 @@
                 <button
                   type="button"
                   class="android-folder-picker__select"
-                  :aria-current="noteRootPath === folder.path ? 'true' : undefined"
-                  @click="selectNoteRoot(folder.path)"
+                  :aria-current="folderPickerRootPath === folder.path ? 'true' : undefined"
+                  @click="selectFolderRoot(folder.path)"
                 >
                   <span class="android-folder-picker__folder">
                     <FolderOpen v-if="folder.hasChildren && isNoteFolderOpen(folder.path)" :size="18" />
@@ -215,13 +250,13 @@
                     <strong>{{ folder.name }}</strong>
                     <small>{{ folder.path }}</small>
                   </span>
-                  <Check v-if="noteRootPath === folder.path" :size="17" />
+                  <Check v-if="folderPickerRootPath === folder.path" :size="17" />
                 </button>
               </div>
             </TransitionGroup>
 
             <p class="android-folder-picker__hint">
-              点左侧箭头展开文件夹。这里只改变显示范围，更新时仍会保存全部笔记和图片。
+              {{ folderPickerHint }}
             </p>
           </section>
         </div>
@@ -234,6 +269,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { createMessage } from 'snowingress-my-components'
 import {
+  Brain,
   Check,
   ChevronRight,
   Database,
@@ -246,6 +282,7 @@ import {
 } from 'lucide-vue-next'
 import profileAvatar from '../../assets/images/headerPH.png'
 import {
+  APPENDIX_ROOT_PATH_KEY,
   ANDROID_LIGHT_CODE_BLOCKS_KEY,
   NOTE_ROOT_PATH_KEY
 } from '../../constants/storage'
@@ -260,11 +297,16 @@ import {
   readAndroidTheme,
   saveAndroidTheme
 } from '../theme'
+import {
+  readAndroidAppendixEnabled,
+  saveAndroidAppendixEnabled
+} from '../appendix'
 
-const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.10'
+const appVersion = import.meta.env.VITE_ANDROID_APP_VERSION || '2.0.11'
 const reducedMotion = ref(localStorage.getItem('android-reduced-motion') === 'true')
 const lightCodeBlocks = ref(localStorage.getItem(ANDROID_LIGHT_CODE_BLOCKS_KEY) === 'true')
 const selectedTheme = ref(readAndroidTheme())
+const appendixEnabled = ref(readAndroidAppendixEnabled())
 const warmThemeEnabled = computed({
   get: () => selectedTheme.value === 'warm',
   set: (enabled) => selectInterfaceTheme(enabled ? 'warm' : 'gray')
@@ -272,9 +314,11 @@ const warmThemeEnabled = computed({
 const notesSyncing = ref(false)
 const notesLastSyncedAt = ref('')
 const noteRootPath = ref(normalizeFolderPath(localStorage.getItem(NOTE_ROOT_PATH_KEY) || ''))
+const appendixRootPath = ref(normalizeFolderPath(localStorage.getItem(APPENDIX_ROOT_PATH_KEY) || ''))
 const noteFolders = ref([])
 const openNoteFolders = ref(new Set())
 const folderPickerVisible = ref(false)
+const folderPickerTarget = ref('notes')
 const visibleNoteFolders = computed(() => noteFolders.value.filter((folder) => {
   let parentPath = folder.parentPath
 
@@ -295,6 +339,33 @@ const noteRootLabel = computed(() => {
 
   return noteRootPath.value || '全部笔记'
 })
+const appendixRootLabel = computed(() => {
+  if (!noteFolders.value.length) {
+    return '请先更新笔记'
+  }
+
+  return appendixRootPath.value || '全部附录'
+})
+const folderPickerRootPath = computed(() =>
+  folderPickerTarget.value === 'appendix' ? appendixRootPath.value : noteRootPath.value
+)
+const folderPickerTitle = computed(() =>
+  folderPickerTarget.value === 'appendix' ? '选择附录根目录' : '选择笔记根目录'
+)
+const folderPickerEyebrow = computed(() =>
+  folderPickerTarget.value === 'appendix' ? 'APPENDIX ROOT' : 'NOTE ROOT'
+)
+const folderPickerAllLabel = computed(() =>
+  folderPickerTarget.value === 'appendix' ? '全部附录' : '全部笔记'
+)
+const folderPickerAllDescription = computed(() =>
+  folderPickerTarget.value === 'appendix'
+    ? '附录显示仓库中的全部文件夹'
+    : '显示仓库中的全部文件夹'
+)
+const folderPickerHint = computed(() =>
+  `点左侧箭头展开文件夹。这里只改变${folderPickerTarget.value === 'appendix' ? '附录' : '笔记'}显示范围，更新时仍会保存全部笔记和图片。`
+)
 
 function normalizeFolderPath(path) {
   return String(path || '')
@@ -349,24 +420,28 @@ function applyCachedTree(cachedTree) {
     [...openNoteFolders.value].filter((folderPath) => validPaths.has(folderPath))
   )
 
-  if (
-    noteRootPath.value
-    && !noteFolders.value.some((folder) => folder.path === noteRootPath.value)
-  ) {
-    noteRootPath.value = ''
-    localStorage.removeItem(NOTE_ROOT_PATH_KEY)
-  }
-
-  revealSelectedNoteRoot()
+  validateRootPath(noteRootPath, NOTE_ROOT_PATH_KEY, validPaths)
+  validateRootPath(appendixRootPath, APPENDIX_ROOT_PATH_KEY, validPaths)
+  revealFolderRoot(noteRootPath.value)
+  revealFolderRoot(appendixRootPath.value)
 }
 
-function revealSelectedNoteRoot() {
-  if (!noteRootPath.value) {
+function validateRootPath(rootPathRef, storageKey, validPaths) {
+  if (!rootPathRef.value || validPaths.has(rootPathRef.value)) {
+    return
+  }
+
+  rootPathRef.value = ''
+  localStorage.removeItem(storageKey)
+}
+
+function revealFolderRoot(rootPath) {
+  if (!rootPath) {
     return
   }
 
   const nextOpenFolders = new Set(openNoteFolders.value)
-  let currentPath = noteRootPath.value
+  let currentPath = rootPath
 
   while (currentPath) {
     nextOpenFolders.add(currentPath)
@@ -434,13 +509,14 @@ async function loadSyncTimes() {
   } catch {}
 }
 
-function openFolderPicker() {
+function openFolderPicker(target = 'notes') {
   if (!noteFolders.value.length) {
     notify('请先更新笔记', 'warning')
     return
   }
 
-  revealSelectedNoteRoot()
+  folderPickerTarget.value = target === 'appendix' ? 'appendix' : 'notes'
+  revealFolderRoot(folderPickerRootPath.value)
   folderPickerVisible.value = true
 }
 
@@ -448,17 +524,22 @@ function closeFolderPicker() {
   folderPickerVisible.value = false
 }
 
-function selectNoteRoot(path) {
-  noteRootPath.value = normalizeFolderPath(path)
+function selectFolderRoot(path) {
+  const isAppendixTarget = folderPickerTarget.value === 'appendix'
+  const rootPathRef = isAppendixTarget ? appendixRootPath : noteRootPath
+  const storageKey = isAppendixTarget ? APPENDIX_ROOT_PATH_KEY : NOTE_ROOT_PATH_KEY
+  const contentLabel = isAppendixTarget ? '附录' : '笔记'
 
-  if (noteRootPath.value) {
-    localStorage.setItem(NOTE_ROOT_PATH_KEY, noteRootPath.value)
+  rootPathRef.value = normalizeFolderPath(path)
+
+  if (rootPathRef.value) {
+    localStorage.setItem(storageKey, rootPathRef.value)
   } else {
-    localStorage.removeItem(NOTE_ROOT_PATH_KEY)
+    localStorage.removeItem(storageKey)
   }
 
   closeFolderPicker()
-  notify(noteRootPath.value ? `笔记根目录已设为 ${noteRootPath.value}` : '已显示全部笔记')
+  notify(rootPathRef.value ? `${contentLabel}根目录已设为 ${rootPathRef.value}` : `已显示全部${contentLabel}`)
 }
 
 async function updateNotes() {
@@ -494,6 +575,11 @@ function saveMotionPreference() {
       detail: { enabled: reducedMotion.value }
     })
   )
+}
+
+function saveAppendixPreference() {
+  appendixEnabled.value = saveAndroidAppendixEnabled(appendixEnabled.value)
+  notify(appendixEnabled.value ? '随心看已开启，底部导航已显示附录' : '随心看已关闭，底部导航已隐藏附录')
 }
 
 function selectInterfaceTheme(theme) {
