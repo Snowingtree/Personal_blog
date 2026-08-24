@@ -461,10 +461,12 @@ import NoteTreeNode from '../../components/notes/NoteTreeNode/NoteTreeNode.vue'
 import {
   APPENDIX_ACTIVE_PATH_KEY,
   APPENDIX_OPEN_FOLDERS_KEY,
+  APPENDIX_READING_POSITIONS_KEY,
   APPENDIX_ROOT_PATH_KEY,
   ANDROID_LIGHT_CODE_BLOCKS_KEY,
   NOTE_ACTIVE_PATH_KEY,
   NOTE_OPEN_FOLDERS_KEY,
+  NOTE_READING_POSITIONS_KEY,
   NOTE_ROOT_PATH_KEY,
   NOTE_SIDEBAR_MODE_KEY,
   NOTE_SIDEBAR_WIDTH_KEY
@@ -540,6 +542,19 @@ function readStorageArray(key) {
   }
 }
 
+function readStorageObject(key) {
+  if (typeof localStorage === 'undefined') return {}
+
+  try {
+    const parsedValue = JSON.parse(localStorage.getItem(key) || '{}')
+    return parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue)
+      ? parsedValue
+      : {}
+  } catch {
+    return {}
+  }
+}
+
 function writeStorageValue(key, value) {
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(key, value)
@@ -557,6 +572,9 @@ const workspaceLabel = isAppendixView ? '附录' : '笔记'
 const rootPathStorageKey = isAppendixView ? APPENDIX_ROOT_PATH_KEY : NOTE_ROOT_PATH_KEY
 const activePathStorageKey = isAppendixView ? APPENDIX_ACTIVE_PATH_KEY : NOTE_ACTIVE_PATH_KEY
 const openFoldersStorageKey = isAppendixView ? APPENDIX_OPEN_FOLDERS_KEY : NOTE_OPEN_FOLDERS_KEY
+const readingPositionsStorageKey = isAppendixView
+  ? APPENDIX_READING_POSITIONS_KEY
+  : NOTE_READING_POSITIONS_KEY
 const { privateAppAvailable, privateAppChecking } = usePrivateAppAccess()
 const files = ref([])
 const lightCodeBlocks = ref(
@@ -578,6 +596,7 @@ const repoChangedFiles = ref([])
 const loadError = ref('')
 const saveError = ref('')
 const openFolders = ref(new Set(readStorageArray(openFoldersStorageKey)))
+const readingPositions = readStorageObject(readingPositionsStorageKey)
 const sidebarMode = ref(readStorageValue(NOTE_SIDEBAR_MODE_KEY, 'tree') === 'titles' ? 'titles' : 'tree')
 const commitDialogVisible = ref(false)
 const commitType = ref('feat')
@@ -596,6 +615,8 @@ const mobileDirectoryScrollTop = ref(0)
 const activeHeadingId = ref('')
 let activeHeadingScrollElement = null
 let activeHeadingAnimationFrame = 0
+let readingPositionSaveTimerId = 0
+let scheduledReadingPositionPath = ''
 let noteAssetRenderVersion = 0
 let noteAssetObserver = null
 let noteAssetLoadScheduled = false
@@ -1085,6 +1106,115 @@ function resolvePreviewScrollElement() {
   }, null)
 }
 
+function persistReadingPositions() {
+  const entries = Object.entries(readingPositions)
+
+  if (entries.length > 200) {
+    entries
+      .sort((left, right) => Number(left[1]?.savedAt || 0) - Number(right[1]?.savedAt || 0))
+      .slice(0, entries.length - 200)
+      .forEach(([path]) => {
+        delete readingPositions[path]
+      })
+  }
+
+  writeStorageValue(readingPositionsStorageKey, JSON.stringify(readingPositions))
+}
+
+function saveReadingPosition(path = activePath.value) {
+  if (!isAndroidApp || !path) {
+    return
+  }
+
+  const scrollElement = resolvePreviewScrollElement()
+
+  if (!scrollElement) {
+    return
+  }
+
+  const maxScrollTop = Math.max(scrollElement.scrollHeight - scrollElement.clientHeight, 0)
+  const scrollTop = Math.max(0, Math.min(scrollElement.scrollTop, maxScrollTop))
+
+  readingPositions[path] = {
+    scrollTop: Math.round(scrollTop),
+    progress: maxScrollTop > 0 ? scrollTop / maxScrollTop : 0,
+    savedAt: Date.now()
+  }
+  persistReadingPositions()
+}
+
+function scheduleReadingPositionSave() {
+  if (!isAndroidApp || !activePath.value || typeof window === 'undefined') {
+    return
+  }
+
+  window.clearTimeout(readingPositionSaveTimerId)
+  scheduledReadingPositionPath = activePath.value
+  readingPositionSaveTimerId = window.setTimeout(() => {
+    readingPositionSaveTimerId = 0
+
+    if (activePath.value === scheduledReadingPositionPath) {
+      saveReadingPosition(scheduledReadingPositionPath)
+    }
+  }, 180)
+}
+
+function flushReadingPosition(path = activePath.value) {
+  if (typeof window !== 'undefined') {
+    window.clearTimeout(readingPositionSaveTimerId)
+  }
+
+  readingPositionSaveTimerId = 0
+  scheduledReadingPositionPath = ''
+  saveReadingPosition(path)
+}
+
+async function restoreReadingPosition(path = activePath.value) {
+  if (!isAndroidApp || !path) {
+    return
+  }
+
+  const storedPosition = readingPositions[path]
+
+  if (!storedPosition || typeof storedPosition !== 'object') {
+    return
+  }
+
+  await nextTick()
+  await nextTick()
+
+  if (typeof window !== 'undefined') {
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+  }
+
+  if (activePath.value !== path) {
+    return
+  }
+
+  const scrollElement = resolvePreviewScrollElement()
+
+  if (!scrollElement) {
+    return
+  }
+
+  const maxScrollTop = Math.max(scrollElement.scrollHeight - scrollElement.clientHeight, 0)
+  const storedScrollTop = Number(storedPosition.scrollTop)
+  const storedProgress = Number(storedPosition.progress)
+  const targetScrollTop = Number.isFinite(storedScrollTop) && storedScrollTop <= maxScrollTop
+    ? storedScrollTop
+    : Number.isFinite(storedProgress)
+      ? storedProgress * maxScrollTop
+      : 0
+
+  scrollElement.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop))
+  scheduleActiveHeadingUpdate()
+}
+
+function handlePreviewScroll() {
+  scheduleActiveHeadingUpdate()
+  scheduleReadingPositionSave()
+}
+
 function updateActiveHeading() {
   activeHeadingAnimationFrame = 0
 
@@ -1127,7 +1257,7 @@ function scheduleActiveHeadingUpdate() {
 }
 
 function stopActiveHeadingTracking() {
-  activeHeadingScrollElement?.removeEventListener('scroll', scheduleActiveHeadingUpdate)
+  activeHeadingScrollElement?.removeEventListener('scroll', handlePreviewScroll)
   activeHeadingScrollElement = null
 
   if (activeHeadingAnimationFrame) {
@@ -1144,7 +1274,7 @@ async function startActiveHeadingTracking() {
   await nextTick()
   stopActiveHeadingTracking()
   activeHeadingScrollElement = resolvePreviewScrollElement()
-  activeHeadingScrollElement?.addEventListener('scroll', scheduleActiveHeadingUpdate, {
+  activeHeadingScrollElement?.addEventListener('scroll', handlePreviewScroll, {
     passive: true
   })
   scheduleActiveHeadingUpdate()
@@ -1363,8 +1493,10 @@ async function handleSelectFile(path) {
     }
   }
 
+  flushReadingPosition(activePath.value)
   await openFile(path)
   closeMobileDirectory()
+  await restoreReadingPosition(path)
 }
 
 function toggleFolder(path) {
@@ -1792,6 +1924,7 @@ onMounted(async () => {
     await syncMobileDirectoryTriggerObserver()
     syncSidebarWidthToLayout()
     await startActiveHeadingTracking()
+    await restoreReadingPosition(activePath.value)
 
     return
   }
@@ -1813,6 +1946,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  flushReadingPosition(activePath.value)
   stopMobileDirectoryTriggerObserver()
   stopActiveHeadingTracking()
   releaseNoteAssetObjectUrls()
