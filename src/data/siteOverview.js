@@ -51,7 +51,7 @@ export const sitePublicTools = {
   lead: '',
   demos: [
     {
-      eyebrow: 'Canvas Demo',
+      eyebrow: 'Vue + Canvas',
       title: '在线简历编辑',
       cardTo: '/resume-editor'
     },

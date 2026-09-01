@@ -1,0 +1,13 @@
+{
+  "name": "sketching-core",
+  "version": "0.0.1",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/core/src/index.js",
+  "types": "dist/core/src/index.d.ts",
+  "dependencies": {
+    "resize-observer-polyfill": "1.5.1",
+    "sketching-delta": "file:../delta",
+    "sketching-utils": "file:../utils"
+  }
+}

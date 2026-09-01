@@ -1,2963 +1,666 @@
 <template>
-  <main class="resume-editor-page">
-    <ResumeEditorToolbar
-      v-model:zoom="zoom"
-      :can-undo="canUndo"
-      :draft-status="draftStatus"
-      :zoom-options="zoomOptions"
-      @add-page="addPage"
-      @export-pdf="exportPdf"
-      @reset="resetResume"
-      @save="saveDraft"
-      @undo="undoResume"
-    />
+  <div class="ce-app" @click="closeFloatingMenus">
+    <header class="ce-header" @click.stop>
+      <div class="ce-tool-group">
+        <button
+          v-for="tool in tools"
+          :key="tool.id"
+          type="button"
+          class="ce-icon-button ce-tool-button"
+          :class="{ active: activeTool === tool.id }"
+          :title="tool.label"
+          :draggable="activeTool === 'default' && tool.draggable"
+          @click="switchTool(tool.id)"
+          @dragstart="startToolDrag($event, tool.id)"
+          @dragend="switchTool('default')"
+        >
+          <component :is="tool.icon" :size="18" :stroke-width="1.7" />
+        </button>
+      </div>
 
-    <div class="resume-editor-shell">
-      <ResumeEditorSidebar
-        :active-block="activeBlock"
-        :dragging-section-key="draggingSectionKey"
-        :module-navigator="moduleNavigator"
-        :resume="resume"
-        @add-education="addEducation"
-        @add-experience="addExperience"
-        @add-project="addProject"
-        @add-skill="addSkill"
-        @clear-section-drag="clearSectionDrag"
-        @delete-section="deleteSection"
-        @drop-section="dropSection"
-        @move-section="moveSection"
-        @select-module="selectModule"
-        @select-navigator-child="selectNavigatorChild"
-        @start-section-drag="startSectionDrag"
-      />
-
-      <ResumeEditorWorkspace
-        :active-block="activeBlock"
-        :dragging-section-key="draggingSectionKey"
-        :paper-frame-style="paperFrameStyle"
-        :paper-style="paperStyle"
-        :resume="resume"
-        :resume-pages="resumePages"
-        :zoom-scale="zoomScale"
-        @commit-boundary-resize="commitSnapshot"
-        @clear-section-drag="clearSectionDrag"
-        @drop-section="dropSection"
-        @open-profile-editor="openProfileEditor"
-        @open-module-editor="openModuleEditor"
-        @resize-module-boundary="resizeModuleBoundary"
-        @select-entry="selectEntry"
-        @select-module="selectModule"
-        @select-profile="selectProfile"
-        @start-section-drag="startSectionDrag"
-      />
-
-      <Transition name="resume-inline-notice">
-        <div v-if="resumeNotice" class="resume-inline-notice" role="status">
-          <span>{{ resumeNotice }}</span>
+      <div class="ce-header-actions">
+        <div class="ce-history-actions">
+          <button type="button" class="ce-icon-button ce-history-button" title="撤销" :disabled="!canUndo" @click="undo">
+            <Undo2 :size="15" />
+          </button>
+          <button type="button" class="ce-icon-button ce-history-button" title="重做" :disabled="!canRedo" @click="redo">
+            <Redo2 :size="15" />
+          </button>
         </div>
-      </Transition>
+
+        <div class="ce-dropdown">
+          <button type="button" class="ce-dropdown-trigger" @click="toggleMenu('operation')">
+            操作 <ChevronDown :size="13" />
+          </button>
+          <div v-if="openMenu === 'operation'" class="ce-dropdown-menu">
+            <button type="button" @click="openPreview">预览</button>
+            <button type="button" @click="openResizeModal">画布大小</button>
+            <button type="button" @click="addPage">新增一页</button>
+            <button type="button" @click="importInput?.click()">导入JSON</button>
+          </div>
+        </div>
+
+        <div class="ce-dropdown">
+          <button type="button" class="ce-dropdown-trigger" @click="toggleMenu('export')">
+            导出 <ChevronDown :size="13" />
+          </button>
+          <div v-if="openMenu === 'export'" class="ce-dropdown-menu ce-export-menu">
+            <button type="button" @click="exportPdf(1)">PDF</button>
+            <button type="button" @click="exportJson">JSON</button>
+            <button type="button" @click="exportPdf(2)">PDF(高清)</button>
+          </div>
+        </div>
+
+        <a class="ce-github" href="https://github.com/WindRunnerMax/CanvasEditor" target="_blank" rel="noreferrer" title="GitHub">
+          <Github :size="21" />
+        </a>
+      </div>
+    </header>
+
+    <main class="ce-body">
+      <aside class="ce-left-panel">
+        <div class="ce-tabs" role="tablist">
+          <button type="button" :class="{ active: leftTab === 'template' }" @click="leftTab = 'template'">模板</button>
+          <button type="button" :class="{ active: leftTab === 'structure' }" @click="leftTab = 'structure'">结构</button>
+        </div>
+
+        <div v-if="leftTab === 'template'" class="ce-template-panel">
+          <button v-for="item in TEMPLATE_CONFIG" :key="item.id" type="button" class="ce-template-item" @click="pendingTemplate = item">
+            <span class="ce-template-image-frame"><img :src="item.image" :alt="item.name" /></span>
+            <span class="ce-template-name">{{ item.name }}</span>
+          </button>
+        </div>
+
+        <div v-else class="ce-structure-panel">
+          <div v-for="node in structureNodes" :key="node.id" class="ce-structure-item" :class="{ active: selectedIds.includes(node.id) }">
+            <button type="button" class="ce-structure-title" @click="selectNode(node.id)">
+              <component :is="structureIcon(node.key)" :size="14" />
+              <span>{{ node.id }}</span>
+            </button>
+            <button type="button" class="ce-structure-remove" @click="deleteNode(node.id)"><X :size="13" /></button>
+          </div>
+        </div>
+      </aside>
+
+      <div ref="canvasHost" class="ce-canvas-host"></div>
+
+      <aside class="ce-right-panel" :class="{ collapsed: panelCollapsed }" @click.stop>
+        <button type="button" class="ce-panel-collapse" :title="panelCollapsed ? '展开属性面板' : '收起属性面板'" @click="panelCollapsed = !panelCollapsed">
+          <Plus :size="15" />
+        </button>
+
+        <div class="ce-panel-scroll">
+          <div v-if="selectionPosition" class="ce-coordinate-preview">
+            <span class="ce-coordinate-box"></span>
+            <span class="ce-coordinate ce-lt">{{ selectionPosition.lt }}</span>
+            <span class="ce-coordinate ce-rt">{{ selectionPosition.rt }}</span>
+            <span class="ce-coordinate ce-lb">{{ selectionPosition.lb }}</span>
+            <span class="ce-coordinate ce-rb">{{ selectionPosition.rb }}</span>
+          </div>
+
+          <div v-if="selectedIds.length === 0" class="ce-empty-property">请选择图形</div>
+
+          <template v-else-if="selectedState?.key === 'rect'">
+            <div class="ce-property-title">边框</div>
+            <label class="ce-property-row">
+              <span>颜色</span>
+              <input v-model="property.borderColor" type="color" @change="setAttribute(RECT_ATTRS.BORDER_COLOR, property.borderColor)" />
+            </label>
+            <label class="ce-property-row">
+              <span>宽度</span>
+              <input v-model.number="property.borderWidth" class="ce-number-input" type="number" min="1" max="10" @change="setAttribute(RECT_ATTRS.BORDER_WIDTH, property.borderWidth)" />
+            </label>
+            <div class="ce-property-row ce-check-row">
+              <span>状态</span>
+              <div>
+                <label v-for="side in sideOptions" :key="side.key">
+                  <input v-model="property.sides[side.key]" type="checkbox" @change="setSide(side.key, property.sides[side.key])" /> {{ side.label }}
+                </label>
+              </div>
+            </div>
+            <div class="ce-property-title">背景</div>
+            <label class="ce-property-row">
+              <span>颜色</span>
+              <input v-model="property.fillColor" type="color" @change="setAttribute(RECT_ATTRS.FILL_COLOR, property.fillColor)" />
+            </label>
+          </template>
+
+          <template v-else-if="selectedState?.key === 'image'">
+            <div class="ce-property-title">边框</div>
+            <label class="ce-property-row">
+              <span>颜色</span>
+              <input v-model="property.borderColor" type="color" @change="setAttribute(RECT_ATTRS.BORDER_COLOR, property.borderColor)" />
+            </label>
+            <label class="ce-property-row">
+              <span>宽度</span>
+              <input v-model.number="property.borderWidth" class="ce-number-input" type="number" min="0" max="10" @change="setAttribute(RECT_ATTRS.BORDER_WIDTH, property.borderWidth)" />
+            </label>
+            <div class="ce-property-title">图像</div>
+            <div class="ce-property-row">
+              <span>图片</span>
+              <button type="button" class="ce-upload-link" @click="imageInput?.click()">上传图片</button>
+            </div>
+            <div class="ce-property-row ce-mode-row">
+              <span>模式</span>
+              <div>
+                <label v-for="mode in imageModes" :key="mode">
+                  <input v-model="property.imageMode" type="radio" :value="mode" @change="setAttribute(IMAGE_ATTRS.MODE, mode)" /> {{ mode }}
+                </label>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="selectedState?.key === 'text'">
+            <div class="ce-property-title ce-rich-title">
+              <span>富文本</span>
+              <button type="button" title="放大编辑" @click="richModalVisible = true"><ExternalLink :size="14" /></button>
+            </div>
+            <div :key="selectedState.id" class="ce-rich-editor" contenteditable="true" spellcheck="false" @input="onRichInput" @blur="saveRichText" v-html="richTextHtml"></div>
+          </template>
+
+          <div v-else-if="selectedIds.length > 1" class="ce-multiple-property">已选择 {{ selectedIds.length }} 个图形</div>
+        </div>
+      </aside>
+
+      <div class="ce-page-nav" @click.stop>
+        <button type="button" :disabled="currentPage === 0" title="上一页" @click="jumpToPage(currentPage - 1)">‹</button>
+        <span>第 {{ currentPage + 1 }} / {{ pageCount }} 页</span>
+        <button type="button" :disabled="currentPage >= pageCount - 1" title="下一页" @click="jumpToPage(currentPage + 1)">›</button>
+        <button type="button" class="ce-add-page" @click="addPage"><Plus :size="13" /> 新增一页</button>
+      </div>
+    </main>
+
+    <div v-if="contextMenu.visible" class="ce-context-menu" :style="{ top: `${contextMenu.top}px`, left: `${contextMenu.left}px` }" @click.stop>
+      <button v-if="selectedIds.length" type="button" @click="copySelection"><span>复制</span><kbd>Ctrl+C</kbd></button>
+      <button type="button" @click="pasteHint"><span>粘贴</span><kbd>Ctrl+V</kbd></button>
+      <button type="button" @click="selectAll"><span>全选</span><kbd>Ctrl+A</kbd></button>
+      <div v-if="selectedIds.length" class="ce-context-divider"></div>
+      <button v-if="selectedIds.length" type="button" @click="changeLayer(1)">上移一层</button>
+      <button v-if="selectedIds.length" type="button" @click="changeLayer(-1)">下移一层</button>
     </div>
 
-    <ResumeEditorModuleDialog
-      :active-block="activeBlock"
-      :open="Boolean(activeModuleDialogKey)"
-      :resume="resume"
-      :section="activeModuleDialogSection"
-      @add-education="addEducationFromDialog"
-      @close="closeModuleEditor"
-      @commit-snapshot="commitSnapshot"
-      @remove-entry="removeEntry"
-      @select-entry="selectEntry"
-      @update-rich-text="updateRichTextSection"
-    />
+    <div v-if="pendingTemplate" class="ce-modal-mask" @mousedown.self="pendingTemplate = null">
+      <section class="ce-modal ce-warning-modal">
+        <h3>警告</h3>
+        <p>确定要加载模板吗，当前的数据将会被覆盖。</p>
+        <div class="ce-modal-actions">
+          <button type="button" @click="pendingTemplate = null">取消</button>
+          <button type="button" class="primary" :disabled="templateLoading" @click="confirmTemplate">{{ templateLoading ? '加载中...' : '确定' }}</button>
+        </div>
+      </section>
+    </div>
 
-    <ResumeEditorProfileDialog
-      :open="profileDialogOpen"
-      :profile="resume.profile"
-      @close="closeProfileEditor"
-      @commit-snapshot="commitSnapshot"
-    />
-  </main>
+    <div v-if="resizeModalVisible" class="ce-modal-mask" @mousedown.self="resizeModalVisible = false">
+      <section class="ce-modal ce-resize-modal">
+        <h3>调整画布大小</h3>
+        <div class="ce-resize-content">
+          <span>宽(width) x 高(height):</span>
+          <input v-model.number="resizeForm.width" type="number" min="600" max="2000" />
+          <input v-model.number="resizeForm.height" type="number" min="1000" max="4000" />
+        </div>
+        <div class="ce-modal-actions">
+          <button type="button" @click="resizeModalVisible = false">取消</button>
+          <button type="button" class="primary" @click="applyCanvasSize">确定</button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="richModalVisible" class="ce-modal-mask" @mousedown.self="richModalVisible = false">
+      <section class="ce-modal ce-rich-modal">
+        <button type="button" class="ce-rich-modal-close" @click="richModalVisible = false"><X :size="16" /></button>
+        <h3>富文本</h3>
+        <textarea v-model="richTextValue" autofocus @input="saveRichText"></textarea>
+      </section>
+    </div>
+
+    <input ref="importInput" class="ce-hidden-input" type="file" accept="application/json,.json" @change="importJson" />
+    <input ref="imageInput" class="ce-hidden-input" type="file" accept="image/*" @change="uploadImage" />
+    <div v-if="toast" class="ce-toast">{{ toast }}</div>
+  </div>
 </template>
+
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import ResumeEditorModuleDialog from './components/ResumeEditorModuleDialog.vue'
-import ResumeEditorProfileDialog from './components/ResumeEditorProfileDialog.vue'
-import ResumeEditorSidebar from './components/ResumeEditorSidebar.vue'
-import ResumeEditorToolbar from './components/ResumeEditorToolbar.vue'
-import ResumeEditorWorkspace from './components/ResumeEditorWorkspace.vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { ChevronDown, ExternalLink, Github, Hand, Image as ImageIcon, MousePointer2, Plus, Redo2, Square, Type, Undo2, X } from 'lucide-vue-next'
+import { DRAG_KEY, EDITOR_EVENT, Range } from 'sketching-core'
+import { DeltaSet, Op, OP_TYPE } from 'sketching-delta'
+import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH, DEFAULT_FILL_COLOR, FALSY, IMAGE_ATTRS, IMAGE_MODE, RECT_ATTRS, TEXT_ATTRS, TRULY, isTruly } from 'sketching-plugin'
+import { ROOT_DELTA, TSON } from 'sketching-utils'
+import { CanvasBackground, TEMPLATE_CONFIG, createOfficialEditor, loadOfficialTemplate, loadStoredDocument, plainToRichText, renderDocumentPages, richTextToHtml, richTextToPlain, saveStoredDocument } from './officialCanvas.js'
 
-const RESUME_EDITOR_DRAFT_KEY = 'vibe-coding-resume-editor-draft'
-const PAPER_WIDTH = 794
-const PAPER_HEIGHT = 1123
-const PDF_A4_WIDTH_PT = 595.28
-const PDF_A4_HEIGHT_PT = 841.89
-const PDF_EXPORT_SCALE = 3
-const PDF_IMAGE_QUALITY = 0.98
-const PDF_FILE_NAME = '\u7b80\u5386.pdf'
-const PAGE_CONTENT_HEIGHT = 1040
-const PAGE_TOP_SAFE_GAP = 34
-const PAGE_BOTTOM_SAFE_GAP = 18
-const PROFILE_BLOCK_HEIGHT = 178
-const MODULE_BASE_HEIGHT = 84
-const MODULE_CONTENT_INSET = 18
-const MODULE_FLOW_GAP = 14
-const MODULE_TITLE_HEIGHT = 38
-const MODULE_CONTINUATION_PADDING = 10
-const DEFAULT_MODULE_BOUNDS = Object.freeze({
-  top: 22,
-  right: 56,
-  bottom: 22,
-  left: 56
-})
-const MODULE_BOUND_LIMITS = Object.freeze({
-  top: [-42, 40],
-  right: [24, 180],
-  bottom: [8, 460],
-  left: [24, 180]
-})
+const DEFAULT_IMAGE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#f2f3f5"/><path fill="#bbb" d="M64 96h384v320H64z"/><path fill="#fff" d="m104 360 96-112 62 70 52-54 94 96z"/><circle cx="164" cy="176" r="38" fill="#fff"/></svg>')}`
 
-const sectionControls = [
-  { key: 'education', title: '\u6559\u80b2', resumeTitle: '\u6559\u80b2\u7ecf\u5386', description: '\u5b66\u6821 / \u4e13\u4e1a / \u5b66\u5386 / \u65f6\u95f4' },
-  { key: 'projects', title: '\u9879\u76ee', resumeTitle: '\u9879\u76ee\u7ecf\u5386', description: '\u5bcc\u6587\u672c\u5185\u5bb9' },
-  { key: 'skills', title: '\u6280\u80fd', resumeTitle: '\u6280\u80fd\u6e05\u5355', description: '\u5bcc\u6587\u672c\u5185\u5bb9' },
-  { key: 'experience', title: '\u5b9e\u4e60', resumeTitle: '\u5b9e\u4e60\u7ecf\u5386', description: '\u5bcc\u6587\u672c\u5185\u5bb9' }
+const tools = [
+  { id: 'default', label: '选择', icon: markRaw(MousePointer2) },
+  { id: 'grab', label: '抓取', icon: markRaw(Hand) },
+  { id: 'rect', label: '矩形', icon: markRaw(Square), draggable: true },
+  { id: 'image', label: '图像', icon: markRaw(ImageIcon), draggable: true },
+  { id: 'text', label: '文本', icon: markRaw(Type), draggable: true }
 ]
-const sectionMap = new Map(sectionControls.map((section) => [section.key, section]))
-const defaultSectionOrder = sectionControls.map((section) => section.key)
-const legacyDefaultSectionOrder = ['experience', 'projects', 'education', 'skills']
-const dialogEditableSections = new Set(['education', 'projects', 'experience', 'skills'])
-const richTextSectionKeys = new Set(['experience', 'projects', 'skills'])
-const MIN_SPLIT_REMAINING_HEIGHT = 120
-const MIN_BOUNDARY_CONTINUATION_HEIGHT = 44
-const RICH_TEXT_SPLIT_TOLERANCE = 240
-const zoomOptions = [70, 80, 90, 100, 110, 120]
+const sideOptions = [
+  { key: RECT_ATTRS.T, label: 'T' }, { key: RECT_ATTRS.L, label: 'L' },
+  { key: RECT_ATTRS.R, label: 'R' }, { key: RECT_ATTRS.B, label: 'B' }
+]
+const imageModes = [IMAGE_MODE.FILL, IMAGE_MODE.COVER, IMAGE_MODE.CONTAIN]
 
-const resume = ref(createDefaultResume())
-const activeBlock = ref({ type: 'profile', key: 'profile', index: null })
-const zoom = ref(90)
-const historyStack = ref([])
-const draftStatus = ref('')
-const draggingSectionKey = ref('')
-const activeModuleDialogKey = ref('')
-const profileDialogOpen = ref(false)
-const resumeNotice = ref('')
-let draftStatusTimer = 0
-let resumeNoticeTimer = 0
-
-const zoomScale = computed(() => zoom.value / 100)
-const canUndo = computed(() => historyStack.value.length > 1)
-const moduleNavigator = computed(() =>
-  normalizeSectionOrder(resume.value.sectionOrder)
-    .filter((key) => resume.value.visibleSections[key])
-    .map((key) => ({
-      ...sectionMap.get(key),
-      children: getSectionNavigatorChildren(key)
-    }))
-)
-const visibleSectionBlocks = computed(() =>
-  moduleNavigator.value.filter((section) => resume.value.visibleSections[section.key])
-)
-const resumePages = computed(() => {
-  const pages = paginateSections(visibleSectionBlocks.value)
-  const requestedPageCount = normalizePageCount(resume.value.pageCount)
-
-  while (pages.length < requestedPageCount) {
-    pages.push(createResumePage(false))
-  }
-
-  return pages.map((page, index) => ({
-    ...page,
-    number: index + 1
-  }))
+const canvasHost = ref(null)
+const importInput = ref(null)
+const imageInput = ref(null)
+const activeTool = ref('default')
+const leftTab = ref('template')
+const panelCollapsed = ref(false)
+const openMenu = ref('')
+const canUndo = ref(false)
+const canRedo = ref(false)
+const pageCount = ref(1)
+const currentPage = ref(0)
+const selectedIds = ref([])
+const selectedState = ref(null)
+const selectionRange = ref(null)
+const structureNodes = ref([])
+const pendingTemplate = ref(null)
+const templateLoading = ref(false)
+const resizeModalVisible = ref(false)
+const richModalVisible = ref(false)
+const richTextValue = ref('')
+const richTextHtml = ref('')
+const toast = ref('')
+const contextMenu = reactive({ visible: false, top: 0, left: 0 })
+const resizeForm = reactive({ width: 794, height: 1123 })
+const property = reactive({
+  borderColor: DEFAULT_BORDER_COLOR,
+  borderWidth: Number(DEFAULT_BORDER_WIDTH),
+  fillColor: DEFAULT_FILL_COLOR,
+  imageMode: IMAGE_MODE.FILL,
+  sides: { [RECT_ATTRS.T]: false, [RECT_ATTRS.L]: false, [RECT_ATTRS.R]: false, [RECT_ATTRS.B]: false }
 })
-const paperFrameStyle = computed(() => ({
-  width: `${Math.round(PAPER_WIDTH * zoomScale.value)}px`,
-  height: `${Math.round(PAPER_HEIGHT * zoomScale.value)}px`
-}))
-const paperStyle = computed(() => ({
-  transform: `scale(${zoomScale.value})`
-}))
-const activeModuleDialogSection = computed(() =>
-  activeModuleDialogKey.value ? sectionMap.get(activeModuleDialogKey.value) || null : null
-)
 
-function createDefaultResume() {
+let editor = null
+let background = null
+let toastTimer = null
+const listeners = {}
+
+const selectionPosition = computed(() => {
+  if (!selectionRange.value || !background?.rect) return null
+  const { x, y, width, height } = selectionRange.value
+  const pageIndex = background.getPageIndexForY(y + height / 2)
+  const offset = background.getPageRect(pageIndex)
+  const format = value => Math.round(value * 10) / 10
+  const point = (px, py) => `[${format(px)},${format(py)}]`
   return {
-    pageCount: 1,
-    sectionOrder: [...defaultSectionOrder],
-    visibleSections: {
-      experience: true,
-      projects: true,
-      education: true,
-      skills: true
-    },
-    moduleBounds: createDefaultModuleBounds(),
-    profile: {
-      name: '\u5218\u5b89',
-      role: '\u524d\u7aef\u5f00\u53d1\u5de5\u7a0b\u5e08',
-      phone: '138 0000 0000',
-      email: 'liuan@example.com',
-      location: '\u676d\u5dde'
-    },
-    richText: {
-      experience:
-        'Snowingress Studio | \u524d\u7aef\u5f00\u53d1\u5b9e\u4e60\u751f | 2025.07 - \u81f3\u4eca\n- \u8d1f\u8d23\u9875\u9762\u642d\u5efa\u3001\u5217\u8868\u7ba1\u7406\u3001\u7f16\u8f91\u4ea4\u4e92\u548c\u79fb\u52a8\u7aef\u9002\u914d\u3002\n- \u4f18\u5316\u56fe\u7247\u52a0\u8f7d\u548c\u63a5\u53e3\u8bf7\u6c42\u94fe\u8def\uff0c\u63d0\u5347\u5f02\u5e38\u72b6\u6001\u53ef\u8bfb\u6027\u3002',
-      projects:
-        '\u5728\u7ebf\u7b14\u8bb0\u4e0e AI \u95ee\u7b54\u5de5\u4f5c\u53f0 | \u4e2a\u4eba\u9879\u76ee | 2026.02 - 2026.05\n- \u5b9e\u73b0 Markdown \u6587\u4ef6\u6811\u3001\u9884\u89c8\u3001\u7f16\u8f91\u3001\u63d0\u4ea4\u4e0e AI \u51fa\u9898\u6d41\u7a0b\u3002\n- \u63a5\u5165\u540e\u53f0\u63a5\u53e3\uff0c\u7edf\u4e00\u5904\u7406\u9274\u6743\u3001\u5237\u65b0 token \u548c\u9519\u8bef\u63d0\u793a\u3002',
-      skills:
-        'Vue \u751f\u6001: \u719f\u6089 Vue2 / Vue3 \u5f00\u53d1\uff0c\u5177\u5907 Vue3 + TypeScript \u9879\u76ee\u5b9e\u8df5\u7ecf\u9a8c\uff0c\u719f\u6089 Composition API\u3001Pinia \u72b6\u6001\u7ba1\u7406\u53ca Vue Router \u8def\u7531\u914d\u7f6e\u3002\n\u5de5\u7a0b\u5316: \u719f\u6089 Vite \u9879\u76ee\u914d\u7f6e\u3001\u7ec4\u4ef6\u62c6\u5206\u548c\u524d\u7aef\u6784\u5efa\u6d41\u7a0b\u3002\n\u9875\u9762\u5b9e\u73b0: \u5173\u6ce8\u79fb\u52a8\u7aef\u9002\u914d\u3001\u4ea4\u4e92\u7ec6\u8282\u548c\u53ef\u7ef4\u62a4\u7684\u6837\u5f0f\u7ec4\u7ec7\u3002'
-    },
-    education: [
-      {
-        id: createId(),
-        school: '\u67d0\u67d0\u5927\u5b66',
-        major: '\u8f6f\u4ef6\u5de5\u7a0b',
-        degree: '\u672c\u79d1',
-        period: '2022.09 - 2026.06'
-      }
-    ]
-  }
-}
-
-function createId() {
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function createDefaultModuleBounds() {
-  return defaultSectionOrder.reduce((bounds, key) => {
-    bounds[key] = { ...DEFAULT_MODULE_BOUNDS }
-    return bounds
-  }, {})
-}
-
-function normalizeSectionOrder(order) {
-  if (isSameSectionOrder(order, legacyDefaultSectionOrder)) {
-    return [...defaultSectionOrder]
-  }
-
-  const seen = new Set()
-  const normalizedOrder = Array.isArray(order)
-    ? order.filter((key) => {
-        if (!sectionMap.has(key) || seen.has(key)) {
-          return false
-        }
-
-        seen.add(key)
-        return true
-      })
-    : []
-
-  defaultSectionOrder.forEach((key) => {
-    if (!seen.has(key)) {
-      normalizedOrder.push(key)
-    }
-  })
-
-  return normalizedOrder
-}
-
-function isSameSectionOrder(order, referenceOrder) {
-  return (
-    Array.isArray(order) &&
-    order.length === referenceOrder.length &&
-    order.every((key, index) => key === referenceOrder[index])
-  )
-}
-
-function normalizeVisibleSections(visibleSections = {}) {
-  return defaultSectionOrder.reduce((result, key) => {
-    result[key] = visibleSections[key] !== false
-    return result
-  }, {})
-}
-
-function normalizeModuleBounds(moduleBounds = {}) {
-  return defaultSectionOrder.reduce((result, key) => {
-    result[key] = normalizeModuleBound(moduleBounds[key])
-    return result
-  }, {})
-}
-
-function normalizeModuleBound(bound = {}) {
-  return Object.entries(DEFAULT_MODULE_BOUNDS).reduce((result, [edge, defaultValue]) => {
-    result[edge] = clampNumber(bound?.[edge], MODULE_BOUND_LIMITS[edge][0], MODULE_BOUND_LIMITS[edge][1], defaultValue)
-    return result
-  }, {})
-}
-
-function clampNumber(value, min, max, fallback) {
-  const numberValue = Number(value)
-  const safeValue = Number.isFinite(numberValue) ? numberValue : fallback
-  return Math.min(Math.max(Math.round(safeValue), min), max)
-}
-
-function normalizePageCount(pageCount) {
-  const count = Number(pageCount)
-  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 1
-}
-
-function createResumePage(includeProfile) {
-  return {
-    includeProfile,
-    sections: [],
-    usedHeight: includeProfile ? PROFILE_BLOCK_HEIGHT : PAGE_TOP_SAFE_GAP
-  }
-}
-
-function paginateSections(sections) {
-  const pages = [createResumePage(true)]
-
-  sections.forEach((section) => {
-    if (richTextSectionKeys.has(section.key)) {
-      paginateRichTextSection(pages, section)
-      return
-    }
-
-    const sectionHeight = estimateSectionHeight(section.key)
-    paginateWholeSection(pages, section, sectionHeight)
-  })
-
-  return pages.map(({ usedHeight, ...page }) => page)
-}
-
-function paginateWholeSection(pages, section, sectionHeight) {
-  let currentPage = pages[pages.length - 1]
-
-  if (shouldCreateNextPage(currentPage, sectionHeight)) {
-    currentPage = createResumePage(false)
-    pages.push(currentPage)
-  }
-
-  currentPage.sections.push(section)
-  currentPage.usedHeight += sectionHeight
-}
-
-function paginateRichTextSection(pages, section) {
-  let content = getRichTextSectionContent(section.key)
-  let partIndex = 0
-
-  if (!content) {
-    paginateWholeSection(
-      pages,
-      { ...section, content: '', hideEmptyContent: false, isContinuation: false, partIndex: 0 },
-      estimateRichTextSectionHeight(section.key, '', {
-        isContinuation: false,
-        continuesNext: false
-      })
-    )
-    return
-  }
-
-  while (content) {
-    let currentPage = pages[pages.length - 1]
-    let isContinuation = partIndex > 0
-    let availableHeight = getAvailablePageHeight(currentPage)
-    const sectionHeight = estimateRichTextSectionHeight(section.key, content, {
-      isContinuation,
-      continuesNext: false
-    })
-
-    if (shouldCreateNextPage(currentPage, sectionHeight) && availableHeight < MIN_SPLIT_REMAINING_HEIGHT) {
-      currentPage = createResumePage(false)
-      pages.push(currentPage)
-      isContinuation = partIndex > 0
-      availableHeight = getAvailablePageHeight(currentPage)
-    }
-
-    const flowingSectionHeight = estimateRichTextSectionHeight(section.key, content, {
-      isContinuation,
-      continuesNext: true
-    })
-    const splitResult =
-      sectionHeight > availableHeight
-        ? flowingSectionHeight <= availableHeight
-          ? {
-              pageContent: content,
-              restContent: '',
-              carryBoundaryToNext: true,
-              overflowHeight: sectionHeight - availableHeight
-            }
-          : splitRichTextContentForPage(section.key, content, availableHeight, { isContinuation })
-        : { pageContent: content, restContent: '' }
-
-    if (!splitResult.pageContent && currentPage.sections.length > 0) {
-      currentPage = createResumePage(false)
-      pages.push(currentPage)
-      availableHeight = getAvailablePageHeight(currentPage)
-      isContinuation = partIndex > 0
-      const retrySplit = splitRichTextContentForPage(section.key, content, availableHeight, { isContinuation })
-      splitResult.pageContent = retrySplit.pageContent
-      splitResult.restContent = retrySplit.restContent
-    }
-
-    const pageContent = splitResult.pageContent || content
-    const continuesNext = Boolean(splitResult.restContent || splitResult.carryBoundaryToNext)
-    const estimatedPageHeight = estimateRichTextSectionHeight(section.key, pageContent, {
-      isContinuation,
-      continuesNext
-    })
-    const renderedHeight = continuesNext
-      ? Math.min(estimatedPageHeight, availableHeight)
-      : estimatedPageHeight
-    currentPage.sections.push({
-      ...section,
-      content: pageContent,
-      isContinuation,
-      continuesNext,
-      forcedHeight: continuesNext ? renderedHeight : null,
-      partIndex
-    })
-    currentPage.usedHeight += renderedHeight
-
-    if (splitResult.carryBoundaryToNext) {
-      const nextPage = createResumePage(false)
-      const continuationHeight = Math.min(
-        Math.max(Math.ceil(splitResult.overflowHeight), MIN_BOUNDARY_CONTINUATION_HEIGHT),
-        getAvailablePageHeight(nextPage)
-      )
-      nextPage.sections.push({
-        ...section,
-        content: '',
-        isBoundaryContinuation: true,
-        isContinuation: true,
-        continuesNext: false,
-        forcedHeight: continuationHeight,
-        hideEmptyContent: true,
-        partIndex: partIndex + 1
-      })
-      nextPage.usedHeight += continuationHeight + MODULE_FLOW_GAP
-      pages.push(nextPage)
-      return
-    }
-
-    if (!splitResult.restContent) {
-      return
-    }
-
-    content = splitResult.restContent
-    partIndex += 1
-    pages.push(createResumePage(false))
-  }
-}
-
-function shouldCreateNextPage(page, sectionHeight) {
-  const pageHasContent = page.includeProfile || page.sections.length > 0
-  return pageHasContent && page.usedHeight + sectionHeight + PAGE_BOTTOM_SAFE_GAP > PAGE_CONTENT_HEIGHT
-}
-
-function getAvailablePageHeight(page) {
-  return Math.max(PAGE_CONTENT_HEIGHT - PAGE_BOTTOM_SAFE_GAP - page.usedHeight, 0)
-}
-
-function getRichTextSectionContent(key) {
-  return String(resume.value.richText?.[key] || '').trim()
-}
-
-function splitRichTextContentForPage(key, content, availableHeight, options = {}) {
-  const blocks = getRichTextRenderBlocks(content)
-  const maxCandidateHeight = availableHeight + RICH_TEXT_SPLIT_TOLERANCE
-
-  if (!blocks.length) {
-    return { pageContent: content, restContent: '' }
-  }
-
-  const pageBlocks = []
-
-  for (const block of blocks) {
-    const candidateBlocks = [...pageBlocks, block]
-    const candidateContent = joinRichTextRenderBlocks(candidateBlocks)
-
-    if (
-      estimateRichTextSectionHeight(key, candidateContent, {
-        ...options,
-        continuesNext: true
-      }) <= maxCandidateHeight ||
-      !pageBlocks.length
-    ) {
-      pageBlocks.push(block)
-      continue
-    }
-
-    break
-  }
-
-  if (!pageBlocks.length) {
-    return { pageContent: '', restContent: content }
-  }
-
-  return {
-    pageContent: joinRichTextRenderBlocks(pageBlocks),
-    restContent: joinRichTextRenderBlocks(blocks.slice(pageBlocks.length))
-  }
-}
-
-function estimateSectionHeight(key) {
-  const bounds = getModuleBounds(key)
-  const verticalOffset = bounds.bottom - DEFAULT_MODULE_BOUNDS.bottom
-  const moduleBaseHeight = MODULE_BASE_HEIGHT + verticalOffset + MODULE_FLOW_GAP
-
-  if (key === 'experience') {
-    return estimateRichTextSectionHeight(key, resume.value.richText?.experience)
-  }
-
-  if (key === 'projects') {
-    return estimateRichTextSectionHeight(key, resume.value.richText?.projects)
-  }
-
-  if (key === 'education') {
-    const itemCount = Math.max(resume.value.education.length, 1)
-    return moduleBaseHeight + itemCount * 58 + Math.max(itemCount - 1, 0) * 12
-  }
-
-  if (key === 'skills') {
-    return estimateRichTextSectionHeight(key, resume.value.richText?.skills)
-  }
-
-  return moduleBaseHeight
-}
-
-function estimateRichTextSectionHeight(key, content, options = {}) {
-  const bounds = getModuleBounds(key)
-  const topDelta = bounds.top - DEFAULT_MODULE_BOUNDS.top
-  const topPadding = options.isContinuation
-    ? MODULE_CONTINUATION_PADDING
-    : Math.max(DEFAULT_MODULE_BOUNDS.top - topDelta, 4)
-  const bottomPadding = options.continuesNext ? MODULE_CONTINUATION_PADDING : bounds.bottom
-  const titleHeight = options.isContinuation ? 0 : MODULE_TITLE_HEIGHT
-  const flowGap = options.continuesNext ? 0 : MODULE_FLOW_GAP
-
-  return (
-    (options.isContinuation ? 0 : topDelta) +
-    topPadding +
-    titleHeight +
-    estimateRichTextContentHeight(content, getCharsPerLine(key, 54)) +
-    bottomPadding +
-    flowGap
-  )
-}
-
-function getCharsPerLine(key, defaultCharsPerLine) {
-  const bounds = getModuleBounds(key)
-  const moduleContentInset = MODULE_CONTENT_INSET * 2
-  const defaultContentWidth =
-    PAPER_WIDTH - DEFAULT_MODULE_BOUNDS.left - DEFAULT_MODULE_BOUNDS.right - moduleContentInset
-  const contentWidth = PAPER_WIDTH - bounds.left - bounds.right - moduleContentInset
-  return Math.max(Math.floor(defaultCharsPerLine * (contentWidth / defaultContentWidth)), 28)
-}
-
-function getModuleBounds(key) {
-  return normalizeModuleBound(resume.value.moduleBounds?.[key])
-}
-
-function estimateRichTextContentHeight(value, charsPerLine) {
-  const blocks = getRichTextEstimateBlocks(value)
-
-  if (!blocks.length) {
-    return 50
-  }
-
-  const lineCount = blocks.reduce(
-    (total, block) => total + Math.max(Math.ceil(getTextWidthUnits(block) / charsPerLine), 1),
-    0
-  )
-  const blockGapHeight = Math.max(blocks.length - 1, 0) * 6
-
-  return Math.max(lineCount, 2) * 24 + blockGapHeight
-}
-
-function getTextWidthUnits(value) {
-  return Array.from(String(value || '')).reduce((total, char) => {
-    if (/\s/.test(char)) {
-      return total + 0.35
-    }
-
-    if (/[\u0000-\u007f]/.test(char)) {
-      return total + 0.56
-    }
-
-    if (/[\uff01-\uff60\u3000-\u303f]/.test(char)) {
-      return total + 0.65
-    }
-
-    return total + 1
-  }, 0)
-}
-
-function getRichTextEstimateBlocks(value) {
-  const content = String(value || '').trim()
-
-  if (!content) {
-    return []
-  }
-
-  if (!/<\/?[a-z][\s\S]*>/i.test(content)) {
-    return content
-      .split(/\n+/)
-      .map((line) => line.replace(/^[-*]\s+/, '').trim())
-      .filter(Boolean)
-  }
-
-  return decodeHtmlForEstimate(
-    content
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<li\b[^>]*>/gi, '\n')
-      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-  )
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-}
-
-function getRichTextRenderBlocks(value) {
-  const content = String(value || '').trim()
-
-  if (!content) {
-    return []
-  }
-
-  if (!/<\/?[a-z][\s\S]*>/i.test(content)) {
-    return content
-      .split(/\n+/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => ({
-        html: false,
-        source: line,
-        text: line.replace(/^[-*]\s+/, '').trim()
-      }))
-  }
-
-  const blocks = []
-  const blockPattern = /<(p|ul|ol)\b[^>]*>[\s\S]*?<\/\1>/gi
-  let match = blockPattern.exec(content)
-
-  while (match) {
-    const source = match[0]
-    const tagName = match[1].toLowerCase()
-
-    if (tagName === 'ul' || tagName === 'ol') {
-      const itemPattern = /<li\b[^>]*>[\s\S]*?<\/li>/gi
-      let itemMatch = itemPattern.exec(source)
-
-      while (itemMatch) {
-        const itemSource = itemMatch[0]
-        blocks.push({
-          html: true,
-          source: `<${tagName}>${itemSource}</${tagName}>`,
-          text: stripHtmlForEstimate(itemSource)
-        })
-        itemMatch = itemPattern.exec(source)
-      }
-    } else {
-      blocks.push({
-        html: true,
-        source,
-        text: stripHtmlForEstimate(source)
-      })
-    }
-
-    match = blockPattern.exec(content)
-  }
-
-  if (blocks.length) {
-    return blocks
-  }
-
-  return stripHtmlForEstimate(content)
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => ({
-      html: false,
-      source: line,
-      text: line
-    }))
-}
-
-function joinRichTextRenderBlocks(blocks) {
-  if (!blocks.length) {
-    return ''
-  }
-
-  if (blocks.some((block) => block.html)) {
-    return blocks
-      .map((block) => (block.html ? block.source : `<p>${escapeHtml(block.source)}</p>`))
-      .join('')
-  }
-
-  return blocks.map((block) => block.source).join('\n')
-}
-
-function stripHtmlForEstimate(value) {
-  return decodeHtmlForEstimate(
-    String(value || '')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
-      .replace(/<[^>]+>/g, '')
-  ).trim()
-}
-
-function decodeHtmlForEstimate(value) {
-  return String(value || '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
-function getSectionNavigatorChildren(key) {
-  if (key !== 'education') {
-    return []
-  }
-
-  return resume.value.education.map((item, index) => ({
-    id: item.id || `education-${index}`,
-    type: 'education-item',
-    sectionKey: 'education',
-    index,
-    label: item.school || item.major || `\u6559\u80b2\u7ecf\u5386 ${index + 1}`,
-    meta: [item.major, item.degree, item.period].filter(Boolean).join(' | ') || `\u7b2c ${index + 1} \u6761\u6559\u80b2`
-  }))
-}
-function getSnapshot() {
-  return JSON.stringify(resume.value)
-}
-
-function commitSnapshot() {
-  const snapshot = getSnapshot()
-  const lastSnapshot = historyStack.value[historyStack.value.length - 1]
-
-  if (snapshot !== lastSnapshot) {
-    historyStack.value.push(snapshot)
-    historyStack.value = historyStack.value.slice(-32)
-  }
-}
-
-function selectProfile() {
-  activeBlock.value = { type: 'profile', key: 'profile', index: null }
-}
-
-function selectModule(key) {
-  if (key === 'experience' || key === 'projects' || key === 'skills') {
-    activeBlock.value = { type: key, key, index: null }
-    return
-  }
-
-  activeBlock.value = { type: 'module', key, index: null }
-}
-
-function selectEntry(type, index) {
-  const sectionKeyByType = {
-    'education-item': 'education'
-  }
-
-  activeBlock.value = {
-    type,
-    key: sectionKeyByType[type],
-    index
-  }
-}
-
-function selectNavigatorChild(child) {
-  selectEntry(child.type, child.index)
-}
-
-function openModuleEditor(key, entryIndex = null) {
-  if (!dialogEditableSections.has(key)) {
-    selectModule(key)
-    return
-  }
-
-  if (key === 'education' && Number.isInteger(entryIndex)) {
-    selectEntry('education-item', entryIndex)
-  } else {
-    selectModule(key)
-  }
-
-  activeModuleDialogKey.value = key
-}
-
-function closeModuleEditor() {
-  activeModuleDialogKey.value = ''
-}
-
-function openProfileEditor() {
-  selectProfile()
-  profileDialogOpen.value = true
-}
-
-function closeProfileEditor() {
-  commitSnapshot()
-  profileDialogOpen.value = false
-}
-
-function startSectionDrag(key) {
-  draggingSectionKey.value = key
-}
-
-function clearSectionDrag() {
-  draggingSectionKey.value = ''
-}
-
-function dropSection(targetKey) {
-  const sourceKey = draggingSectionKey.value
-
-  if (!sourceKey || sourceKey === targetKey) {
-    clearSectionDrag()
-    return
-  }
-
-  const nextOrder = normalizeSectionOrder(resume.value.sectionOrder)
-  const sourceIndex = nextOrder.indexOf(sourceKey)
-  const targetIndex = nextOrder.indexOf(targetKey)
-
-  if (sourceIndex < 0 || targetIndex < 0) {
-    clearSectionDrag()
-    return
-  }
-
-  const [sectionKey] = nextOrder.splice(sourceIndex, 1)
-  nextOrder.splice(targetIndex, 0, sectionKey)
-  resume.value.sectionOrder = nextOrder
-  selectModule(sectionKey)
-  commitSnapshot()
-  clearSectionDrag()
-}
-
-function moveSection(key, direction) {
-  const nextOrder = normalizeSectionOrder(resume.value.sectionOrder)
-  const visibleOrder = nextOrder.filter((sectionKey) => resume.value.visibleSections[sectionKey])
-  const visibleIndex = visibleOrder.indexOf(key)
-  const targetKey = visibleOrder[visibleIndex + direction]
-
-  if (!sectionMap.has(key) || !targetKey) {
-    return
-  }
-
-  const sourceIndex = nextOrder.indexOf(key)
-
-  if (sourceIndex < 0) {
-    return
-  }
-
-  const [sectionKey] = nextOrder.splice(sourceIndex, 1)
-  const targetIndex = nextOrder.indexOf(targetKey)
-  nextOrder.splice(direction > 0 ? targetIndex + 1 : targetIndex, 0, sectionKey)
-  resume.value.sectionOrder = nextOrder
-  selectModule(sectionKey)
-  commitSnapshot()
-}
-
-function deleteSection(key) {
-  if (!sectionMap.has(key)) {
-    return
-  }
-
-  resume.value.visibleSections[key] = false
-
-  if (activeBlock.value.key === key) {
-    selectProfile()
-  }
-
-  commitSnapshot()
-  flashStatus('\u5df2\u5220\u9664\u6a21\u5757')
-}
-
-function addExperience() {
-  addSectionFromQuickAction(
-    'experience',
-    '\u5b9e\u4e60\u5355\u4f4d | \u5b9e\u4e60\u5c97\u4f4d | 2026.01 - 2026.06\n- \u8865\u5145\u8d1f\u8d23\u4e8b\u9879\u3001\u5173\u952e\u6210\u679c\u6216\u91cf\u5316\u6307\u6807\u3002'
-  )
-}
-
-function addProject() {
-  addSectionFromQuickAction(
-    'projects',
-    '\u9879\u76ee\u540d\u79f0 | \u8d1f\u8d23\u89d2\u8272 | 2026.01 - 2026.03\n- \u8865\u5145\u9879\u76ee\u80cc\u666f\u3001\u6280\u672f\u65b9\u6848\u548c\u4e2a\u4eba\u8d21\u732e\u3002'
-  )
-}
-
-function addEducation() {
-  addSectionFromQuickAction('education')
-}
-
-function appendEducationEntry() {
-  resume.value.education.push({
-    id: createId(),
-    school: '\u5b66\u6821\u540d\u79f0',
-    major: '\u4e13\u4e1a\u540d\u79f0',
-    degree: '\u672c\u79d1',
-    period: '2022.09 - 2026.06'
-  })
-  ensureSectionVisible('education')
-  selectEntry('education-item', resume.value.education.length - 1)
-  commitSnapshot()
-}
-
-function addEducationFromDialog() {
-  appendEducationEntry()
-  activeModuleDialogKey.value = 'education'
-}
-
-function addSkill() {
-  addSectionFromQuickAction('skills', '\u65b0\u6280\u80fd\u5206\u7c7b: \u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002')
-}
-
-function addSectionFromQuickAction(key, fallbackRichText = '') {
-  if (!sectionMap.has(key)) {
-    return
-  }
-
-  if (resume.value.visibleSections[key]) {
-    selectModule(key)
-    showResumeNotice(`${sectionMap.get(key).resumeTitle}\u5df2\u5b58\u5728`)
-    return
-  }
-
-  if (fallbackRichText && !String(resume.value.richText?.[key] || '').trim()) {
-    updateRichTextSection(key, fallbackRichText)
-  }
-
-  if (key === 'education' && !resume.value.education.length) {
-    resume.value.education.push({
-      id: createId(),
-      school: '\u5b66\u6821\u540d\u79f0',
-      major: '\u4e13\u4e1a\u540d\u79f0',
-      degree: '\u672c\u79d1',
-      period: '2022.09 - 2026.06'
-    })
-  }
-
-  ensureSectionVisible(key)
-  moveSectionToVisibleEnd(key)
-  selectModule(key)
-  commitSnapshot()
-  showResumeNotice(`${sectionMap.get(key).resumeTitle}\u5df2\u6dfb\u52a0`)
-}
-
-function moveSectionToVisibleEnd(key) {
-  const nextOrder = normalizeSectionOrder(resume.value.sectionOrder).filter((sectionKey) => sectionKey !== key)
-  const lastVisibleIndex = nextOrder.reduce(
-    (lastIndex, sectionKey, index) => (resume.value.visibleSections[sectionKey] ? index : lastIndex),
-    -1
-  )
-
-  nextOrder.splice(lastVisibleIndex + 1, 0, key)
-  resume.value.sectionOrder = nextOrder
-}
-
-function ensureSectionVisible(key) {
-  resume.value.visibleSections[key] = true
-  resume.value.sectionOrder = normalizeSectionOrder(resume.value.sectionOrder)
-  resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
-}
-
-function resizeModuleBoundary(key, edge, delta) {
-  if (!sectionMap.has(key) || !Object.hasOwn(DEFAULT_MODULE_BOUNDS, edge)) {
-    return
-  }
-
-  resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
-
-  const bounds = resume.value.moduleBounds[key]
-  const [min, max] = MODULE_BOUND_LIMITS[edge]
-  const nextValueByEdge = {
-    top: bounds.top + delta.y,
-    right: bounds.right - delta.x,
-    bottom: bounds.bottom + delta.y,
-    left: bounds.left + delta.x
-  }
-
-  bounds[edge] = clampNumber(nextValueByEdge[edge], min, max, DEFAULT_MODULE_BOUNDS[edge])
-}
-
-function updateRichTextSection(key, value) {
-  if (!resume.value.richText) {
-    resume.value.richText = {}
-  }
-
-  resume.value.richText[key] = value
-}
-
-function removeEntry(collectionName, index) {
-  const collection = resume.value[collectionName]
-
-  if (!Array.isArray(collection) || collection.length <= 1) {
-    return
-  }
-
-  collection.splice(index, 1)
-  selectModule(collectionName)
-  commitSnapshot()
-}
-
-function moveEntry(collectionName, index, direction) {
-  const collection = resume.value[collectionName]
-  const nextIndex = index + direction
-
-  if (!Array.isArray(collection) || nextIndex < 0 || nextIndex >= collection.length) {
-    return
-  }
-
-  const [item] = collection.splice(index, 1)
-  collection.splice(nextIndex, 0, item)
-
-  const entryTypeByCollection = {
-    education: 'education-item'
-  }
-
-  selectEntry(entryTypeByCollection[collectionName], nextIndex)
-  commitSnapshot()
-}
-
-function createSkillItem(category, details = []) {
-  return {
-    id: createId(),
-    category,
-    details
-  }
-}
-
-function normalizeSkills(skills, fallbackSkills) {
-  if (!Array.isArray(skills)) {
-    return fallbackSkills
-  }
-
-  const normalizedSkills = skills
-    .map((skill, index) => normalizeSkillItem(skill, index))
-    .filter(Boolean)
-
-  return normalizedSkills.length ? normalizedSkills : fallbackSkills
-}
-
-function normalizeSkillItem(skill, index) {
-  if (typeof skill === 'string') {
-    return createSkillItem(skill || `\u6280\u80fd ${index + 1}`, ['\u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002'])
-  }
-
-  if (!skill || typeof skill !== 'object') {
-    return null
-  }
-
-  const details = Array.isArray(skill.details)
-    ? skill.details.map((detail) => String(detail).trim()).filter(Boolean)
-    : String(skill.description || skill.detail || '')
-        .split('\n')
-        .map((detail) => detail.trim())
-        .filter(Boolean)
-
-  return {
-    id: skill.id || createId(),
-    category: String(skill.category || skill.name || `\u6280\u80fd ${index + 1}`).trim(),
-    details: details.length ? details : ['\u8865\u5145\u6280\u80fd\u63cf\u8ff0\u3002']
-  }
-}
-
-function normalizeEducationItems(items, fallbackItems) {
-  if (!Array.isArray(items)) {
-    return fallbackItems
-  }
-
-  const normalizedItems = items
-    .map((item, index) => normalizeEducationItem(item, index))
-    .filter(Boolean)
-
-  return normalizedItems.length ? normalizedItems : fallbackItems
-}
-
-function normalizeEducationItem(item, index) {
-  if (!item || typeof item !== 'object') {
-    return null
-  }
-
-  const educationText = splitEducationMajorAndDegree(item.major, item.degree)
-
-  return {
-    id: item.id || createId(),
-    school: String(item.school || `\u5b66\u6821\u540d\u79f0 ${index + 1}`).trim(),
-    major: educationText.major || '\u4e13\u4e1a\u540d\u79f0',
-    degree: educationText.degree || '\u672c\u79d1',
-    period: String(item.period || '2022.09 - 2026.06').trim()
-  }
-}
-
-function splitEducationMajorAndDegree(majorValue, degreeValue) {
-  const major = String(majorValue || '').trim()
-  const degree = String(degreeValue || '').trim()
-
-  if (degree) {
-    return { major, degree }
-  }
-
-  const knownDegrees = ['\u535a\u58eb\u7814\u7a76\u751f', '\u7855\u58eb\u7814\u7a76\u751f', '\u7814\u7a76\u751f', '\u672c\u79d1', '\u4e13\u79d1', '\u5927\u4e13']
-  const matchedDegree = knownDegrees.find((value) => major.endsWith(value))
-
-  if (!matchedDegree) {
-    return { major, degree: '' }
-  }
-
-  return {
-    major: major.slice(0, -matchedDegree.length).replace(/[\s/｜|]+$/g, '').trim(),
-    degree: matchedDegree
-  }
-}
-
-function normalizeRichTextSections(parsedDraft, fallbackRichText) {
-  const draftRichText = parsedDraft?.richText && typeof parsedDraft.richText === 'object'
-    ? parsedDraft.richText
-    : {}
-
-  return {
-    experience: normalizeRichTextValue(
-      draftRichText.experience,
-      () => formatExperienceAsRichText(parsedDraft?.experience),
-      fallbackRichText.experience
-    ),
-    projects: normalizeRichTextValue(
-      draftRichText.projects,
-      () => formatProjectsAsRichText(parsedDraft?.projects),
-      fallbackRichText.projects
-    ),
-    skills: normalizeRichTextValue(
-      draftRichText.skills,
-      () => formatSkillsAsRichText(parsedDraft?.skills),
-      fallbackRichText.skills
-    )
-  }
-}
-
-function normalizeRichTextValue(value, legacyFormatter, fallbackValue) {
-  if (typeof value === 'string') {
-    return value
-  }
-
-  const legacyValue = legacyFormatter()
-  return legacyValue || fallbackValue
-}
-
-function formatExperienceAsRichText(items) {
-  if (!Array.isArray(items) || !items.length) {
-    return ''
-  }
-
-  return items
-    .map((item) =>
-      [
-        [item.company, item.role, item.period].filter(Boolean).join(' | '),
-        ...formatBulletsAsLines(item.bullets)
-      ]
-        .filter(Boolean)
-        .join('\n')
-    )
-    .join('\n\n')
-}
-
-function formatProjectsAsRichText(items) {
-  if (!Array.isArray(items) || !items.length) {
-    return ''
-  }
-
-  return items
-    .map((item) =>
-      [
-        [item.name, item.role, item.period].filter(Boolean).join(' | '),
-        ...formatBulletsAsLines(item.bullets)
-      ]
-        .filter(Boolean)
-        .join('\n')
-    )
-    .join('\n\n')
-}
-
-function formatSkillsAsRichText(skills) {
-  if (!Array.isArray(skills) || !skills.length) {
-    return ''
-  }
-
-  return normalizeSkills(skills, [])
-    .map((skill) => `${skill.category}: ${skill.details.join('\uff0c')}`)
-    .join('\n')
-}
-
-function formatBulletsAsLines(bullets) {
-  return Array.isArray(bullets)
-    ? bullets.map((bullet) => `- ${String(bullet).trim()}`).filter((bullet) => bullet !== '-')
-    : []
-}
-
-function undoResume() {
-  if (!canUndo.value) {
-    return
-  }
-
-  historyStack.value.pop()
-  resume.value = JSON.parse(historyStack.value[historyStack.value.length - 1])
-  resume.value.pageCount = normalizePageCount(resume.value.pageCount)
-  resume.value.sectionOrder = normalizeSectionOrder(resume.value.sectionOrder)
-  resume.value.visibleSections = normalizeVisibleSections(resume.value.visibleSections)
-  resume.value.moduleBounds = normalizeModuleBounds(resume.value.moduleBounds)
-  selectProfile()
-  flashStatus('\u5df2\u64a4\u9500')
-}
-
-function saveDraft() {
-  commitSnapshot()
-  writeDraft()
-  flashStatus('\u5df2\u4fdd\u5b58')
-}
-
-function resetResume() {
-  if (typeof window !== 'undefined' && !window.confirm('\u786e\u8ba4\u91cd\u7f6e\u7b80\u5386\u5185\u5bb9\uff1f')) {
-    return
-  }
-
-  resume.value = createDefaultResume()
-  selectProfile()
-  commitSnapshot()
-  flashStatus('\u5df2\u91cd\u7f6e')
+    lt: point(x - offset.x, y - offset.y), rt: point(x + width - offset.x, y - offset.y),
+    lb: point(x - offset.x, y + height - offset.y), rb: point(x + width - offset.x, y + height - offset.y)
+  }
+})
+
+function toggleMenu(name) {
+  contextMenu.visible = false
+  openMenu.value = openMenu.value === name ? '' : name
+}
+function closeFloatingMenus() { openMenu.value = ''; contextMenu.visible = false }
+function showToast(message) {
+  toast.value = message
+  window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => { toast.value = '' }, 1800)
+}
+
+function switchTool(tool) {
+  if (!editor || tool === activeTool.value) return
+  editor.canvas.grab.close()
+  editor.canvas.insert.close()
+  if (tool === 'grab') editor.canvas.grab.start()
+  if (tool === 'rect') editor.canvas.insert.start(createInsertDelta('rect'))
+  if (tool === 'image') editor.canvas.insert.start(createInsertDelta('image'))
+  if (tool === 'text') editor.canvas.insert.start(createInsertDelta('text'))
+  activeTool.value = tool
+}
+
+function jumpToPage(index) {
+  if (!editor || !background) return
+  const page = Math.max(0, Math.min(background.pageCount - 1, Number(index) || 0))
+  const step = background.rect.height + background.pageGap
+  const targetOffsetY = page * step
+  const { offsetY } = editor.canvas.getRect()
+  editor.canvas.grab.translateImmediately(0, targetOffsetY - offsetY)
+  currentPage.value = page
 }
 
 function addPage() {
-  resume.value.pageCount = Math.max(normalizePageCount(resume.value.pageCount), resumePages.value.length) + 1
-  commitSnapshot()
-  flashStatus('\u5df2\u6dfb\u52a0\u4e00\u9875')
+  if (!editor || !background) return
+  background.addPage()
+  pageCount.value = background.pageCount
+  saveStoredDocument(editor, background)
+  openMenu.value = ''
+  nextTick(() => jumpToPage(background.pageCount - 1))
+  showToast(`已新增第 ${background.pageCount} 页`)
 }
 
-async function exportPdf() {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return
+function createInsertDelta(key, drag = false) {
+  const base = { key, x: 0, y: 0, width: drag ? 100 : 0, height: drag ? (key === 'image' ? 100 : 50) : 0 }
+  if (key === 'rect') base.attrs = { [RECT_ATTRS.BORDER_COLOR]: DEFAULT_BORDER_COLOR }
+  if (key === 'image') base.attrs = {
+    [IMAGE_ATTRS.SRC]: DEFAULT_IMAGE, [IMAGE_ATTRS.MODE]: IMAGE_MODE.COVER,
+    [RECT_ATTRS.BORDER_WIDTH]: '1', [RECT_ATTRS.BORDER_COLOR]: '#DADADA'
   }
+  return base
+}
 
-  const pageElements = Array.from(document.querySelectorAll('.resume-paper'))
+function startToolDrag(event, tool) {
+  if (!event.dataTransfer || activeTool.value !== 'default' || !['rect', 'image', 'text'].includes(tool)) return
+  event.dataTransfer.setData(DRAG_KEY, TSON.encode(createInsertDelta(tool, true)) || '')
+}
 
-  if (!pageElements.length) {
-    flashStatus('\u6ca1\u6709\u53ef\u5bfc\u51fa\u7684\u9875\u9762')
-    return
+function updateHistoryState() {
+  if (!editor) return
+  canUndo.value = editor.history.canUndo(); canRedo.value = editor.history.canRedo()
+}
+function updateStructure() {
+  if (!editor) return
+  structureNodes.value = [...editor.state.getDeltasMap().values()].filter(node => node.id !== ROOT_DELTA).map(node => ({ id: node.id, key: node.key }))
+}
+function syncSelection(event) {
+  if (!editor) return
+  selectedIds.value = [...editor.selection.getActiveDeltaIds()]
+  const current = event?.current || editor.selection.get()
+  selectionRange.value = current ? current.rect() : null
+  if (selectionRange.value) {
+    currentPage.value = background.getPageIndexForY(selectionRange.value.y + selectionRange.value.height / 2)
   }
+  const id = selectedIds.value.length === 1 ? selectedIds.value[0] : null
+  selectedState.value = id ? editor.state.getDeltaState(id) : null
+  syncPropertyForm()
+}
+function syncPropertyForm() {
+  const state = selectedState.value
+  if (!state) return
+  property.borderColor = normalizeHex(state.getAttr(RECT_ATTRS.BORDER_COLOR), DEFAULT_BORDER_COLOR)
+  property.borderWidth = Number(state.getAttr(RECT_ATTRS.BORDER_WIDTH) || DEFAULT_BORDER_WIDTH)
+  property.fillColor = normalizeHex(state.getAttr(RECT_ATTRS.FILL_COLOR), DEFAULT_FILL_COLOR)
+  property.imageMode = state.getAttr(IMAGE_ATTRS.MODE) || IMAGE_MODE.FILL
+  for (const item of sideOptions) property.sides[item.key] = isTruly(state.getAttr(item.key))
+  if (state.key === 'text') {
+    richTextValue.value = richTextToPlain(state)
+    richTextHtml.value = richTextToHtml(state)
+  }
+}
+function normalizeHex(value, fallback) {
+  const text = String(value || fallback || '#000000')
+  if (/^#[0-9a-f]{6}$/i.test(text)) return text
+  if (/^#[0-9a-f]{8}$/i.test(text)) return text.slice(0, 7)
+  const rgb = text.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
+  if (!rgb) return fallback
+  return `#${rgb.slice(1, 4).map(number => Number(number).toString(16).padStart(2, '0')).join('')}`
+}
 
-  flashStatus('\u6b63\u5728\u751f\u6210 PDF...')
-  await nextTick()
+function setAttribute(key, value) {
+  if (!editor || !selectedState.value) return
+  editor.state.apply(Op.from(OP_TYPE.REVISE, { id: selectedState.value.id, attrs: { [key]: String(value) } }))
+}
+function setSide(key, checked) { setAttribute(key, checked ? TRULY : FALSY) }
+function onRichInput(event) { richTextValue.value = event.currentTarget.innerText }
+function saveRichText() { setAttribute(TEXT_ATTRS.DATA, plainToRichText(richTextValue.value)) }
+function selectNode(id) { editor?.selection.setActiveDelta(id) }
+function deleteNode(id) {
+  if (!editor) return
+  editor.state.apply(Op.from(OP_TYPE.DELETE, { id, parentId: editor.state.getDeltaStateParentId(id) }))
+}
+function structureIcon(key) { return key === 'image' ? ImageIcon : key === 'text' ? Type : Square }
+function undo() { editor?.history.undo(); nextTick(updateHistoryState) }
+function redo() { editor?.history.redo(); nextTick(updateHistoryState) }
 
+async function confirmTemplate() {
+  if (!pendingTemplate.value || !editor || templateLoading.value) return
+  templateLoading.value = true
   try {
-    if (document.fonts?.ready) {
-      await document.fonts.ready
-    }
-
-    const pageImages = []
-
-    for (const pageElement of pageElements) {
-      pageImages.push(await renderResumePageToJpeg(pageElement))
-    }
-
-    const pdfBlob = createPdfBlobFromJpegs(pageImages)
-    const saved = await savePdfBlob(pdfBlob, PDF_FILE_NAME)
-
-    if (saved) {
-      flashStatus('PDF \u5df2\u5bfc\u51fa')
-    }
-  } catch (error) {
-    console.error(error)
-    flashStatus('PDF \u5bfc\u51fa\u5931\u8d25')
-  }
+    applyDocument(await loadOfficialTemplate(pendingTemplate.value.template))
+    pendingTemplate.value = null
+    showToast('模板加载成功')
+  } catch { showToast('模板加载失败') }
+  finally { templateLoading.value = false }
 }
 
-async function renderResumePageToJpeg(pageElement) {
-  const clone = pageElement.cloneNode(true)
-  inlineComputedStyles(pageElement, clone)
-  cleanResumeExportClone(clone)
+function applyDocument(data) {
+  if (!editor || !background || !data?.deltaSetLike) return
+  background.setDocument(data)
+  editor.state.setContent(new DeltaSet(data.deltaSetLike))
+  editor.canvas.setOffset(0, 0)
+  editor.canvas.reset()
+  pageCount.value = background.pageCount
+  currentPage.value = 0
+  background.render()
+  saveStoredDocument(editor, background)
+  updateStructure(); syncSelection()
+}
 
-  clone.style.width = `${PAPER_WIDTH}px`
-  clone.style.height = `${PAPER_HEIGHT}px`
-  clone.style.transform = 'none'
-  clone.style.transformOrigin = 'top left'
-  clone.style.boxShadow = 'none'
-  clone.style.border = '0'
-  clone.style.margin = '0'
-  clone.style.background = '#fff'
+function openResizeModal() {
+  if (!background?.rect) return
+  resizeForm.width = Math.round(background.rect.width); resizeForm.height = Math.round(background.rect.height)
+  resizeModalVisible.value = true; openMenu.value = ''
+}
+function applyCanvasSize() {
+  if (!background || !editor) return
+  const width = Math.min(2000, Math.max(600, Number(resizeForm.width) || 794))
+  const height = Math.min(4000, Math.max(1000, Number(resizeForm.height) || 1123))
+  const { x, y } = background.rect
+  background.setRange(Range.fromRect(x, y, width, height)); background.render(); saveStoredDocument(editor, background)
+  jumpToPage(currentPage.value)
+  resizeModalVisible.value = false
+}
 
-  const svgMarkup = createResumePageSvg(clone)
-  const svgUrl = URL.createObjectURL(new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' }))
+function downloadBlob(blob, name) {
+  const href = URL.createObjectURL(blob); const anchor = document.createElement('a')
+  anchor.href = href; anchor.download = name; anchor.click(); URL.revokeObjectURL(href)
+}
+function timestamp() {
+  const now = new Date(); const pad = number => String(number).padStart(2, '0')
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+}
+function exportJson() {
+  if (!editor || !background) return
+  const data = saveStoredDocument(editor, background)
+  downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' }), `RESUME_${timestamp()}.json`)
+  openMenu.value = ''
+}
+async function openPreview() {
+  if (!editor || !background) return
+  openMenu.value = ''
+  const popup = window.open('', '_blank')
+  if (!popup) return showToast('浏览器阻止了预览窗口')
+  popup.document.write('<title>简历预览</title><style>html,body{margin:0;background:#e5e6eb;text-align:center}img{display:block;margin:20px auto;max-width:calc(100% - 40px);box-shadow:0 2px 12px #0002}</style><p>正在生成预览...</p>')
+  const canvases = await renderDocumentPages(saveStoredDocument(editor, background), 1)
+  popup.document.body.innerHTML = canvases
+    .map((canvas, index) => `<img alt="简历第 ${index + 1} 页" src="${canvas.toDataURL('image/jpeg', 0.96)}">`)
+    .join('')
+}
+async function exportPdf(scale) {
+  if (!editor || !background) return
+  openMenu.value = ''
+  const popup = window.open('', '_blank')
+  if (!popup) return showToast('浏览器阻止了导出窗口')
+  const data = saveStoredDocument(editor, background)
+  popup.document.write(`<title>导出 PDF</title><style>@page{size:${data.width}px ${data.height}px;margin:0}html,body{margin:0}.page{display:block;width:100%;break-after:page;page-break-after:always}.page:last-child{break-after:auto;page-break-after:auto}@media screen{body{background:#ddd}.page{max-width:${data.width}px;margin:0 auto 24px}}</style><p>正在生成...</p>`)
+  const canvases = await renderDocumentPages(data, scale)
+  popup.document.body.innerHTML = canvases
+    .map((canvas, index) => `<img class="page" alt="resume page ${index + 1}" src="${canvas.toDataURL('image/jpeg', 0.98)}">`)
+    .join('')
+  popup.document.close(); popup.focus(); window.setTimeout(() => popup.print(), 350)
+}
 
+async function importJson(event) {
+  const file = event.target.files?.[0]; event.target.value = ''
+  if (!file) return
   try {
-    const image = await loadImage(svgUrl)
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(PAPER_WIDTH * PDF_EXPORT_SCALE)
-    canvas.height = Math.round(PAPER_HEIGHT * PDF_EXPORT_SCALE)
+    const data = JSON.parse(await file.text())
+    if (!data?.deltaSetLike || !data.width || !data.height) throw new Error('invalid')
+    applyDocument(data); showToast('导入成功')
+  } catch { showToast('JSON 文件格式不正确') }
+}
+function uploadImage(event) {
+  const file = event.target.files?.[0]; event.target.value = ''
+  if (!file) return
+  const reader = new FileReader(); reader.onload = () => setAttribute(IMAGE_ATTRS.SRC, reader.result); reader.readAsDataURL(file)
+}
 
-    const context = canvas.getContext('2d')
-    context.fillStyle = '#fff'
-    context.fillRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(image, 0, 0, canvas.width, canvas.height)
-
-    const blob = await canvasToBlob(canvas, 'image/jpeg', PDF_IMAGE_QUALITY)
-    const bytes = new Uint8Array(await blob.arrayBuffer())
-
-    return {
-      bytes,
-      height: canvas.height,
-      width: canvas.width
-    }
-  } finally {
-    URL.revokeObjectURL(svgUrl)
+function copySelection(event) {
+  editor?.canvas.mask.focus(); document.execCommand('copy'); contextMenu.visible = false; event?.preventDefault?.()
+}
+function pasteHint() { contextMenu.visible = false; showToast('请使用快捷键 Ctrl+V 粘贴') }
+function selectAll() { editor?.canvas.mask.focus(); editor?.selection.selectAll(); contextMenu.visible = false }
+function changeLayer(step) {
+  if (!editor) return
+  for (const id of selectedIds.value) {
+    const node = editor.state.getDeltaState(id)
+    if (node) editor.state.apply(Op.from(OP_TYPE.REVISE, { id, attrs: {}, z: node.getZ() + step }))
   }
+  editor.selection.clearActiveDeltas(); contextMenu.visible = false
 }
 
-function inlineComputedStyles(source, target) {
-  if (!(source instanceof Element) || !(target instanceof Element)) {
-    return
+function bindEditorEvents() {
+  listeners.content = () => { updateHistoryState(); updateStructure(); syncSelection(); saveStoredDocument(editor, background) }
+  listeners.selection = event => syncSelection(event)
+  listeners.insert = event => { if (event.done) switchTool('default') }
+  listeners.context = event => {
+    selectedIds.value = [...editor.selection.getActiveDeltaIds()]
+    contextMenu.visible = true; contextMenu.top = event.clientY + 1; contextMenu.left = event.clientX + 1
   }
-
-  const computedStyle = window.getComputedStyle(source)
-  const inlineStyle = []
-
-  for (const property of computedStyle) {
-    inlineStyle.push(`${property}:${computedStyle.getPropertyValue(property)};`)
+  listeners.down = () => { contextMenu.visible = false }
+  listeners.wheel = () => { contextMenu.visible = false }
+  listeners.reset = () => {
+    const { offsetY } = editor.canvas.getRect()
+    currentPage.value = background.getPageIndexForOffset(offsetY)
   }
-
-  target.setAttribute('style', inlineStyle.join(''))
-
-  Array.from(source.children).forEach((sourceChild, index) => {
-    const targetChild = target.children[index]
-
-    if (targetChild) {
-      inlineComputedStyles(sourceChild, targetChild)
-    }
-  })
+  listeners.click = event => { if (event.detail === 2 && selectedState.value?.key === 'text') richModalVisible.value = true }
+  editor.event.on(EDITOR_EVENT.CONTENT_CHANGE, listeners.content)
+  editor.event.on(EDITOR_EVENT.SELECTION_CHANGE, listeners.selection)
+  editor.event.on(EDITOR_EVENT.INSERT_STATE, listeners.insert)
+  editor.event.on(EDITOR_EVENT.CONTEXT_MENU, listeners.context)
+  editor.event.on(EDITOR_EVENT.MOUSE_DOWN, listeners.down)
+  editor.event.on(EDITOR_EVENT.MOUSE_WHEEL, listeners.wheel)
+  editor.event.on(EDITOR_EVENT.CANVAS_RESET, listeners.reset)
+  editor.event.on(EDITOR_EVENT.CLICK, listeners.click)
 }
-
-function cleanResumeExportClone(clone) {
-  clone.querySelectorAll('.module-boundary-handles').forEach((element) => element.remove())
-  clone.querySelectorAll('.is-selected, .is-dragging, .is-drop-target').forEach(removeExportStateClasses)
-  removeExportStateClasses(clone)
+function unbindEditorEvents() {
+  if (!editor) return
+  editor.event.off(EDITOR_EVENT.CONTENT_CHANGE, listeners.content)
+  editor.event.off(EDITOR_EVENT.SELECTION_CHANGE, listeners.selection)
+  editor.event.off(EDITOR_EVENT.INSERT_STATE, listeners.insert)
+  editor.event.off(EDITOR_EVENT.CONTEXT_MENU, listeners.context)
+  editor.event.off(EDITOR_EVENT.MOUSE_DOWN, listeners.down)
+  editor.event.off(EDITOR_EVENT.MOUSE_WHEEL, listeners.wheel)
+  editor.event.off(EDITOR_EVENT.CANVAS_RESET, listeners.reset)
+  editor.event.off(EDITOR_EVENT.CLICK, listeners.click)
 }
-
-function removeExportStateClasses(element) {
-  element.classList.remove('is-selected', 'is-dragging', 'is-drop-target')
-}
-
-function createResumePageSvg(pageElement) {
-  const wrapper = document.createElement('div')
-  wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
-  wrapper.style.width = `${PAPER_WIDTH}px`
-  wrapper.style.height = `${PAPER_HEIGHT}px`
-  wrapper.style.overflow = 'hidden'
-  wrapper.style.background = '#fff'
-  wrapper.appendChild(pageElement)
-
-  const serialized = new XMLSerializer().serializeToString(wrapper)
-
-  return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${PAPER_WIDTH}" height="${PAPER_HEIGHT}" viewBox="0 0 ${PAPER_WIDTH} ${PAPER_HEIGHT}">`,
-    `<foreignObject width="${PAPER_WIDTH}" height="${PAPER_HEIGHT}">`,
-    serialized,
-    '</foreignObject>',
-    '</svg>'
-  ].join('')
-}
-
-function loadImage(url) {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Failed to render PDF page.'))
-    image.src = url
-  })
-}
-
-function canvasToBlob(canvas, type, quality) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob)
-          return
-        }
-
-        reject(new Error('Failed to create PDF page image.'))
-      },
-      type,
-      quality
-    )
-  })
-}
-
-function createPdfBlobFromJpegs(images) {
-  const encoder = new TextEncoder()
-  const parts = []
-  const offsets = []
-  let offset = 0
-
-  const append = (part) => {
-    const bytes = typeof part === 'string' ? encoder.encode(part) : part
-    parts.push(bytes)
-    offset += bytes.length
-  }
-  const appendObject = (id, bodyParts) => {
-    offsets[id] = offset
-    append(`${id} 0 obj\n`)
-    bodyParts.forEach(append)
-    append('\nendobj\n')
-  }
-
-  append('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n')
-  appendObject(1, ['<< /Type /Catalog /Pages 2 0 R >>'])
-
-  const pageIds = images.map((_, index) => 3 + index * 3)
-  appendObject(2, [`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${images.length} >>`])
-
-  images.forEach((image, index) => {
-    const pageId = 3 + index * 3
-    const contentId = pageId + 1
-    const imageId = pageId + 2
-    const imageName = `Im${index + 1}`
-    const drawCommand = `q\n${PDF_A4_WIDTH_PT} 0 0 ${PDF_A4_HEIGHT_PT} 0 0 cm\n/${imageName} Do\nQ`
-
-    appendObject(pageId, [
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_A4_WIDTH_PT} ${PDF_A4_HEIGHT_PT}] `,
-      `/Resources << /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
-    ])
-    appendObject(contentId, [`<< /Length ${encoder.encode(drawCommand).length} >>\nstream\n${drawCommand}\nendstream`])
-
-    offsets[imageId] = offset
-    append(`${imageId} 0 obj\n`)
-    append(
-      `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`
-    )
-    append(image.bytes)
-    append('\nendstream\nendobj\n')
-  })
-
-  const xrefOffset = offset
-  const objectCount = 2 + images.length * 3
-  append(`xref\n0 ${objectCount + 1}\n`)
-  append('0000000000 65535 f \n')
-
-  for (let id = 1; id <= objectCount; id += 1) {
-    append(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`)
-  }
-
-  append(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`)
-
-  return new Blob(parts, { type: 'application/pdf' })
-}
-
-async function savePdfBlob(blob, fileName) {
-  if (typeof window.showSaveFilePicker === 'function') {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: fileName,
-        types: [
-          {
-            description: 'PDF',
-            accept: {
-              'application/pdf': ['.pdf']
-            }
-          }
-        ]
-      })
-      const writable = await handle.createWritable()
-      await writable.write(blob)
-      await writable.close()
-      return true
-    } catch (error) {
-      if (error?.name === 'AbortError') {
-        flashStatus('\u5df2\u53d6\u6d88\u5bfc\u51fa')
-        return false
-      }
-
-      throw error
-    }
-  }
-
-  downloadBlob(blob, fileName)
-  return true
-}
-
-function downloadBlob(blob, fileName) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
-function writeDraft() {
-  if (typeof localStorage === 'undefined') {
-    return
-  }
-
-  localStorage.setItem(RESUME_EDITOR_DRAFT_KEY, JSON.stringify(resume.value))
-}
-
-function loadDraft() {
-  if (typeof localStorage === 'undefined') {
-    return
-  }
-
-  const rawDraft = localStorage.getItem(RESUME_EDITOR_DRAFT_KEY)
-
-  if (!rawDraft) {
-    return
-  }
-
-  try {
-    const parsedDraft = JSON.parse(rawDraft)
-
-    if (parsedDraft && typeof parsedDraft === 'object') {
-      const defaultResume = createDefaultResume()
-
-      resume.value = {
-        ...defaultResume,
-        ...parsedDraft,
-        pageCount: normalizePageCount(parsedDraft.pageCount),
-        sectionOrder: normalizeSectionOrder(parsedDraft.sectionOrder),
-        moduleBounds: normalizeModuleBounds(parsedDraft.moduleBounds),
-        profile: {
-          ...defaultResume.profile,
-          ...parsedDraft.profile
-        },
-        visibleSections: normalizeVisibleSections(parsedDraft.visibleSections),
-        richText: normalizeRichTextSections(parsedDraft, defaultResume.richText),
-        education: normalizeEducationItems(parsedDraft.education, defaultResume.education)
-      }
-      delete resume.value.experience
-      delete resume.value.projects
-      delete resume.value.skills
-    }
-  } catch {
-    localStorage.removeItem(RESUME_EDITOR_DRAFT_KEY)
-  }
-}
-
-function flashStatus(message) {
-  draftStatus.value = message
-
-  if (draftStatusTimer) {
-    window.clearTimeout(draftStatusTimer)
-  }
-
-  draftStatusTimer = window.setTimeout(() => {
-    draftStatus.value = ''
-  }, 1400)
-}
-
-function showResumeNotice(message) {
-  resumeNotice.value = message
-
-  if (resumeNoticeTimer) {
-    window.clearTimeout(resumeNoticeTimer)
-  }
-
-  resumeNoticeTimer = window.setTimeout(() => {
-    resumeNotice.value = ''
-  }, 1600)
-}
-
-watch(
-  resume,
-  () => {
-    writeDraft()
-  },
-  { deep: true }
-)
 
 onMounted(() => {
-  loadDraft()
-  historyStack.value = [getSnapshot()]
+  const data = loadStoredDocument()
+  background = new CanvasBackground(data); editor = createOfficialEditor(data)
+  pageCount.value = background.pageCount
+  editor.onMount(canvasHost.value); background.init(editor); window.editor = editor
+  bindEditorEvents(); updateHistoryState(); updateStructure(); syncSelection()
+})
+onBeforeUnmount(() => {
+  window.clearTimeout(toastTimer); unbindEditorEvents()
+  if (editor && background) background.destroy(editor)
+  editor?.destroy(); if (window.editor === editor) delete window.editor
+  editor = null; background = null
 })
 </script>
 
-<style>
-.resume-editor-page {
-  --editor-ink: #171a20;
-  --editor-copy: #444b57;
-  --editor-muted: #7a8391;
-  --editor-line: rgba(23, 26, 32, 0.1);
-  min-height: 100dvh;
-  background: #eef1f5;
-  color: var(--editor-ink);
-}
-
-.resume-editor-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: grid;
-  grid-template-columns: minmax(190px, 0.8fr) minmax(260px, 1fr) minmax(260px, 0.9fr);
-  align-items: center;
-  gap: 16px;
-  min-height: 64px;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--editor-line);
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(18px);
-}
-
-.resume-editor-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  width: fit-content;
-  color: var(--editor-ink);
-  font-weight: 800;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.resume-editor-brand__mark {
-  display: inline-grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #171a20;
-  color: #fff;
-  font-size: 0.82rem;
-  letter-spacing: 0.06em;
-}
-
-.resume-editor-toolbar__center,
-.resume-editor-toolbar__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.resume-editor-toolbar__center {
-  justify-content: center;
-}
-
-.resume-editor-toolbar__actions {
-  justify-content: flex-end;
-}
-
-.editor-btn,
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 38px;
-  border: 1px solid var(--editor-line);
-  border-radius: 10px;
-  padding: 0 14px;
-  background: #fff;
-  color: var(--editor-ink);
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    background-color 160ms ease;
-}
-
-.editor-btn:hover,
-.icon-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(23, 26, 32, 0.2);
-  box-shadow: 0 12px 24px rgba(23, 26, 32, 0.08);
-}
-
-.editor-btn:disabled,
-.icon-btn:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.editor-btn--primary,
-.editor-btn--dark {
-  border-color: #171a20;
-  background: #171a20;
-  color: #fff;
-}
-
-.editor-btn--danger {
-  color: #b42318;
-}
-
-.editor-btn--wide {
-  width: 100%;
-}
-
-.zoom-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  border: 1px solid var(--editor-line);
-  border-radius: 10px;
-  padding: 0 10px 0 12px;
-  background: #fff;
-  color: var(--editor-muted);
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.zoom-control select {
-  border: 0;
-  background: transparent;
-  color: var(--editor-ink);
-  font: inherit;
-  outline: none;
-}
-
-.draft-status {
-  color: #171a20;
-  font-size: 0.88rem;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.resume-editor-shell {
-  position: relative;
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 14px;
-  height: calc(100dvh - 64px);
-  padding: 14px;
-}
-
-.resume-inline-notice {
-  position: absolute;
-  top: 28px;
-  left: 308px;
-  right: 28px;
-  z-index: 26;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.resume-inline-notice span {
-  border: 1px solid rgba(23, 26, 32, 0.12);
-  border-radius: 999px;
-  padding: 10px 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 16px 38px rgba(23, 26, 32, 0.16);
-  color: var(--editor-ink);
-  font-size: 0.9rem;
-  font-weight: 900;
-}
-
-.resume-inline-notice-enter-active,
-.resume-inline-notice-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.resume-inline-notice-enter-from,
-.resume-inline-notice-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-.resume-sidebar,
-.resume-workspace {
-  min-height: 0;
-}
-
-.resume-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-}
-
-.resume-sidebar-home-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-shrink: 0;
-  min-height: 44px;
-  margin-top: auto;
-  border: 1px solid var(--editor-line);
-  border-radius: 12px;
-  background: #fff;
-  color: var(--editor-ink);
-  font-size: 0.9rem;
-  font-weight: 800;
-  text-decoration: none;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.resume-sidebar-home-link svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-.resume-sidebar-home-link:hover {
-  border-color: rgba(23, 26, 32, 0.24);
-  background: #171a20;
-  box-shadow: 0 12px 24px rgba(23, 26, 32, 0.1);
-  color: #fff;
-  transform: translateY(-1px);
-}
-
-.editor-panel {
-  border: 1px solid var(--editor-line);
-  border-radius: 16px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 40px rgba(23, 26, 32, 0.06);
-}
-
-.editor-panel__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  font-size: 0.9rem;
-  font-weight: 900;
-}
-
-.module-sort-list,
-.field-stack,
-.quick-actions {
-  display: grid;
-  gap: 10px;
-}
-
-.module-sort-group {
-  display: grid;
-  gap: 7px;
-}
-
-.module-sort-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  min-height: 56px;
-  border: 1px solid var(--editor-line);
-  border-radius: 12px;
-  padding: 8px;
-  background: #fff;
-  cursor: grab;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease,
-    opacity 160ms ease;
-}
-
-.module-sort-item:hover,
-.module-sort-item.is-active {
-  border-color: rgba(23, 26, 32, 0.28);
-  box-shadow: 0 12px 26px rgba(23, 26, 32, 0.08);
-}
-
-.module-sort-item.is-dragging {
-  opacity: 0.54;
-  transform: scale(0.99);
-}
-
-.module-sort-item__handle {
-  color: var(--editor-muted);
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.module-toggle input {
-  accent-color: #171a20;
-}
-
-.module-sort-item__title {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--editor-ink);
-  text-align: left;
-  cursor: pointer;
-}
-
-.module-sort-item__title span {
-  overflow: hidden;
-  font-size: 0.92rem;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.module-sort-item__title small {
-  overflow: hidden;
-  color: var(--editor-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.module-sort-item__actions,
-.entry-action-row {
-  display: flex;
-  gap: 6px;
-}
-
-.module-sort-item__actions .icon-btn,
-.icon-btn {
-  width: 32px;
-  min-height: 32px;
-  padding: 0;
-  font-size: 0.82rem;
-}
-
-.module-sort-item__actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.module-sort-item__move-stack {
-  display: grid;
-  gap: 4px;
-}
-
-.module-sort-delete-btn {
-  width: 30px;
-  height: 48px;
-  min-height: 48px;
-  border-color: rgba(180, 35, 24, 0.18);
-  border-radius: 8px;
-  background: rgba(180, 35, 24, 0.08);
-  box-shadow: none;
-  color: #b42318;
-  font-weight: 900;
-}
-
-.module-sort-delete-btn__icon {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.module-sort-delete-btn:hover {
-  border-color: rgba(180, 35, 24, 0.28);
-  background: #b42318;
-  color: #fff;
-}
-
-.module-sort-item__actions .module-sort-move-btn {
-  width: 28px;
-  height: 22px;
-  min-height: 22px;
-  border-color: rgba(23, 26, 32, 0.08);
-  border-radius: 7px;
-  background: #f7f8fa;
-  box-shadow: none;
-  color: #596171;
-}
-
-.module-sort-item__actions .module-sort-move-btn:hover:not(:disabled) {
-  border-color: rgba(23, 26, 32, 0.18);
-  background: #171a20;
-  color: #fff;
-  transform: none;
-  box-shadow: 0 8px 18px rgba(23, 26, 32, 0.12);
-}
-
-.module-sort-move-btn__chevron {
-  width: 7px;
-  height: 7px;
-  border-top: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-}
-
-.module-sort-move-btn--up .module-sort-move-btn__chevron {
-  transform: translateY(2px) rotate(45deg);
-}
-
-.module-sort-move-btn--down .module-sort-move-btn__chevron {
-  transform: translateY(-2px) rotate(225deg);
-}
-
-.module-child-list {
-  display: grid;
-  gap: 6px;
-  padding-left: 36px;
-}
-
-.module-child-item {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #f7f8fa;
-  color: var(--editor-copy);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    transform 160ms ease;
-}
-
-.module-child-item:hover,
-.module-child-item.is-active {
-  border-color: rgba(23, 26, 32, 0.2);
-  background: #fff;
-  transform: translateX(2px);
-}
-
-.module-child-item span,
-.module-child-item small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.module-child-item span {
-  color: var(--editor-ink);
-  font-size: 0.84rem;
-  font-weight: 800;
-}
-
-.module-child-item small {
-  color: var(--editor-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.quick-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.module-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 38px;
-  border: 1px solid var(--editor-line);
-  border-radius: 10px;
-  padding: 0 12px;
-  background: #fff;
-  color: var(--editor-copy);
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.module-toggle--inspector {
-  justify-content: flex-start;
-}
-
-.resume-workspace {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--editor-line);
-  border-radius: 18px;
-  background: #fff;
-}
-
-.resume-stage {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 44px 44px 80px;
-}
-
-.resume-pages {
-  display: grid;
-  justify-items: center;
-  gap: 56px;
-  min-width: max-content;
-}
-
-.resume-paper-frame {
-  position: relative;
-  margin: 0 auto;
-}
-
-.resume-page-label {
-  position: absolute;
-  top: -28px;
-  right: 0;
-  color: rgba(23, 26, 32, 0.58);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.resume-paper {
-  box-sizing: border-box;
-  width: 794px;
-  height: 1123px;
-  overflow: hidden;
-  transform-origin: top left;
-  border: 1px solid rgba(23, 26, 32, 0.08);
-  background: #fff;
-  box-shadow: 0 28px 70px rgba(23, 26, 32, 0.18);
-  color: #171a20;
-  font-family:
-    "Inter",
-    "PingFang SC",
-    "Microsoft YaHei",
-    Arial,
-    sans-serif;
-}
-
-.resume-paper--continuation {
-  padding-top: 34px;
-}
-
-.resume-document-hero,
-.resume-module {
-  position: relative;
-  box-sizing: border-box;
-  margin: 0 56px;
-  padding: 22px 18px;
-  cursor: grab;
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease,
-    background-color 160ms ease,
-    outline-color 160ms ease;
-  will-change: transform;
-}
-
-.resume-module {
-  margin-bottom: 14px;
-}
-
-.resume-module:active {
-  cursor: grabbing;
-}
-
-.resume-module.is-dragging {
-  opacity: 0.48;
-  transform: scale(0.995);
-}
-
-.resume-module.is-drop-target {
-  background: linear-gradient(90deg, rgba(23, 26, 32, 0.045), transparent 72%);
-}
-
-.resume-module.is-selected {
-  outline: 0;
-}
-
-.resume-module.is-selected::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  border: 2px solid #2f6bff;
-  pointer-events: none;
-}
-
-.resume-module.is-selected.is-continuation-fragment::before,
-.resume-module.is-selected.is-continued-fragment::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  z-index: 4;
-  height: 1200px;
-  border-right: 2px solid #2f6bff;
-  border-left: 2px solid #2f6bff;
-  pointer-events: none;
-}
-
-.resume-module.is-selected.is-continuation-fragment::before {
-  bottom: 100%;
-}
-
-.resume-module.is-selected.is-continued-fragment::before {
-  top: 100%;
-}
-
-.resume-module.is-selected.is-continuation-fragment::after {
-  border-top: 0;
-}
-
-.resume-module.is-selected.is-continued-fragment::after {
-  border-bottom: 0;
-}
-
-.module-boundary-handles {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  pointer-events: none;
-}
-
-.module-boundary-handle {
-  position: absolute;
-  display: block;
-  width: 11px;
-  height: 11px;
-  border: 1px solid #a9b3c1;
-  border-radius: 2px;
-  padding: 0;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(23, 26, 32, 0.18);
-  pointer-events: auto;
-}
-
-.module-boundary-handle--top,
-.module-boundary-handle--bottom {
-  left: 50%;
-  cursor: ns-resize;
-  transform: translateX(-50%);
-}
-
-.module-boundary-handle--top {
-  top: -6px;
-}
-
-.module-boundary-handle--bottom {
-  bottom: -6px;
-}
-
-.module-boundary-handle--left,
-.module-boundary-handle--right {
-  top: 50%;
-  cursor: ew-resize;
-  transform: translateY(-50%);
-}
-
-.module-boundary-handle--left {
-  left: -6px;
-}
-
-.module-boundary-handle--right {
-  right: -6px;
-}
-
-.resume-document-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 250px;
-  gap: 28px;
-  margin-top: 0;
-  padding-top: 54px;
-  border-bottom: 2px solid #171a20;
-}
-
-.resume-document-hero h1 {
-  margin: 0;
-  font-size: 42px;
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.resume-document-hero p {
-  margin: 12px 0 0;
-  color: #4d5563;
-  font-size: 18px;
-}
-
-.resume-contact-list {
-  display: grid;
-  gap: 8px;
-  align-self: center;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: #4d5563;
-  font-size: 14px;
-}
-
-.resume-module + .resume-module {
-  border-top: 1px solid rgba(23, 26, 32, 0.1);
-}
-
-.resume-module h2 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 16px;
-  color: #171a20;
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.resume-module h2::before {
-  content: '';
-  width: 22px;
-  height: 3px;
-  border-radius: 99px;
-  background: currentColor;
-}
-
-.resume-rich-text {
-  display: grid;
-  gap: 8px;
-  color: #3f4652;
-  line-height: 1.7;
-}
-
-.resume-rich-text p {
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.resume-rich-text__list {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding-left: 20px;
-}
-
-.resume-rich-text__list li::marker {
-  color: #171a20;
-}
-
-.resume-rich-text__empty {
-  color: #7a8391;
-}
-
-.resume-rich-text--empty-fragment {
-  min-height: 0;
-}
-
-.resume-entry + .resume-entry {
-  margin-top: 18px;
-}
-
-.resume-entry {
-  position: relative;
-  border-radius: 10px;
-  transition:
-    background-color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.resume-entry--compact {
-  padding: 10px 12px;
-  margin: -10px -12px;
-}
-
-.resume-entry.is-active {
-  background: rgba(47, 107, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(47, 107, 255, 0.16);
-}
-
-.resume-entry__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: start;
-}
-
-.resume-entry__education-line {
-  display: grid;
-  grid-template-columns: minmax(140px, 1.2fr) minmax(100px, 0.9fr) minmax(52px, 0.45fr) auto;
-  gap: 14px;
-  align-items: center;
-  color: #4d5563;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.resume-entry__education-line strong,
-.resume-entry__education-line span,
-.resume-entry__education-line time {
-  overflow: hidden;
-  min-width: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resume-entry__education-line strong {
-  color: #171a20;
-  font-size: 15px;
-}
-
-.resume-entry__education-line time {
-  color: #626b78;
-  font-style: normal;
-}
-
-.resume-entry h3 {
-  margin: 0;
-  color: #171a20;
-  font-size: 17px;
-}
-
-.resume-entry p {
-  margin: 6px 0 0;
-  color: #626b78;
-  font-size: 14px;
-}
-
-.resume-entry__head > span {
-  color: #626b78;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.resume-entry ul {
-  display: grid;
-  gap: 7px;
-  margin: 12px 0 0;
-  padding-left: 20px;
-  color: #3f4652;
-  line-height: 1.65;
-}
-
-.resume-entry li::marker {
-  color: #171a20;
-}
-
-.is-selected {
-  outline: 2px solid rgba(23, 26, 32, 0.6);
-  outline-offset: 5px;
-}
-
-.editor-field {
-  display: grid;
-  gap: 7px;
-}
-
-.editor-field span {
-  color: var(--editor-muted);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.editor-field input,
-.editor-field textarea {
-  width: 100%;
-  border: 1px solid var(--editor-line);
-  border-radius: 10px;
-  padding: 11px 12px;
-  background: #fff;
-  color: var(--editor-ink);
-  font: inherit;
-  line-height: 1.5;
-  outline: none;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.editor-field textarea {
-  resize: vertical;
-}
-
-.editor-field input:focus,
-.editor-field textarea:focus {
-  border-color: rgba(23, 26, 32, 0.34);
-  box-shadow: 0 0 0 4px rgba(23, 26, 32, 0.08);
-}
-
-.inspector-rich-preview {
-  display: grid;
-  gap: 10px;
-}
-
-.inspector-rich-preview__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.inspector-rich-preview__head span {
-  color: var(--editor-muted);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.inspector-rich-preview__body {
-  min-height: 220px;
-  max-height: 420px;
-  overflow: auto;
-  border: 1px solid rgba(23, 26, 32, 0.14);
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: #fff;
-  color: var(--editor-ink);
-  line-height: 1.65;
-}
-
-.inspector-rich-preview__body p {
-  margin: 0 0 9px;
-}
-
-.inspector-rich-preview__body ul,
-.inspector-rich-preview__body ol {
-  margin: 0 0 9px;
-  padding-left: 20px;
-}
-
-.inspector-rich-preview__empty {
-  color: var(--editor-muted);
-}
-
-.resume-module-dialog {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(17, 20, 26, 0.4);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-}
-
-.resume-module-dialog__panel {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(920px, 100%);
-  max-height: min(760px, calc(100dvh - 48px));
-  border: 1px solid rgba(23, 26, 32, 0.1);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 30px 80px rgba(17, 20, 26, 0.28);
-  overflow: hidden;
-}
-
-.resume-module-dialog__head,
-.resume-module-dialog__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 18px 20px;
-}
-
-.resume-module-dialog__head {
-  border-bottom: 1px solid var(--editor-line);
-}
-
-.resume-module-dialog__head p,
-.resume-module-dialog__head h2 {
-  margin: 0;
-}
-
-.resume-module-dialog__head p {
-  color: var(--editor-muted);
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.resume-module-dialog__head h2 {
-  margin-top: 4px;
-  color: var(--editor-ink);
-  font-size: 1.45rem;
-  line-height: 1.2;
-}
-
-.resume-module-dialog__close {
-  width: 38px;
-  min-height: 38px;
-  font-size: 1.35rem;
-}
-
-.resume-module-dialog__body {
-  min-height: 0;
-  overflow: auto;
-  padding: 20px;
-}
-
-.resume-module-dialog__actions {
-  justify-content: flex-end;
-  border-top: 1px solid var(--editor-line);
-}
-
-.resume-profile-dialog__panel {
-  width: min(720px, 100%);
-}
-
-.resume-profile-dialog__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.resume-profile-dialog__grid .editor-field:first-child,
-.resume-profile-dialog__grid .editor-field:nth-child(2) {
-  grid-column: span 1;
-}
-
-.resume-module-dialog__tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  color: var(--editor-muted);
-  font-size: 0.9rem;
-  font-weight: 900;
-}
-
-.resume-dialog-education-list {
-  display: grid;
-  gap: 12px;
-}
-
-.resume-dialog-education-item {
-  display: grid;
-  gap: 14px;
-  border: 1px solid var(--editor-line);
-  border-radius: 14px;
-  padding: 14px;
-  background: #fff;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.resume-dialog-education-item.is-active {
-  border-color: rgba(47, 107, 255, 0.28);
-  background: rgba(47, 107, 255, 0.04);
-  box-shadow: 0 14px 30px rgba(47, 107, 255, 0.08);
-}
-
-.resume-dialog-education-item__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.resume-dialog-education-item__head strong {
-  color: var(--editor-ink);
-  font-size: 0.96rem;
-}
-
-.resume-dialog-field-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(150px, 0.7fr);
-  gap: 12px;
-}
-
-.resume-dialog-field-grid--education {
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(110px, 0.55fr) minmax(150px, 0.75fr);
-}
-
-.resume-module-dialog-enter-active,
-.resume-module-dialog-leave-active {
-  transition: opacity 180ms ease;
-}
-
-.resume-module-dialog-enter-active .resume-module-dialog__panel,
-.resume-module-dialog-leave-active .resume-module-dialog__panel {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-
-.resume-module-dialog-enter-from,
-.resume-module-dialog-leave-to {
-  opacity: 0;
-}
-
-.resume-module-dialog-enter-from .resume-module-dialog__panel,
-.resume-module-dialog-leave-to .resume-module-dialog__panel {
-  opacity: 0;
-  transform: translateY(14px) scale(0.985);
-}
-
-.resume-rich-editor {
-  display: grid;
-  gap: 10px;
-}
-
-.resume-rich-editor__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.resume-rich-editor__head > span {
-  color: var(--editor-muted);
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.resume-rich-editor__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.resume-rich-editor__toolbar button {
-  min-width: 34px;
-  min-height: 32px;
-  border: 1px solid var(--editor-line);
-  border-radius: 8px;
-  padding: 0 10px;
-  background: #fff;
-  color: var(--editor-ink);
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.resume-rich-editor__toolbar button:hover {
-  border-color: rgba(23, 26, 32, 0.22);
-  background: #f7f8fa;
-}
-
-.resume-rich-editor__toolbar button:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-.resume-rich-editor__area {
-  min-height: 420px;
-  max-height: 520px;
-  overflow: auto;
-  border: 1px solid rgba(23, 26, 32, 0.24);
-  border-radius: 12px;
-  padding: 14px 16px;
-  background: #fff;
-  color: var(--editor-ink);
-  line-height: 1.7;
-  outline: none;
-  box-shadow: inset 0 0 0 1px rgba(23, 26, 32, 0.04);
-}
-
-.resume-rich-editor__area:focus {
-  border-color: rgba(23, 26, 32, 0.34);
-  box-shadow: inset 0 0 0 1px rgba(23, 26, 32, 0.06);
-}
-
-.resume-rich-editor__area p {
-  margin: 0 0 10px;
-}
-
-.resume-rich-editor__area ul,
-.resume-rich-editor__area ol {
-  margin: 0 0 10px;
-  padding-left: 22px;
-}
-
-.resume-rich-text--html p {
-  margin: 0;
-}
-
-.resume-rich-text--html ul,
-.resume-rich-text--html ol {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding-left: 20px;
-}
-
-.entry-action-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.section-empty-state {
-  margin: 0;
-  border: 1px dashed var(--editor-line);
-  border-radius: 12px;
-  padding: 18px;
-  color: var(--editor-muted);
-  text-align: center;
-}
-
-@media (max-width: 1180px) {
-  .resume-editor-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .resume-editor-toolbar__center,
-  .resume-editor-toolbar__actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .resume-editor-shell {
-    grid-template-columns: 250px minmax(0, 1fr);
-    height: auto;
-  }
-
-}
-
-@media (max-width: 820px) {
-  .resume-editor-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .resume-inline-notice {
-    top: 22px;
-    left: 22px;
-    right: 22px;
-  }
-
-  .resume-sidebar {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .resume-stage {
-    padding: 22px;
-  }
-
-  .resume-dialog-field-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 560px) {
-  .resume-editor-toolbar {
-    padding: 10px;
-  }
-
-  .resume-editor-toolbar__center,
-  .resume-editor-toolbar__actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .resume-editor-toolbar__center > *,
-  .resume-editor-toolbar__actions > * {
-    width: 100%;
-  }
-
-  .resume-sidebar {
-    grid-template-columns: 1fr;
-  }
-
-  .quick-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .resume-module-dialog {
-    padding: 12px;
-  }
-
-  .resume-module-dialog__panel {
-    max-height: calc(100dvh - 24px);
-  }
-
-  .resume-module-dialog__head,
-  .resume-module-dialog__actions,
-  .resume-module-dialog__body {
-    padding: 14px;
-  }
-
-  .resume-profile-dialog__grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media print {
-  @page {
-    size: A4;
-    margin: 0;
-  }
-
-  :global(html),
-  :global(body) {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0;
-    background: #fff;
-  }
-
-  .resume-editor-page {
-    min-height: auto;
-    background: #fff;
-  }
-
-  .resume-editor-toolbar,
-  .resume-sidebar,
-  .resume-module-dialog {
-    display: none !important;
-  }
-
-  .resume-editor-shell {
-    display: block;
-    height: auto;
-    padding: 0;
-  }
-
-  .resume-workspace {
-    display: block;
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: #fff;
-  }
-
-  .resume-stage {
-    overflow: visible;
-    padding: 0;
-  }
-
-  .resume-pages {
-    display: block;
-    min-width: 0;
-  }
-
-  .resume-paper-frame {
-    width: 210mm !important;
-    height: 297mm !important;
-    margin: 0;
-    break-after: page;
-    page-break-after: always;
-  }
-
-  .resume-paper-frame:last-child {
-    break-after: auto;
-    page-break-after: auto;
-  }
-
-  .resume-page-label {
-    display: none;
-  }
-
-  .resume-paper {
-    width: 210mm;
-    height: 297mm;
-    overflow: hidden;
-    transform: none !important;
-    border: 0;
-    box-shadow: none;
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-
-  .is-selected {
-    outline: 0;
-  }
-}
+<style scoped>
+.ce-app {
+  --ce-blue: #165dff; --ce-text-1: #1d2129; --ce-text-2: #4e5969; --ce-border-2: #e5e6eb;
+  position: fixed; inset: 0; z-index: 1000; overflow: hidden; color: var(--ce-text-1); background: #fff;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px; user-select: none;
+}
+button, input, textarea { font: inherit; }
+button { color: inherit; }
+.ce-header { display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; height: 50px; padding: 0 10px; border-bottom: 1px solid var(--ce-border-2); background: #fff; }
+.ce-tool-group, .ce-header-actions, .ce-history-actions { display: flex; align-items: center; }
+.ce-icon-button { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; cursor: pointer; }
+.ce-tool-button { width: 29px; height: 29px; margin-left: 10px; padding: 3px; border-radius: 3px; }
+.ce-tool-button:hover { background: #f7f8fa; }
+.ce-tool-button.active { background: #f2f3f5; }
+.ce-header-actions { height: 100%; gap: 2px; }
+.ce-history-actions { margin-right: 5px; }
+.ce-history-button { width: 25px; height: 25px; padding: 3px; color: var(--ce-blue); }
+.ce-history-button:disabled { color: #c9cdd4; cursor: not-allowed; }
+.ce-dropdown { position: relative; }
+.ce-dropdown-trigger { display: flex; align-items: center; gap: 2px; height: 26px; padding: 0 7px; border: 0; color: var(--ce-blue); background: transparent; font-size: 13px; cursor: pointer; }
+.ce-dropdown-trigger:hover { background: #f2f3f5; }
+.ce-dropdown-menu { position: absolute; top: 31px; right: 0; z-index: 30; min-width: 104px; padding: 4px 0; border: 1px solid var(--ce-border-2); border-radius: 4px; background: #fff; box-shadow: 0 4px 12px rgb(0 0 0 / 12%); }
+.ce-dropdown-menu button { display: block; width: 100%; padding: 7px 12px; border: 0; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
+.ce-dropdown-menu button:hover { background: #f2f3f5; }
+.ce-export-menu { min-width: 110px; }
+.ce-github { display: inline-flex; margin: 0 10px 0 5px; color: var(--ce-text-1); }
+.ce-body { position: relative; display: flex; width: 100%; height: calc(100% - 50px); }
+.ce-left-panel { flex-shrink: 0; width: 260px; border-right: 1px solid var(--ce-border-2); background: #fff; }
+.ce-tabs { display: flex; height: 40px; border-bottom: 1px solid var(--ce-border-2); }
+.ce-tabs button { position: relative; width: 60px; padding: 0; border: 0; color: var(--ce-text-2); background: transparent; cursor: pointer; }
+.ce-tabs button.active { color: var(--ce-blue); }
+.ce-tabs button.active::after { position: absolute; right: 15px; bottom: -1px; left: 15px; height: 2px; background: var(--ce-blue); content: ""; }
+.ce-template-panel { display: grid; grid-template-columns: 1fr 1fr; align-content: start; max-height: calc(100% - 40px); padding: 0 10px 20px; overflow: auto; scrollbar-width: none; }
+.ce-template-panel::-webkit-scrollbar, .ce-panel-scroll::-webkit-scrollbar, .ce-structure-panel::-webkit-scrollbar { display: none; }
+.ce-template-item { display: grid; margin: 15px 15px 0; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.ce-template-image-frame { display: block; height: 130px; overflow: hidden; border: 3px solid var(--ce-border-2); }
+.ce-template-item:hover .ce-template-image-frame { border-color: #bedaff; }
+.ce-template-image-frame img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.ce-template-name { margin-top: 5px; color: var(--ce-text-2); font-size: 12px; }
+.ce-structure-panel { max-height: calc(100% - 40px); padding: 10px; overflow-y: auto; scrollbar-width: none; }
+.ce-structure-item { display: flex; align-items: center; justify-content: space-between; height: 34px; margin-bottom: 7px; border: 1px solid var(--ce-border-2); border-radius: 3px; }
+.ce-structure-item.active { border-color: var(--ce-blue); }
+.ce-structure-title { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; height: 100%; padding: 0 8px; overflow: hidden; border: 0; background: transparent; cursor: pointer; }
+.ce-structure-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.ce-structure-remove { display: inline-flex; padding: 5px 8px; border: 0; background: transparent; cursor: pointer; }
+.ce-canvas-host { position: relative; flex-grow: 1; min-width: 0; height: 100%; overflow: hidden; isolation: isolate; background: #e5e6eb; }
+.ce-page-nav { position: absolute; bottom: 14px; left: calc(50% + 130px); z-index: 12; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 5px; border: 1px solid var(--ce-border-2); border-radius: 5px; background: rgb(255 255 255 / 94%); box-shadow: 0 2px 8px rgb(0 0 0 / 10%); transform: translateX(-50%); }
+.ce-page-nav button { display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 7px; border: 0; border-radius: 3px; background: transparent; cursor: pointer; }
+.ce-page-nav button:hover:not(:disabled) { background: #f2f3f5; }
+.ce-page-nav button:disabled { color: #c9cdd4; cursor: not-allowed; }
+.ce-page-nav span { min-width: 76px; color: var(--ce-text-2); text-align: center; font-size: 12px; }
+.ce-page-nav .ce-add-page { gap: 3px; margin-left: 2px; color: var(--ce-blue); }
+.ce-right-panel { position: absolute; top: 16px; right: 16px; bottom: 20px; z-index: 10; box-sizing: border-box; width: 300px; max-height: calc(100% - 60px); border-radius: 6px; transition: all 0.2s linear; }
+.ce-panel-scroll { box-sizing: border-box; height: 100%; padding: 10px 15px; overflow-y: auto; border: 1px solid var(--ce-border-2); border-radius: 6px; background: #fff; scrollbar-width: none; }
+.ce-panel-collapse { position: absolute; top: -10px; right: -10px; z-index: 2; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--ce-border-2); border-radius: 50%; color: var(--ce-text-2); background: #fff; transform: rotate(45deg); cursor: pointer; transition: transform 0.1s linear; }
+.ce-right-panel.collapsed { top: 16px; right: 16px; bottom: auto; width: 0; height: 0; }
+.ce-right-panel.collapsed .ce-panel-scroll { padding: 0; overflow: hidden; border: 0; }
+.ce-right-panel.collapsed .ce-panel-collapse { transform: rotate(0deg); }
+.ce-coordinate-preview { position: relative; display: flex; height: 100px; }
+.ce-coordinate-box { width: 100%; height: 70px; margin: 15px 80px; border: 1px solid #86909c; }
+.ce-coordinate { position: absolute; color: var(--ce-text-2); font-size: 12px; white-space: nowrap; }
+.ce-lt { top: 15px; right: 196px; } .ce-rt { top: 15px; left: 196px; } .ce-lb { right: 196px; bottom: 15px; } .ce-rb { bottom: 15px; left: 196px; }
+.ce-empty-property, .ce-multiple-property { padding-top: 2px; }
+.ce-property-title { display: flex; align-items: center; min-height: 34px; font-weight: 600; }
+.ce-property-row { display: flex; align-items: center; justify-content: space-between; min-height: 34px; color: var(--ce-text-2); font-size: 13px; }
+.ce-property-row input[type="color"] { width: 26px; height: 24px; padding: 2px; border: 1px solid var(--ce-border-2); border-radius: 3px; background: #fff; }
+.ce-number-input, .ce-resize-content input { box-sizing: border-box; width: 80px; height: 26px; padding: 0 7px; border: 1px solid var(--ce-border-2); border-radius: 3px; outline: none; }
+.ce-check-row > div { display: flex; gap: 7px; }
+.ce-check-row label, .ce-mode-row label { display: flex; align-items: center; gap: 3px; }
+.ce-mode-row { align-items: flex-start; padding-top: 8px; }
+.ce-mode-row > div { display: grid; gap: 6px; }
+.ce-upload-link { padding: 0; border: 0; color: var(--ce-blue); background: transparent; cursor: pointer; }
+.ce-rich-title { justify-content: space-between; }
+.ce-rich-title button { display: inline-flex; padding: 3px; border: 0; background: transparent; cursor: pointer; }
+.ce-rich-editor { min-height: 220px; padding: 4px 0 20px; outline: none; line-height: 1.65; white-space: pre-wrap; user-select: text; }
+:deep(.ce-rich-line) { min-height: 1.5em; }
+:deep(.ce-rich-divider) { min-height: 0; margin: 2px 0 5px; border-bottom: 1px solid var(--ce-border-2); }
+.ce-context-menu { position: fixed; z-index: 80; min-width: 170px; padding: 4px 0; border: 1px solid var(--ce-border-2); border-radius: 4px; background: #fff; box-shadow: 0 4px 12px rgb(0 0 0 / 15%); }
+.ce-context-menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 12px; border: 0; background: transparent; text-align: left; font-size: 13px; cursor: pointer; }
+.ce-context-menu button:hover { background: #f2f3f5; }
+.ce-context-menu kbd { color: #86909c; font: 12px inherit; }
+.ce-context-divider { height: 1px; margin: 3px 0; background: var(--ce-border-2); }
+.ce-modal-mask { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgb(0 0 0 / 38%); }
+.ce-modal { box-sizing: border-box; width: 420px; padding: 20px 24px; border-radius: 4px; background: #fff; box-shadow: 0 10px 30px rgb(0 0 0 / 18%); }
+.ce-modal h3 { margin: 0 0 18px; font-size: 16px; }
+.ce-modal p { margin: 0 0 24px; color: var(--ce-text-2); }
+.ce-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.ce-modal-actions button { min-width: 66px; height: 30px; border: 1px solid var(--ce-border-2); border-radius: 3px; background: #fff; cursor: pointer; }
+.ce-modal-actions button.primary { border-color: var(--ce-blue); color: #fff; background: var(--ce-blue); }
+.ce-resize-content { display: flex; align-items: center; gap: 10px; }
+.ce-rich-modal { position: relative; width: min(900px, calc(100vw - 100px)); }
+.ce-rich-modal textarea { box-sizing: border-box; width: 100%; height: min(520px, calc(100vh - 220px)); padding: 14px; border: 1px solid var(--ce-border-2); outline: none; resize: vertical; line-height: 1.7; }
+.ce-rich-modal-close { position: absolute; top: 16px; right: 18px; display: inline-flex; padding: 3px; border: 0; background: transparent; cursor: pointer; }
+.ce-hidden-input { display: none; }
+.ce-toast { position: fixed; top: 68px; left: 50%; z-index: 160; padding: 8px 14px; border-radius: 4px; color: #fff; background: rgb(29 33 41 / 88%); transform: translateX(-50%); font-size: 13px; box-shadow: 0 4px 12px rgb(0 0 0 / 16%); }
+@media (max-width: 900px) { .ce-left-panel { width: 220px; } .ce-template-item { margin-right: 8px; margin-left: 8px; } .ce-right-panel { width: 280px; } }
 </style>

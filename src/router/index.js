@@ -49,7 +49,10 @@ const router = createRouter({
     {
       path: '/resume-editor',
       name: 'resume-editor',
-      component: ResumeEditorPage
+      component: ResumeEditorPage,
+      meta: {
+        followSiteTheme: false
+      }
     },
     {
       path: '/agent-intro',

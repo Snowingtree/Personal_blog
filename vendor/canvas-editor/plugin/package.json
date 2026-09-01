@@ -1,0 +1,12 @@
+{
+  "name": "sketching-plugin",
+  "version": "0.0.1",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "sketching-delta": "file:../delta",
+    "sketching-utils": "file:../utils"
+  }
+}
