@@ -1,5 +1,7 @@
 node_modules
 dist
+!vendor/canvas-editor/**/dist/
+!vendor/canvas-editor/**/dist/**
 dist-android
 android/.gradle/
 android/app/build/

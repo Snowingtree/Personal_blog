@@ -1,0 +1,28 @@
+export const NATIVE_EVENTS = {
+    COMPOSITION_START: "compositionstart",
+    COMPOSITION_UPDATE: "compositionupdate",
+    COMPOSITION_END: "compositionend",
+    COPY: "copy",
+    CUT: "cut",
+    PASTE: "paste",
+    KEY_DOWN: "keydown",
+    KEY_PRESS: "keypress",
+    KEY_UP: "keyup",
+    FOCUS: "focus",
+    BLUR: "blur",
+    MOUSE_DOWN: "mousedown",
+    MOUSE_UP: "mouseup",
+    MOUSE_MOVE: "mousemove",
+    MOUSE_WHEEL: "wheel",
+    MOUSE_UP_GLOBAL: "mouseup-global",
+    MOUSE_MOVE_GLOBAL: "mousemove-global",
+    DROP: "drop",
+    DROP_OVER: "dragover",
+    CONTEXT_MENU: "contextmenu",
+    CLICK: "click",
+};
+export const MOUSE_BUTTON = {
+    MAIN: 0,
+    ROLLER: 1,
+    MINOR: 2,
+};

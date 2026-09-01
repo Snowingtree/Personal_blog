@@ -1,0 +1,30 @@
+import type { Editor } from "../../editor";
+import type { EventBus } from "../bus";
+export declare class NativeEvent {
+    private event;
+    private editor;
+    constructor(event: EventBus, editor: Editor);
+    private onCompositionStart;
+    private onCompositionUpdate;
+    private onCompositionEnd;
+    private onCopy;
+    private onCut;
+    private onPaste;
+    private onKeydown;
+    private onKeypress;
+    private onKeyup;
+    private onFocus;
+    private onBlur;
+    private onMouseDown;
+    private onMouseMove;
+    private onMouseUp;
+    private onMouseWheel;
+    private onMouseMoveGlobal;
+    private onMouseUpGlobal;
+    private onDrop;
+    private onDropOver;
+    private onContextMenu;
+    private onClick;
+    bind(): void;
+    unbind(): void;
+}
