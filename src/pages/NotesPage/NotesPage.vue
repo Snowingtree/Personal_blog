@@ -448,7 +448,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { createMessage } from 'snowingress-my-components'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import {
   getAndroidCache,
   setAndroidCache
@@ -617,6 +617,9 @@ let activeHeadingScrollElement = null
 let activeHeadingAnimationFrame = 0
 let readingPositionSaveTimerId = 0
 let scheduledReadingPositionPath = ''
+let readingPositionRestoreId = 0
+let restoringReadingPosition = false
+let routeLeavePositionFlushed = false
 let noteAssetRenderVersion = 0
 let noteAssetObserver = null
 let noteAssetLoadScheduled = false
@@ -1122,7 +1125,7 @@ function persistReadingPositions() {
 }
 
 function saveReadingPosition(path = activePath.value) {
-  if (!isAndroidApp || !path) {
+  if (!isAndroidApp || !path || restoringReadingPosition) {
     return
   }
 
@@ -1144,7 +1147,12 @@ function saveReadingPosition(path = activePath.value) {
 }
 
 function scheduleReadingPositionSave() {
-  if (!isAndroidApp || !activePath.value || typeof window === 'undefined') {
+  if (
+    !isAndroidApp
+    || !activePath.value
+    || restoringReadingPosition
+    || typeof window === 'undefined'
+  ) {
     return
   }
 
@@ -1180,34 +1188,62 @@ async function restoreReadingPosition(path = activePath.value) {
     return
   }
 
-  await nextTick()
-  await nextTick()
-
-  if (typeof window !== 'undefined') {
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
-  }
-
-  if (activePath.value !== path) {
-    return
-  }
-
-  const scrollElement = resolvePreviewScrollElement()
-
-  if (!scrollElement) {
-    return
-  }
-
-  const maxScrollTop = Math.max(scrollElement.scrollHeight - scrollElement.clientHeight, 0)
+  const restoreId = ++readingPositionRestoreId
   const storedScrollTop = Number(storedPosition.scrollTop)
   const storedProgress = Number(storedPosition.progress)
-  const targetScrollTop = Number.isFinite(storedScrollTop) && storedScrollTop <= maxScrollTop
-    ? storedScrollTop
-    : Number.isFinite(storedProgress)
-      ? storedProgress * maxScrollTop
-      : 0
+  const retryDelays = [0, 16, 40, 80, 140, 220, 320]
+  let previousScrollRange = -1
+  let stableLayoutCount = 0
 
-  scrollElement.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop))
-  scheduleActiveHeadingUpdate()
+  restoringReadingPosition = true
+  await nextTick()
+  await nextTick()
+
+  try {
+    for (const delay of retryDelays) {
+      if (delay > 0 && typeof window !== 'undefined') {
+        await new Promise((resolve) => window.setTimeout(resolve, delay))
+      } else if (typeof window !== 'undefined') {
+        await new Promise((resolve) => window.requestAnimationFrame(resolve))
+      }
+
+      if (restoreId !== readingPositionRestoreId || activePath.value !== path) {
+        return
+      }
+
+      const scrollElement = resolvePreviewScrollElement()
+
+      if (!scrollElement) {
+        continue
+      }
+
+      const maxScrollTop = Math.max(scrollElement.scrollHeight - scrollElement.clientHeight, 0)
+      const targetScrollTop = Number.isFinite(storedScrollTop) && storedScrollTop <= maxScrollTop
+        ? storedScrollTop
+        : Number.isFinite(storedProgress)
+          ? storedProgress * maxScrollTop
+          : 0
+
+      scrollElement.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop))
+      scheduleActiveHeadingUpdate()
+
+      if (maxScrollTop > 0 && Math.abs(maxScrollTop - previousScrollRange) <= 1) {
+        stableLayoutCount += 1
+      } else {
+        stableLayoutCount = 0
+      }
+
+      previousScrollRange = maxScrollTop
+
+      if (stableLayoutCount >= 1) {
+        break
+      }
+    }
+  } finally {
+    if (restoreId === readingPositionRestoreId) {
+      restoringReadingPosition = false
+    }
+  }
 }
 
 function handlePreviewScroll() {
@@ -1880,6 +1916,7 @@ watch(
 
     activeHeadingId.value = activeHeadings.value[0]?.id || ''
     void startActiveHeadingTracking()
+    void restoreReadingPosition(activePath.value)
   },
   {
     flush: 'post'
@@ -1895,6 +1932,17 @@ watch(
     flush: 'post'
   }
 )
+
+onBeforeRouteLeave(() => {
+  if (!isAndroidApp) {
+    return
+  }
+
+  readingPositionRestoreId += 1
+  restoringReadingPosition = false
+  routeLeavePositionFlushed = true
+  flushReadingPosition(activePath.value)
+})
 
 onMounted(async () => {
   if (isAndroidApp && typeof window !== 'undefined') {
@@ -1946,7 +1994,13 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  flushReadingPosition(activePath.value)
+  readingPositionRestoreId += 1
+  restoringReadingPosition = false
+
+  if (!routeLeavePositionFlushed) {
+    flushReadingPosition(activePath.value)
+  }
+
   stopMobileDirectoryTriggerObserver()
   stopActiveHeadingTracking()
   releaseNoteAssetObjectUrls()

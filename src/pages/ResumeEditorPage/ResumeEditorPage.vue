@@ -155,7 +155,12 @@
               <span>富文本</span>
               <button type="button" title="放大编辑" @click="richModalVisible = true"><ExternalLink :size="14" /></button>
             </div>
-            <div :key="selectedState.id" class="ce-rich-editor" contenteditable="true" spellcheck="false" @input="onRichInput" @blur="saveRichText" v-html="richTextHtml"></div>
+            <OfficialRichTextEditor
+              :key="selectedState.id"
+              :model-value="richTextData"
+              :target-id="selectedState.id"
+              @update:model-value="saveRichTextData"
+            />
           </template>
 
           <div v-else-if="selectedIds.length > 1" class="ce-multiple-property">已选择 {{ selectedIds.length }} 个图形</div>
@@ -209,7 +214,12 @@
       <section class="ce-modal ce-rich-modal">
         <button type="button" class="ce-rich-modal-close" @click="richModalVisible = false"><X :size="16" /></button>
         <h3>富文本</h3>
-        <textarea v-model="richTextValue" autofocus @input="saveRichText"></textarea>
+        <OfficialRichTextEditor
+          :key="`modal-${selectedState?.id || 'text'}`"
+          :model-value="richTextData"
+          :target-id="selectedState?.id || ''"
+          @update:model-value="saveRichTextData"
+        />
       </section>
     </div>
 
@@ -226,7 +236,8 @@ import { DRAG_KEY, EDITOR_EVENT, Range } from 'sketching-core'
 import { DeltaSet, Op, OP_TYPE } from 'sketching-delta'
 import { DEFAULT_BORDER_COLOR, DEFAULT_BORDER_WIDTH, DEFAULT_FILL_COLOR, FALSY, IMAGE_ATTRS, IMAGE_MODE, RECT_ATTRS, TEXT_ATTRS, TRULY, isTruly } from 'sketching-plugin'
 import { ROOT_DELTA, TSON } from 'sketching-utils'
-import { CanvasBackground, TEMPLATE_CONFIG, createOfficialEditor, loadOfficialTemplate, loadStoredDocument, plainToRichText, renderDocumentPages, richTextToHtml, richTextToPlain, saveStoredDocument } from './officialCanvas.js'
+import { CanvasBackground, TEMPLATE_CONFIG, createOfficialEditor, loadOfficialTemplate, loadStoredDocument, renderDocumentPages, saveStoredDocument } from './officialCanvas.js'
+import OfficialRichTextEditor from './components/OfficialRichTextEditor.vue'
 
 const DEFAULT_IMAGE = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#f2f3f5"/><path fill="#bbb" d="M64 96h384v320H64z"/><path fill="#fff" d="m104 360 96-112 62 70 52-54 94 96z"/><circle cx="164" cy="176" r="38" fill="#fff"/></svg>')}`
 
@@ -262,8 +273,7 @@ const pendingTemplate = ref(null)
 const templateLoading = ref(false)
 const resizeModalVisible = ref(false)
 const richModalVisible = ref(false)
-const richTextValue = ref('')
-const richTextHtml = ref('')
+const richTextData = ref('[]')
 const toast = ref('')
 const contextMenu = reactive({ visible: false, top: 0, left: 0 })
 const resizeForm = reactive({ width: 794, height: 1123 })
@@ -379,8 +389,7 @@ function syncPropertyForm() {
   property.imageMode = state.getAttr(IMAGE_ATTRS.MODE) || IMAGE_MODE.FILL
   for (const item of sideOptions) property.sides[item.key] = isTruly(state.getAttr(item.key))
   if (state.key === 'text') {
-    richTextValue.value = richTextToPlain(state)
-    richTextHtml.value = richTextToHtml(state)
+    richTextData.value = state.getAttr(TEXT_ATTRS.DATA) || '[]'
   }
 }
 function normalizeHex(value, fallback) {
@@ -397,8 +406,13 @@ function setAttribute(key, value) {
   editor.state.apply(Op.from(OP_TYPE.REVISE, { id: selectedState.value.id, attrs: { [key]: String(value) } }))
 }
 function setSide(key, checked) { setAttribute(key, checked ? TRULY : FALSY) }
-function onRichInput(event) { richTextValue.value = event.currentTarget.innerText }
-function saveRichText() { setAttribute(TEXT_ATTRS.DATA, plainToRichText(richTextValue.value)) }
+function saveRichTextData(value, targetId) {
+  if (!editor || !targetId) return
+  const targetState = editor.state.getDeltaState(targetId)
+  if (!targetState || targetState.getAttr(TEXT_ATTRS.DATA) === value) return
+  if (selectedState.value?.id === targetId) richTextData.value = value
+  editor.state.apply(Op.from(OP_TYPE.REVISE, { id: targetId, attrs: { [TEXT_ATTRS.DATA]: value } }))
+}
 function selectNode(id) { editor?.selection.setActiveDelta(id) }
 function deleteNode(id) {
   if (!editor) return
@@ -641,9 +655,6 @@ button { color: inherit; }
 .ce-upload-link { padding: 0; border: 0; color: var(--ce-blue); background: transparent; cursor: pointer; }
 .ce-rich-title { justify-content: space-between; }
 .ce-rich-title button { display: inline-flex; padding: 3px; border: 0; background: transparent; cursor: pointer; }
-.ce-rich-editor { min-height: 220px; padding: 4px 0 20px; outline: none; line-height: 1.65; white-space: pre-wrap; user-select: text; }
-:deep(.ce-rich-line) { min-height: 1.5em; }
-:deep(.ce-rich-divider) { min-height: 0; margin: 2px 0 5px; border-bottom: 1px solid var(--ce-border-2); }
 .ce-context-menu { position: fixed; z-index: 80; min-width: 170px; padding: 4px 0; border: 1px solid var(--ce-border-2); border-radius: 4px; background: #fff; box-shadow: 0 4px 12px rgb(0 0 0 / 15%); }
 .ce-context-menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 12px; border: 0; background: transparent; text-align: left; font-size: 13px; cursor: pointer; }
 .ce-context-menu button:hover { background: #f2f3f5; }
@@ -658,7 +669,7 @@ button { color: inherit; }
 .ce-modal-actions button.primary { border-color: var(--ce-blue); color: #fff; background: var(--ce-blue); }
 .ce-resize-content { display: flex; align-items: center; gap: 10px; }
 .ce-rich-modal { position: relative; width: min(900px, calc(100vw - 100px)); }
-.ce-rich-modal textarea { box-sizing: border-box; width: 100%; height: min(520px, calc(100vh - 220px)); padding: 14px; border: 1px solid var(--ce-border-2); outline: none; resize: vertical; line-height: 1.7; }
+.ce-rich-modal :deep(.block-kit-editable) { box-sizing: border-box; height: min(520px, calc(100vh - 220px)); min-height: 320px; padding: 12px 14px; overflow: auto; border: 1px solid var(--ce-border-2); }
 .ce-rich-modal-close { position: absolute; top: 16px; right: 18px; display: inline-flex; padding: 3px; border: 0; background: transparent; cursor: pointer; }
 .ce-hidden-input { display: none; }
 .ce-toast { position: fixed; top: 68px; left: 50%; z-index: 160; padding: 8px 14px; border-radius: 4px; color: #fff; background: rgb(29 33 41 / 88%); transform: translateX(-50%); font-size: 13px; box-shadow: 0 4px 12px rgb(0 0 0 / 16%); }
