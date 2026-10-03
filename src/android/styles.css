@@ -69,6 +69,8 @@ body.is-android-app #app {
 
 html.is-android-app {
   color-scheme: light;
+  /* Keep the viewport gutter when a modal locks page scrolling. */
+  scrollbar-gutter: stable;
 }
 
 body.is-android-app {

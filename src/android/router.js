@@ -5,7 +5,7 @@ import { readAndroidAppendixEnabled } from './appendix'
 import { setAndroidAppMode } from './appMode'
 
 const AndroidModeHomePage = () => import('./pages/AndroidModeHomePage.vue')
-const AndroidHealthPage = () => import('./pages/AndroidHealthPage.vue')
+const AndroidExercisePage = () => import('./pages/AndroidExercisePage.vue')
 const AndroidDietPage = () => import('./pages/AndroidDietPage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 
@@ -31,15 +31,19 @@ const router = createRouter({
     },
     {
       path: '/health',
-      name: 'android-health',
-      component: AndroidHealthPage,
-      meta: { androidNavKey: 'health', androidSurface: 'health' }
+      redirect: '/diet'
     },
     {
       path: '/diet',
       name: 'android-diet',
       component: AndroidDietPage,
       meta: { androidNavKey: 'diet', androidSurface: 'diet' }
+    },
+    {
+      path: '/exercise',
+      name: 'android-exercise',
+      component: AndroidExercisePage,
+      meta: { androidNavKey: 'exercise', androidSurface: 'exercise' }
     },
     { path: '/login', redirect: '/notes' },
     {
@@ -91,7 +95,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.name === 'android-health' || to.name === 'android-diet') {
+  if (to.name === 'android-exercise' || to.name === 'android-diet') {
     setAndroidAppMode('health')
   } else if (['notes', 'notes-login', 'appendix'].includes(to.name)) {
     setAndroidAppMode('personal')

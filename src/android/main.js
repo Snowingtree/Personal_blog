@@ -6,6 +6,7 @@ import router from './router'
 import { applyAndroidTheme, readAndroidTheme } from './theme'
 import '../style.css'
 import './styles.css'
+import './health.css'
 
 applyAndroidTheme(readAndroidTheme())
 

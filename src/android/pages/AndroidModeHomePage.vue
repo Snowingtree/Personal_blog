@@ -1,6 +1,6 @@
 <template>
   <div class="android-mode-home">
-    <AndroidHealthPage v-if="androidAppMode === 'health'" overview />
+    <AndroidHealthPage v-if="androidAppMode === 'health'" />
     <AndroidSettingsPage v-else />
   </div>
 </template>

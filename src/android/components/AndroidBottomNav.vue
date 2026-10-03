@@ -44,8 +44,8 @@ const navigationItems = computed(() => {
   }
   return [
     { key: 'profile', label: '主页', to: '/', icon: House },
-    { key: 'health', label: '水动', to: '/health', icon: Dumbbell },
-    { key: 'diet', label: '饮食', to: '/diet', icon: Utensils }
+    { key: 'diet', label: '饮水和饮食', to: '/diet', icon: Utensils },
+    { key: 'exercise', label: '运动和体重', to: '/exercise', icon: Dumbbell }
   ]
 })
 const activeNavigationKey = computed(() => {
