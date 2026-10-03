@@ -17,10 +17,16 @@
         </ul>
       </div>
 
-      <div class="android-profile-hero__edition" aria-hidden="true">
-        <span>ANDROID</span>
-        <strong>01</strong>
-      </div>
+      <button
+        type="button"
+        class="android-profile-mode-switch"
+        aria-label="切换到健康"
+        @click="goHealth"
+      >
+        <ToggleRight :size="17" />
+        <span>健康</span>
+      </button>
+
     </section>
 
     <AndroidCalendarCard />
@@ -267,6 +273,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { setAndroidAppMode } from '../appMode'
 import { createMessage } from 'snowingress-my-components'
 import {
   Brain,
@@ -278,6 +285,7 @@ import {
   Info,
   RefreshCw,
   SlidersHorizontal,
+  ToggleRight,
   X
 } from 'lucide-vue-next'
 import profileAvatar from '../../assets/images/headerPH.png'
@@ -566,6 +574,10 @@ async function updateNotes() {
   }
 }
 
+function goHealth() {
+  setAndroidAppMode('health')
+}
+
 onMounted(loadSyncTimes)
 
 function saveMotionPreference() {
@@ -598,6 +610,34 @@ function saveCodeBlockPreference() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.android-profile-mode-switch {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--android-line-strong);
+  border-radius: 999px;
+  color: var(--android-accent-contrast);
+  background: var(--android-accent);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 7px 16px var(--android-accent-shadow);
+}
+
+@media (max-width: 560px) {
+  .android-settings-page .android-profile-hero {
+    padding-right: 86px;
+  }
 }
 
 .android-settings-header {

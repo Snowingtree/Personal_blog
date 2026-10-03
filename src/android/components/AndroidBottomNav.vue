@@ -22,40 +22,36 @@
 
 <script setup>
 import { computed } from 'vue'
-import { BookOpen, House, ListTree, NotebookPen } from 'lucide-vue-next'
+import { BookOpen, Dumbbell, House, ListTree, NotebookPen, Utensils } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
+import { androidAppMode } from '../appMode'
 import { toggleAndroidNotesDirectory } from '../events'
 
-const props = defineProps({
-  appendixEnabled: {
-    type: Boolean,
-    default: false
-  }
-})
+const props = defineProps({ appendixEnabled: { type: Boolean, default: false } })
 
 const route = useRoute()
 const router = useRouter()
 const navigationItems = computed(() => {
-  const items = [
-    { key: 'profile', label: '主页', to: '/', icon: House },
-    { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
-  ]
-
-  if (props.appendixEnabled) {
-    items.push({ key: 'appendix', label: '附录', to: '/appendix', icon: BookOpen })
+  if (androidAppMode.value !== 'health') {
+    const items = [
+      { key: 'profile', label: '主页', to: '/', icon: House },
+      { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
+    ]
+    if (props.appendixEnabled) {
+      items.push({ key: 'appendix', label: '附录', to: '/appendix', icon: BookOpen })
+    }
+    return items
   }
-
-  return items
+  return [
+    { key: 'profile', label: '主页', to: '/', icon: House },
+    { key: 'health', label: '水动', to: '/health', icon: Dumbbell },
+    { key: 'diet', label: '饮食', to: '/diet', icon: Utensils }
+  ]
 })
 const activeNavigationKey = computed(() => {
-  if (
-    route.name === 'notes-login'
-    && route.query.redirect === '/appendix'
-    && props.appendixEnabled
-  ) {
+  if (route.name === 'notes-login' && route.query.redirect === '/appendix' && props.appendixEnabled) {
     return 'appendix'
   }
-
   return route.meta.androidNavKey
 })
 
@@ -63,26 +59,23 @@ function isActive(item) {
   return activeNavigationKey.value === item.key
 }
 
-function isActiveDirectoryItem(item) {
-  return (item.key === 'notes' || item.key === 'appendix')
-    && route.name === item.key
-    && isActive(item)
+function isDirectoryItem(item) {
+  return (item.key === 'notes' || item.key === 'appendix') && route.name === item.key
 }
 
 function resolveLabel(item) {
-  return isActiveDirectoryItem(item) ? '目录' : item.label
+  return isDirectoryItem(item) ? '目录' : item.label
 }
 
 function resolveIcon(item) {
-  return isActiveDirectoryItem(item) ? ListTree : item.icon
+  return isDirectoryItem(item) ? ListTree : item.icon
 }
 
 function handleNavigation(item) {
-  if (isActiveDirectoryItem(item)) {
+  if (isDirectoryItem(item)) {
     toggleAndroidNotesDirectory()
     return
   }
-
   if (route.path !== item.to) {
     void router.push(item.to)
   }
