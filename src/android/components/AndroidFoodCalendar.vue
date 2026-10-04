@@ -20,14 +20,13 @@
         <span v-else aria-hidden="true" />
       </template>
     </div>
-    <p class="food-calendar-hint">圆点表示有饮食记录，点击日期查看三餐。</p>
     <Teleport to="body">
       <dialog ref="dialog" class="food-meal-dialog" aria-labelledby="food-meal-title" @close="restoreScroll" @click="closeOnBackdrop">
         <header class="food-dialog-heading">
           <div><p>{{ selectedDate }}</p><h2 id="food-meal-title">当天三餐</h2></div>
           <button type="button" aria-label="关闭三餐记录" autofocus @click="dialog.close()"><X :size="21" /></button>
         </header>
-        <p class="food-calendar-hint">未标注餐次的记录按时间归类：11 点前早餐、11—17 点午餐、17 点后晚餐。</p>
+        <p class="food-calendar-hint">按记录时间归类：10 点前早餐、10—14 点午餐、16—20 点晚餐。</p>
         <ol class="food-meal-list">
           <li v-for="meal in meals" :key="meal.name">
             <h3>{{ meal.name }}<small>{{ meal.records.length }} 条</small></h3>
@@ -35,7 +34,7 @@
             <ul v-else>
               <li v-for="record in meal.records" :key="record.id" class="food-meal-entry">
                 <time :datetime="record.time">{{ record.legacy ? '历史记录' : record.time.slice(11) }}<small v-if="record.mock" class="health-mock-label">模拟</small></time>
-                <p>{{ record.text }}</p>
+                <div><p>{{ record.text }}</p><div v-if="record.images?.length" class="food-meal-images"><img v-for="image in record.images" :key="image.id" :src="healthImageUrl(image.id)" :alt="image.name || '饮食图片'" loading="lazy" /></div></div>
               </li>
             </ul>
           </li>
@@ -49,6 +48,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ChevronLeft, ChevronRight, Utensils, X } from 'lucide-vue-next'
 import { formatAndroidDateKey } from '../healthData'
+import { healthImageUrl } from '../healthImages'
 
 const props = defineProps({ daily: { type: Map, required: true }, today: { type: String, required: true } })
 const month = ref(props.today.slice(0, 7))
@@ -71,9 +71,8 @@ const cells = computed(() => {
 const meals = computed(() => {
   const groups = ['早餐', '午餐', '晚餐'].map(name => ({ name, records: [] }))
   for (const record of props.daily.get(selectedDate.value)?.food || []) {
-    const name = record.text.match(/^\s*(早餐|早饭|午餐|午饭|晚餐|晚饭)/)?.[1]
     const hour = Number(record.time.slice(11, 13))
-    const index = name ? ({ 早餐: 0, 早饭: 0, 午餐: 1, 午饭: 1, 晚餐: 2, 晚饭: 2 }[name]) : hour < 11 ? 0 : hour < 17 ? 1 : 2
+    const index = hour < 10 ? 0 : hour < 14 ? 1 : 2
     groups[index].records.push(record)
   }
   return groups
@@ -127,4 +126,6 @@ onBeforeUnmount(restoreScroll)
 .food-meal-entry { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; padding: 6px 0; }
 .food-meal-entry time { font-size: .7rem; color: var(--android-muted); line-height: 1.8; }
 .food-meal-entry p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; line-height: 1.8; }
+.food-meal-images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.food-meal-images img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: var(--android-surface-soft); }
 </style>

@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, readonly, ref } from 'vue'
 import { HEALTH_RECORDS_KEY, formatAndroidDateKey, readHealthRecords, validateHealthRecord } from './healthData'
 import { HEALTH_MOCK_KEY, readHealthMockRecords } from './healthMockData'
+import { deleteHealthImage } from './healthImages'
 
 const realRecords = ref([])
 const mockRecords = ref([])
@@ -30,7 +31,10 @@ export function useHealthRecords() {
   }
   function removeRecord(id) {
     const mock = mockRecords.value.some(record => record.id === id)
-    persist((mock ? mockRecords.value : realRecords.value).filter(record => record.id !== id), mock)
+    const source = mock ? mockRecords.value : realRecords.value
+    const removed = source.find(record => record.id === id)
+    persist(source.filter(record => record.id !== id), mock)
+    removed?.images?.forEach(image => deleteHealthImage({ id: image.id, persistent: true }))
   }
   return { records: readonly(records), storageError: readonly(storageError), addRecord, removeRecord }
 }

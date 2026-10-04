@@ -40,7 +40,6 @@ export function validateHealthRecord(record) {
   } else if (!Number.isFinite(record.value) || record.value <= 0) {
     throw new Error('请输入大于 0 的有效数值。')
   }
-  if (record.type === 'exercise' && !String(record.text || '').trim()) throw new Error('请填写运动内容。')
 }
 
 export function readHealthRecords(storage = localStorage) {

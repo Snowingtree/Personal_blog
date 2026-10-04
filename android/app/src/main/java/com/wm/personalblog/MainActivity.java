@@ -7,6 +7,8 @@ import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -18,6 +20,10 @@ import android.webkit.WebViewClient;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.UUID;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -49,6 +55,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         }
+
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -95,8 +103,16 @@ public class MainActivity extends Activity {
         }
 
         Uri[] results = null;
-        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-            results = new Uri[]{data.getData()};
+        if (resultCode == RESULT_OK && data != null) {
+            if (data.getClipData() != null) {
+                int count = data.getClipData().getItemCount();
+                results = new Uri[count];
+                for (int index = 0; index < count; index++) {
+                    results[index] = data.getClipData().getItemAt(index).getUri();
+                }
+            } else if (data.getData() != null) {
+                results = new Uri[]{data.getData()};
+            }
         }
 
         filePathCallback.onReceiveValue(results);
@@ -152,6 +168,10 @@ public class MainActivity extends Activity {
             return createErrorResponse(403, "Forbidden");
         }
 
+        if (assetPath.startsWith("health-images/")) {
+            return interceptHealthImage(assetPath.substring("health-images/".length()));
+        }
+
         try {
             InputStream stream = getAssets().open(assetPath, AssetManager.ACCESS_STREAMING);
             Map<String, String> headers = new HashMap<>();
@@ -168,6 +188,100 @@ public class MainActivity extends Activity {
             );
         } catch (IOException error) {
             return createErrorResponse(404, "Not Found");
+        }
+    }
+
+    private WebResourceResponse interceptHealthImage(String imageId) {
+        File imageFile = healthImageFile(imageId);
+        if (imageFile == null || !imageFile.isFile()) {
+            return createErrorResponse(404, "Not Found");
+        }
+
+        try {
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "private, max-age=31536000, immutable");
+            headers.put("Access-Control-Allow-Origin", "*");
+            return new WebResourceResponse(
+                    mimeTypeFor(imageFile.getName()),
+                    null,
+                    200,
+                    "OK",
+                    headers,
+                    new FileInputStream(imageFile)
+            );
+        } catch (IOException error) {
+            return createErrorResponse(404, "Not Found");
+        }
+    }
+
+    private File healthImageDirectory() {
+        File directory = new File(getFilesDir(), "health-images");
+        if (!directory.exists() && !directory.mkdirs()) {
+            return null;
+        }
+        return directory;
+    }
+
+    private File healthImageFile(String imageId) {
+        if (imageId == null || !imageId.matches("[A-Za-z0-9-]+\\.(webp|jpg|jpeg|png)")) {
+            return null;
+        }
+        File directory = healthImageDirectory();
+        return directory == null ? null : new File(directory, imageId);
+    }
+
+    private final class AndroidBridge {
+        private static final int MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+        @JavascriptInterface
+        public String saveHealthImage(String dataUrl) {
+            if (dataUrl == null || dataUrl.length() < 32) {
+                return "";
+            }
+
+            int comma = dataUrl.indexOf(',');
+            if (comma <= 0 || comma == dataUrl.length() - 1) {
+                return "";
+            }
+
+            String header = dataUrl.substring(0, comma).toLowerCase(Locale.US);
+            String extension;
+            if (header.startsWith("data:image/webp;base64")) {
+                extension = ".webp";
+            } else if (header.startsWith("data:image/jpeg;base64") || header.startsWith("data:image/jpg;base64")) {
+                extension = ".jpg";
+            } else if (header.startsWith("data:image/png;base64")) {
+                extension = ".png";
+            } else {
+                return "";
+            }
+
+            try {
+                byte[] bytes = Base64.decode(dataUrl.substring(comma + 1), Base64.DEFAULT);
+                if (bytes.length == 0 || bytes.length > MAX_IMAGE_BYTES) {
+                    return "";
+                }
+
+                File directory = healthImageDirectory();
+                if (directory == null) {
+                    return "";
+                }
+
+                String imageId = UUID.randomUUID().toString().replace("-", "") + extension;
+                File target = new File(directory, imageId);
+                try (FileOutputStream output = new FileOutputStream(target)) {
+                    output.write(bytes);
+                }
+                return imageId;
+            } catch (IllegalArgumentException | IOException error) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean deleteHealthImage(String imageId) {
+            File imageFile = healthImageFile(imageId);
+            return imageFile != null && imageFile.isFile() && imageFile.delete();
         }
     }
 

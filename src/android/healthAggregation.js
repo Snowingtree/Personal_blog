@@ -63,7 +63,8 @@ export function healthPeriodView(index, period, today) {
   for (let offset = count - 1; offset >= 0; offset--) {
     const date = new Date(start)
     if (period === 'day') date.setDate(date.getDate() - offset)
-    if (period === 'week') date.setDate(date.getDate() - offset * 7)
+    // The weekly view is one calendar week of daily points.
+    if (period === 'week') date.setDate(date.getDate() + (count - 1 - offset))
     if (period === 'month') date.setMonth(date.getMonth() - offset)
     if (period === 'year') date.setFullYear(date.getFullYear() - offset)
     const key = formatAndroidDateKey(date)
@@ -72,10 +73,11 @@ export function healthPeriodView(index, period, today) {
     if (period === 'month') end.setMonth(end.getMonth() + 1, 0)
     if (period === 'year') end.setFullYear(end.getFullYear() + 1, 0, 0)
     const endKey = formatAndroidDateKey(end)
-    const label = period === 'week' ? key + ' ～ ' + (endKey > today ? today : endKey)
+    const label = period === 'week' ? key
       : period === 'month' ? key.slice(0, 7) : period === 'year' ? key.slice(0, 4) + '年' : key
     const axisLabel = period === 'year' ? key.slice(0, 4) : period === 'month' ? key.slice(0, 7) : key.slice(5).replace('-', '/')
-    points.push({ weight: null, water: null, exercise: null, ...index[period].get(key), date: key, label, axisLabel })
+    const source = period === 'week' ? index.day.get(key) : index[period].get(key)
+    points.push({ weight: null, water: null, exercise: null, food: [], ...source, date: key, label, axisLabel })
   }
   return points
 }
