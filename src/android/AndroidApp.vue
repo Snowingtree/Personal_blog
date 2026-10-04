@@ -343,10 +343,32 @@ function syncAppendixPreference(event) {
   }
 }
 
+function syncViewportGutter() {
+  const root = document.documentElement
+  const layoutWidth = root.getBoundingClientRect().width || root.clientWidth
+  const gutter = Math.max(0, window.innerWidth - layoutWidth)
+  root.style.setProperty('--android-viewport-gutter', `${gutter}px`)
+}
+
+function syncNativeSafeArea() {
+  const bridge = globalThis.AndroidBridge
+  if (!bridge || typeof bridge.getSystemInsetBottom !== 'function') {
+    return
+  }
+
+  const bottom = Number(bridge.getSystemInsetBottom())
+  if (Number.isFinite(bottom) && bottom >= 0) {
+    document.documentElement.style.setProperty('--safe-area-inset-bottom', `${bottom}px`)
+  }
+}
+
 onMounted(() => {
   document.documentElement.classList.add('is-android-app')
   document.body.classList.add('is-android-app')
+  syncViewportGutter()
+  syncNativeSafeArea()
 
+  window.addEventListener('resize', syncViewportGutter)
   window.addEventListener('android-motion-setting-change', syncMotionPreference)
   window.addEventListener(ANDROID_THEME_CHANGE_EVENT, syncThemePreference)
   window.addEventListener(ANDROID_APPENDIX_SETTING_CHANGE_EVENT, syncAppendixPreference)
@@ -357,6 +379,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.clearTimeout(workspaceSettleTimerId)
+  window.removeEventListener('resize', syncViewportGutter)
   window.removeEventListener('android-motion-setting-change', syncMotionPreference)
   window.removeEventListener(ANDROID_THEME_CHANGE_EVENT, syncThemePreference)
   window.removeEventListener(ANDROID_APPENDIX_SETTING_CHANGE_EVENT, syncAppendixPreference)

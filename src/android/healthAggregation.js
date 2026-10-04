@@ -19,10 +19,9 @@ export function aggregateHealthRecords(records, today) {
     if (date > today) continue
     let day = daily.get(date)
     if (!day) {
-      day = { date, weight: null, water: null, exercise: null, weightCount: 0, food: [], hasMock: false }
+      day = { date, weight: null, water: null, exercise: null, weightCount: 0, food: [] }
       daily.set(date, day)
     }
-    day.hasMock ||= !!record.mock
     if (record.type === 'food') day.food.push(record)
     else {
       day[record.type] = (day[record.type] ?? 0) + record.value
@@ -37,10 +36,9 @@ export function aggregateHealthRecords(records, today) {
       const date = periodStart(day.date, period)
       let bucket = index[period].get(date)
       if (!bucket) {
-        bucket = { date, weight: 0, water: 0, exercise: 0, counts: { weight: 0, water: 0, exercise: 0 }, hasMock: false }
+        bucket = { date, weight: 0, water: 0, exercise: 0, counts: { weight: 0, water: 0, exercise: 0 } }
         index[period].set(date, bucket)
       }
-      bucket.hasMock ||= day.hasMock
       for (const metric of metrics) {
         if (day[metric] === null) continue
         bucket[metric] += day[metric]

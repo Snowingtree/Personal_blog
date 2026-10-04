@@ -60,7 +60,7 @@
       <h3>{{ selectedDay === today ? '今天' : selectedDay }}的记录 <span>{{ dayRecords.length }} 次</span></h3>
       <p v-if="!dayRecords.length" class="health-empty">还没有记录，添加今天的第一条吧。</p>
       <article v-for="record in dayRecords" :key="record.id" class="health-record-row">
-        <time :datetime="record.time">{{ record.legacy ? '历史记录' : record.time.slice(11) }}<small v-if="record.mock" class="health-mock-label">模拟</small></time>
+        <time :datetime="record.time">{{ record.legacy ? '历史记录' : record.time.slice(11) }}</time>
         <div><strong v-if="type !== 'food'">{{ formatHealthNumber(record.value) }} {{ config.unit }}</strong><p v-if="record.text">{{ record.text }}</p></div>
         <button type="button" class="health-remove" :aria-label="`删除${config.title} ${record.time}`" @click="remove(record)"><Trash2 :size="15" /></button>
       </article>

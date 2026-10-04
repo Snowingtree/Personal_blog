@@ -2,7 +2,7 @@
   <section class="android-card health-single-trend" :aria-label="title + '记录'" :style="{ '--trend-color': color }">
     <header class="health-card-heading">
       <div><p>{{ metric.toUpperCase() }}</p><h2>{{ title }}</h2></div>
-      <span class="health-single-unit">{{ unit }} · {{ aggregationLabel }}<small v-if="days.some(day => day.hasMock)">含模拟数据</small></span>
+      <span class="health-single-unit">{{ unit }} · {{ aggregationLabel }}</span>
     </header>
     <div ref="chartElement" class="health-echarts" role="img" :aria-label="title + ' ECharts 折线图，点击或触摸数据点查看周期数值'" />
     <p v-if="!hasData" class="health-empty">这段时间还没有{{ title }}记录</p>

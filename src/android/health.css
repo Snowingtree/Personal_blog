@@ -71,8 +71,6 @@
 .health-range { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 10px; margin-top: 16px; }
 .health-range :is(input, select) { font-size: .75rem; }
 .health-note { margin: 12px 0; }
-.health-mock-notice { padding: 7px 10px; border: 1px dashed var(--android-line-strong); border-radius: 8px; }
-.health-mock-label { display: block; margin-top: 3px; color: var(--android-muted); font-size: .58rem; }
 .health-combined-trend { padding: 14px 10px 6px; border-radius: 14px; background: var(--android-surface-soft); }
 .health-chart-legend { display: flex; justify-content: space-around; gap: 10px; }
 .health-chart-legend > span { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 750; }

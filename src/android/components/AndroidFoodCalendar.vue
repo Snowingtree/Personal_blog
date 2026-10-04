@@ -33,7 +33,7 @@
             <p v-if="!meal.records.length" class="health-empty">尚未记录</p>
             <ul v-else>
               <li v-for="record in meal.records" :key="record.id" class="food-meal-entry">
-                <time :datetime="record.time">{{ record.legacy ? '历史记录' : record.time.slice(11) }}<small v-if="record.mock" class="health-mock-label">模拟</small></time>
+                <time :datetime="record.time">{{ record.legacy ? '历史记录' : record.time.slice(11) }}</time>
                 <div><p>{{ record.text }}</p><div v-if="record.images?.length" class="food-meal-images"><img v-for="image in record.images" :key="image.id" :src="healthImageUrl(image.id)" :alt="image.name || '饮食图片'" loading="lazy" /></div></div>
               </li>
             </ul>

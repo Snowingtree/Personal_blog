@@ -4,10 +4,13 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Base64;
+import android.view.View;
+import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -34,6 +37,10 @@ public class MainActivity extends Activity {
     private static final String APP_START_URL = "http://" + APP_ASSET_HOST + "/index.html";
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
+    private int webViewInsetLeft;
+    private int webViewInsetTop;
+    private int webViewInsetRight;
+    private int webViewInsetBottom;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +52,9 @@ public class MainActivity extends Activity {
 
         webView = new WebView(this);
         setContentView(webView);
+        View decorView = getWindow().getDecorView();
+        decorView.setOnApplyWindowInsetsListener(this::applyWindowInsets);
+        decorView.requestApplyInsets();
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -59,6 +69,12 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                applyWebViewInsetsToPage();
+            }
+
             @Override
             public WebResourceResponse shouldInterceptRequest(
                     WebView view,
@@ -92,6 +108,54 @@ public class MainActivity extends Activity {
         });
 
         webView.loadUrl(APP_START_URL);
+    }
+
+    private WindowInsets applyWindowInsets(View view, WindowInsets insets) {
+        updateWindowInsets(insets);
+        applyWebViewInsetsToPage();
+        return insets;
+    }
+
+    private void updateWindowInsets(WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Insets systemInsets = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+            );
+            Insets gestureInsets = insets.getInsets(
+                    WindowInsets.Type.systemGestures() | WindowInsets.Type.mandatorySystemGestures()
+            );
+            webViewInsetLeft = systemInsets.left;
+            webViewInsetTop = systemInsets.top;
+            webViewInsetRight = systemInsets.right;
+            webViewInsetBottom = Math.max(systemInsets.bottom, gestureInsets.bottom);
+        } else {
+            webViewInsetLeft = insets.getSystemWindowInsetLeft();
+            webViewInsetTop = insets.getSystemWindowInsetTop();
+            webViewInsetRight = insets.getSystemWindowInsetRight();
+            webViewInsetBottom = insets.getSystemWindowInsetBottom();
+        }
+    }
+
+    private void applyWebViewInsetsToPage() {
+        if (webView == null) {
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            WindowInsets rootInsets = getWindow().getDecorView().getRootWindowInsets();
+            if (rootInsets != null) {
+                updateWindowInsets(rootInsets);
+            }
+        }
+
+        String script = "(() => {"
+                + "const root = document.documentElement;"
+                + "root.style.setProperty('--safe-area-inset-left', '" + webViewInsetLeft + "px');"
+                + "root.style.setProperty('--safe-area-inset-top', '" + webViewInsetTop + "px');"
+                + "root.style.setProperty('--safe-area-inset-right', '" + webViewInsetRight + "px');"
+                + "root.style.setProperty('--safe-area-inset-bottom', '" + webViewInsetBottom + "px');"
+                + "})();";
+        webView.evaluateJavascript(script, null);
     }
 
     @Override
@@ -232,6 +296,11 @@ public class MainActivity extends Activity {
 
     private final class AndroidBridge {
         private static final int MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
+        @JavascriptInterface
+        public int getSystemInsetBottom() {
+            return webViewInsetBottom;
+        }
 
         @JavascriptInterface
         public String saveHealthImage(String dataUrl) {

@@ -1,39 +1,42 @@
 import { computed, onBeforeUnmount, onMounted, readonly, ref } from 'vue'
 import { HEALTH_RECORDS_KEY, formatAndroidDateKey, readHealthRecords, validateHealthRecord } from './healthData'
-import { HEALTH_MOCK_KEY, readHealthMockRecords } from './healthMockData'
 import { deleteHealthImage } from './healthImages'
 
 const realRecords = ref([])
-const mockRecords = ref([])
-const records = computed(() => [...realRecords.value, ...mockRecords.value])
+const records = computed(() => realRecords.value)
 const storageError = ref('')
 try {
-  realRecords.value = readHealthRecords()
-  mockRecords.value = readHealthMockRecords()
+  // Remove preview data created by earlier builds before loading real records.
+  localStorage.removeItem('android-health-mock-records-v1')
+  const loadedRecords = readHealthRecords()
+  const cleanedRecords = loadedRecords.filter(record => (
+    record.mock !== true && !String(record.id || '').startsWith('mock-health-')
+  ))
+  if (cleanedRecords.length !== loadedRecords.length) {
+    localStorage.setItem(HEALTH_RECORDS_KEY, JSON.stringify(cleanedRecords))
+  }
+  realRecords.value = cleanedRecords
 } catch {
   storageError.value = '本机记录读取失败。请检查浏览器存储后刷新，已有数据不会被覆盖。'
 }
 
 export function useHealthRecords() {
-  function persist(nextRecords, mock = false) {
+  function persist(nextRecords) {
     if (storageError.value) throw new Error(storageError.value)
     try {
-      localStorage.setItem(mock ? HEALTH_MOCK_KEY : HEALTH_RECORDS_KEY, JSON.stringify(nextRecords))
+      localStorage.setItem(HEALTH_RECORDS_KEY, JSON.stringify(nextRecords))
     } catch {
       throw new Error('保存失败，本机存储不可用或空间不足，请重试。')
     }
-    if (mock) mockRecords.value = nextRecords
-    else realRecords.value = nextRecords
+    realRecords.value = nextRecords
   }
   function addRecord(record) {
     validateHealthRecord(record)
     persist([...realRecords.value, { ...record, id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}` }])
   }
   function removeRecord(id) {
-    const mock = mockRecords.value.some(record => record.id === id)
-    const source = mock ? mockRecords.value : realRecords.value
-    const removed = source.find(record => record.id === id)
-    persist(source.filter(record => record.id !== id), mock)
+    const removed = realRecords.value.find(record => record.id === id)
+    persist(realRecords.value.filter(record => record.id !== id))
     removed?.images?.forEach(image => deleteHealthImage({ id: image.id, persistent: true }))
   }
   return { records: readonly(records), storageError: readonly(storageError), addRecord, removeRecord }
