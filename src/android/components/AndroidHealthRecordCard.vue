@@ -26,7 +26,7 @@
       <button v-else class="health-primary-button" type="submit" :disabled="!!storageError">{{ type === 'water' ? '添加' + waterAmount + 'ml' : type === 'exercise' ? '添加' + exerciseMinutes + '分钟' : '添加' + weightDisplay + 'kg' }}</button>
     </form>
     <div v-if="type === 'food' && foodImages.length" class="health-food-photo-section">
-      <div class="health-food-photo-grid" aria-label="已选择的饮食图片">
+      <div class="health-food-photo-grid" :class="{ 'is-single': foodImages.length === 1 }" aria-label="已选择的饮食图片">
         <figure v-for="image in foodImages" :key="image.id">
           <img :src="image.url" :alt="image.name || '饮食图片预览'" />
           <button type="button" :aria-label="'删除图片 ' + (image.name || '')" @click="removeFoodImage(image.id)">×</button>
@@ -261,13 +261,11 @@ async function handleFoodImages(event) {
   const candidates = files.slice(0, available).filter(file => file.type.startsWith('image/') && file.size <= 8 * 1024 * 1024)
   if (!candidates.length) return
   foodImageBusy.value = true
-  let savedCount = 0
   try {
     for (const file of candidates) {
       foodImages.value.push(await prepareHealthImage(file))
-      savedCount += 1
     }
-    feedback.value = `已压缩 ${savedCount} 张图片，提交饮食记录后保存`
+    feedback.value = ''
     failed.value = false
   } catch (error) {
     feedback.value = error.message

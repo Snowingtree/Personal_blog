@@ -1011,6 +1011,7 @@ body.is-android-app button:focus-visible {
   .android-bottom-nav {
     width: calc(100% + var(--android-viewport-gutter, 0px));
     height: var(--android-bottom-nav-space);
+    bottom: 0;
     border-radius: 0;
   }
 

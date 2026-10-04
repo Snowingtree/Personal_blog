@@ -37,10 +37,10 @@ public class MainActivity extends Activity {
     private static final String APP_START_URL = "http://" + APP_ASSET_HOST + "/index.html";
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
-    private int webViewInsetLeft;
-    private int webViewInsetTop;
-    private int webViewInsetRight;
-    private int webViewInsetBottom;
+    private float webViewInsetLeft;
+    private float webViewInsetTop;
+    private float webViewInsetRight;
+    private volatile float webViewInsetBottom;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,9 +52,10 @@ public class MainActivity extends Activity {
 
         webView = new WebView(this);
         setContentView(webView);
-        View decorView = getWindow().getDecorView();
-        decorView.setOnApplyWindowInsetsListener(this::applyWindowInsets);
-        decorView.requestApplyInsets();
+        webView.setOnApplyWindowInsetsListener(this::applyWindowInsets);
+        webView.addOnLayoutChangeListener((view, left, top, right, bottom,
+                oldLeft, oldTop, oldRight, oldBottom) -> applyWebViewInsetsToPage());
+        webView.requestApplyInsets();
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -111,12 +112,16 @@ public class MainActivity extends Activity {
     }
 
     private WindowInsets applyWindowInsets(View view, WindowInsets insets) {
-        updateWindowInsets(insets);
-        applyWebViewInsetsToPage();
+        // Measure after native layout has applied its own system-bar offsets.
+        view.post(this::applyWebViewInsetsToPage);
         return insets;
     }
 
     private void updateWindowInsets(WindowInsets insets) {
+        int insetLeft;
+        int insetTop;
+        int insetRight;
+        int insetBottom;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Insets systemInsets = insets.getInsets(
                     WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
@@ -124,20 +129,57 @@ public class MainActivity extends Activity {
             Insets gestureInsets = insets.getInsets(
                     WindowInsets.Type.systemGestures() | WindowInsets.Type.mandatorySystemGestures()
             );
-            webViewInsetLeft = systemInsets.left;
-            webViewInsetTop = systemInsets.top;
-            webViewInsetRight = systemInsets.right;
-            webViewInsetBottom = Math.max(systemInsets.bottom, gestureInsets.bottom);
+            insetLeft = systemInsets.left;
+            insetTop = systemInsets.top;
+            insetRight = systemInsets.right;
+            insetBottom = insets.isVisible(WindowInsets.Type.ime())
+                    ? 0 : Math.max(systemInsets.bottom, gestureInsets.bottom);
         } else {
-            webViewInsetLeft = insets.getSystemWindowInsetLeft();
-            webViewInsetTop = insets.getSystemWindowInsetTop();
-            webViewInsetRight = insets.getSystemWindowInsetRight();
-            webViewInsetBottom = insets.getSystemWindowInsetBottom();
+            insetLeft = insets.getSystemWindowInsetLeft();
+            insetTop = insets.getSystemWindowInsetTop();
+            insetRight = insets.getSystemWindowInsetRight();
+            // Legacy systemWindowInsetBottom includes the keyboard; it is not a safe area.
+            boolean keyboardVisible = insets.getSystemWindowInsetBottom() > insets.getStableInsetBottom();
+            insetBottom = keyboardVisible ? 0 : insets.getSystemWindowInsetBottom();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && insets.getDisplayCutout() != null) {
+                insetLeft = Math.max(insetLeft, insets.getDisplayCutout().getSafeInsetLeft());
+                insetTop = Math.max(insetTop, insets.getDisplayCutout().getSafeInsetTop());
+                insetRight = Math.max(insetRight, insets.getDisplayCutout().getSafeInsetRight());
+                if (!keyboardVisible) {
+                    insetBottom = Math.max(insetBottom, insets.getDisplayCutout().getSafeInsetBottom());
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !keyboardVisible) {
+                insetBottom = Math.max(insetBottom, insets.getMandatorySystemGestureInsets().bottom);
+            }
         }
+
+        // Root insets are physical pixels. Only pass the portion actually overlapping
+        // the WebView to CSS, so non-edge-to-edge windows do not get a second inset.
+        View decor = getWindow().getDecorView();
+        int[] decorLocation = new int[2];
+        int[] webViewLocation = new int[2];
+        decor.getLocationInWindow(decorLocation);
+        webView.getLocationInWindow(webViewLocation);
+        int leftMargin = webViewLocation[0] - decorLocation[0];
+        int topMargin = webViewLocation[1] - decorLocation[1];
+        int rightMargin = decor.getWidth() - leftMargin - webView.getWidth();
+        int bottomMargin = decor.getHeight() - topMargin - webView.getHeight();
+        float density = getResources().getDisplayMetrics().density;
+        webViewInsetLeft = WebViewSafeArea.toCssOverlap(insetLeft, leftMargin, density);
+        webViewInsetTop = WebViewSafeArea.toCssOverlap(insetTop, topMargin, density);
+        webViewInsetRight = WebViewSafeArea.toCssOverlap(insetRight, rightMargin, density);
+        float bottomOverlap = WebViewSafeArea.toCssOverlap(insetBottom, bottomMargin, density);
+        // Android 15 enforces edge-to-edge for targetSdk 35. In that mode the
+        // gesture area overlays the WebView even when its native bounds report a
+        // fitted bottom margin, so keep the raw CSS-sized inset for the fixed nav.
+        webViewInsetBottom = Build.VERSION.SDK_INT >= 35
+                ? WebViewSafeArea.toCssPixels(insetBottom, density)
+                : bottomOverlap;
     }
 
     private void applyWebViewInsetsToPage() {
-        if (webView == null) {
+        if (webView == null || webView.getWidth() == 0 || webView.getHeight() == 0) {
             return;
         }
 
@@ -298,7 +340,7 @@ public class MainActivity extends Activity {
         private static final int MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
         @JavascriptInterface
-        public int getSystemInsetBottom() {
+        public float getSystemInsetBottom() {
             return webViewInsetBottom;
         }
 
