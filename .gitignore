@@ -14,3 +14,4 @@ data/thought-images/
 .env.local
 .env.*.local
 !.env.example
+.workbuddy/

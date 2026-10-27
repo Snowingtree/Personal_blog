@@ -211,7 +211,6 @@ export function createProtectedApiMiddleware(env = process.env) {
   return (req, res, next) => {
     const requestPath = req.url || ''
     const isSignedThoughtsImageRequest = requestPath.startsWith('/api/thoughts/images/')
-    const isHealthBackupRequest = requestPath.startsWith('/api/health/backup')
 
     if (
       (
@@ -221,7 +220,6 @@ export function createProtectedApiMiddleware(env = process.env) {
         && !requestPath.startsWith('/api/agent')
         && !requestPath.startsWith('/api/internship')
         && !requestPath.startsWith('/api/thoughts')
-        && !isHealthBackupRequest
       )
       || isSignedThoughtsImageRequest
     ) {

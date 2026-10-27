@@ -22,9 +22,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { BookOpen, Dumbbell, House, ListTree, NotebookPen, Utensils } from 'lucide-vue-next'
+import { BookOpen, House, ListTree, NotebookPen } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
-import { androidAppMode } from '../appMode'
 import { toggleAndroidNotesDirectory } from '../events'
 
 const props = defineProps({ appendixEnabled: { type: Boolean, default: false } })
@@ -32,21 +31,16 @@ const props = defineProps({ appendixEnabled: { type: Boolean, default: false } }
 const route = useRoute()
 const router = useRouter()
 const navigationItems = computed(() => {
-  if (androidAppMode.value !== 'health') {
-    const items = [
-      { key: 'profile', label: '主页', to: '/', icon: House },
-      { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
-    ]
-    if (props.appendixEnabled) {
-      items.push({ key: 'appendix', label: '附录', to: '/appendix', icon: BookOpen })
-    }
-    return items
-  }
-  return [
+  const items = [
     { key: 'profile', label: '主页', to: '/', icon: House },
-    { key: 'diet', label: '饮水和饮食', to: '/diet', icon: Utensils },
-    { key: 'exercise', label: '运动和体重', to: '/exercise', icon: Dumbbell }
+    { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }
   ]
+
+  if (props.appendixEnabled) {
+    items.push({ key: 'appendix', label: '附录', to: '/appendix', icon: BookOpen })
+  }
+
+  return items
 })
 const activeNavigationKey = computed(() => {
   if (route.name === 'notes-login' && route.query.redirect === '/appendix' && props.appendixEnabled) {

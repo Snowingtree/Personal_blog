@@ -2,11 +2,8 @@ import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router
 import { siteAuthGuard } from '../router/authGuard'
 import NotesLoginPage from '../pages/NotesLoginPage/NotesLoginPage.vue'
 import { readAndroidAppendixEnabled } from './appendix'
-import { setAndroidAppMode } from './appMode'
 
-const AndroidModeHomePage = () => import('./pages/AndroidModeHomePage.vue')
-const AndroidExercisePage = () => import('./pages/AndroidExercisePage.vue')
-const AndroidDietPage = () => import('./pages/AndroidDietPage.vue')
+const AndroidSettingsPage = () => import('./pages/AndroidSettingsPage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 
 const router = createRouter({
@@ -22,28 +19,12 @@ const router = createRouter({
     {
       path: '/',
       name: 'android-profile',
-      component: AndroidModeHomePage,
+      component: AndroidSettingsPage,
       meta: { androidNavKey: 'profile', androidSurface: 'home' }
     },
     {
       path: '/settings',
       redirect: '/'
-    },
-    {
-      path: '/health',
-      redirect: '/diet'
-    },
-    {
-      path: '/diet',
-      name: 'android-diet',
-      component: AndroidDietPage,
-      meta: { androidNavKey: 'diet', androidSurface: 'diet' }
-    },
-    {
-      path: '/exercise',
-      name: 'android-exercise',
-      component: AndroidExercisePage,
-      meta: { androidNavKey: 'exercise', androidSurface: 'exercise' }
     },
     { path: '/login', redirect: '/notes' },
     {
@@ -95,12 +76,6 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.name === 'android-exercise' || to.name === 'android-diet') {
-    setAndroidAppMode('health')
-  } else if (['notes', 'notes-login', 'appendix'].includes(to.name)) {
-    setAndroidAppMode('personal')
-  }
-
   if (to.meta.requiresAppendix && !readAndroidAppendixEnabled()) {
     return { name: 'android-profile' }
   }

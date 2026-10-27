@@ -10,7 +10,6 @@ import { createInternshipApiMiddleware } from './internshipApi.js'
 import { createProtectedApiMiddleware } from './authToken.js'
 import { createNotesApiMiddleware } from './notesApi.js'
 import { createThoughtsApiMiddleware } from './thoughtsApi.js'
-import { createHealthBackupApiMiddleware } from './healthBackupApi.js'
 
 function normalizeEnvValue(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -102,7 +101,6 @@ const agentMiddleware = createAgentApiMiddleware(process.env)
 const notesMiddleware = createNotesApiMiddleware(process.env)
 const internshipMiddleware = createInternshipApiMiddleware(process.env)
 const thoughtsMiddleware = createThoughtsApiMiddleware(process.env)
-const healthBackupMiddleware = createHealthBackupApiMiddleware(process.env)
 
 const server = createServer(async (req, res) => {
   applyCorsHeaders(res, corsOrigin)
@@ -113,23 +111,16 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  if (req.url === '/api/health' || req.url?.startsWith('/api/health?')) {
-    writeJson(res, 200, { ok: true })
-    return
-  }
-
   await blogCheckinMiddleware(req, res, async () => {
     await authMiddleware(req, res, async () => {
       await protectedApiMiddleware(req, res, async () => {
-        await healthBackupMiddleware(req, res, async () => {
-          await animeMiddleware(req, res, async () => {
-            await aiSettingsMiddleware(req, res, async () => {
-              await agentMiddleware(req, res, async () => {
-                await internshipMiddleware(req, res, async () => {
-                  await thoughtsMiddleware(req, res, async () => {
-                    await notesMiddleware(req, res, () => {
-                      writeJson(res, 404, { message: 'Not found' })
-                    })
+        await animeMiddleware(req, res, async () => {
+          await aiSettingsMiddleware(req, res, async () => {
+            await agentMiddleware(req, res, async () => {
+              await internshipMiddleware(req, res, async () => {
+                await thoughtsMiddleware(req, res, async () => {
+                  await notesMiddleware(req, res, () => {
+                    writeJson(res, 404, { message: 'Not found' })
                   })
                 })
               })
