@@ -20,7 +20,6 @@ const EXPLICIT_PRIVATE_APP_BASE_URL = String(import.meta.env.VITE_PRIVATE_APP_BA
 const PRIVATE_ROUTE_PREFIXES = [
   '/login',
   '/display',
-  '/internship',
   '/thoughts',
   '/tools',
   '/notes',

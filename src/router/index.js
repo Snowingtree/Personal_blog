@@ -10,7 +10,6 @@ const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
 const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPage.vue')
 const AgentIntroPage = () => import('../pages/AgentIntroPage/AgentIntroPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
-const InternshipPage = () => import('../pages/InternshipPage/InternshipPage.vue')
 const ThoughtsPage = () => import('../pages/ThoughtsPage/ThoughtsPage.vue')
 
 const router = createRouter({
@@ -107,17 +106,6 @@ const router = createRouter({
         privateNetworkOnly: true,
         requiresAuth: true,
         authScope: 'anime'
-      }
-    },
-    {
-      path: '/internship',
-      name: 'internship',
-      component: InternshipPage,
-      meta: {
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        requiresAuth: true,
-        authScope: 'tools'
       }
     },
     {

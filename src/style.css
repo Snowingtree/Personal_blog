@@ -27,12 +27,6 @@ html.is-tool-selector-page #app {
   background: #ffffff;
 }
 
-html.is-internship-page,
-html.is-internship-page body,
-html.is-internship-page #app {
-  background: #f7f8fa;
-}
-
 html.is-thoughts-page,
 html.is-thoughts-page body,
 html.is-thoughts-page #app {

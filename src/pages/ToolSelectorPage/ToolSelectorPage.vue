@@ -91,11 +91,11 @@ const toolOptions = [
     to: '/display'
   },
   {
-    key: 'internship',
+    key: 'xianyu',
     rank: 'Q',
     suit: '\u2666',
-    title: '\u5B9E\u4E60',
-    to: '/internship'
+    title: '\u54B8\u9C7C',
+    pending: true
   },
   {
     key: 'mock-exam',
@@ -334,7 +334,7 @@ onBeforeUnmount(() => {
   --card-hover-rotate: 1.5deg;
 }
 
-.poker-card--internship {
+.poker-card--xianyu {
   --card-accent: #b4232f;
   --card-rotate: -1deg;
   --card-hover-rotate: 0.5deg;

@@ -13,7 +13,6 @@ import {
 
 export const NOTE_META_CACHE_BUCKET = 'notes-meta'
 export const NOTE_FILE_CACHE_BUCKET = 'notes-files'
-export const INTERNSHIP_CACHE_BUCKET = 'internship'
 const NOTE_REPO_UPDATE_TIMEOUT = 130000
 
 function createSyncState() {
@@ -153,78 +152,5 @@ export async function syncAndroidNotesCache() {
     failedImageCount: assetSyncResult.failedCount,
     repositoryUpdated: Boolean(repoUpdate?.updated),
     repositoryHead: typeof repoStatusData.head === 'string' ? repoStatusData.head : ''
-  }
-}
-
-async function executeInternshipOperation(operation) {
-  const recordId = encodeURIComponent(operation.recordId || operation.record?.id || '')
-
-  if (operation.type === 'create') {
-    await http.post('/api/internship/records', operation.record)
-    return
-  }
-
-  if (operation.type === 'update') {
-    await http.put(`/api/internship/records/${recordId}`, operation.record)
-    return
-  }
-
-  if (operation.type === 'delete') {
-    await http.delete(`/api/internship/records/${recordId}`)
-    return
-  }
-
-  if (operation.type === 'restore') {
-    await http.patch(`/api/internship/records/${recordId}/restore`)
-    return
-  }
-
-  if (operation.type === 'delete-permanently') {
-    await http.delete(`/api/internship/records/${recordId}?permanent=1`)
-  }
-}
-
-async function flushInternshipOperations() {
-  const cachedOperations = await getAndroidCache(INTERNSHIP_CACHE_BUCKET, 'pending-operations')
-  const pendingOperations = Array.isArray(cachedOperations)
-    ? cachedOperations.filter((operation) => operation && typeof operation.type === 'string')
-    : []
-  let syncedCount = 0
-
-  while (pendingOperations.length) {
-    await executeInternshipOperation(pendingOperations[0])
-    pendingOperations.shift()
-    syncedCount += 1
-    await setAndroidCache(
-      INTERNSHIP_CACHE_BUCKET,
-      'pending-operations',
-      pendingOperations
-    )
-  }
-
-  return syncedCount
-}
-
-export async function syncAndroidInternshipCache() {
-  const pendingOperationCount = await flushInternshipOperations()
-  const [recordsData, trashData] = await Promise.all([
-    http.get('/api/internship/records'),
-    http.get('/api/internship/records?scope=trash')
-  ])
-  const records = Array.isArray(recordsData.records) ? recordsData.records : []
-  const trashRecords = Array.isArray(trashData.records) ? trashData.records : []
-  const syncState = createSyncState()
-
-  await Promise.all([
-    setAndroidCache(INTERNSHIP_CACHE_BUCKET, 'records', records),
-    setAndroidCache(INTERNSHIP_CACHE_BUCKET, 'trash', trashRecords),
-    setAndroidCache(INTERNSHIP_CACHE_BUCKET, 'last-sync', syncState)
-  ])
-
-  return {
-    syncedAt: syncState.syncedAt,
-    recordCount: records.length,
-    trashCount: trashRecords.length,
-    pendingOperationCount
   }
 }
