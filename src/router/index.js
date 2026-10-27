@@ -3,7 +3,6 @@ import { siteAuthGuard } from './authGuard'
 import BlogHomePage from '../pages/BlogHomePage/BlogHomePage.vue'
 import LoginPage from '../pages/LoginPage/LoginPage.vue'
 import DisplayPage from '../pages/DisplayPage/DisplayPage.vue'
-import NotesLoginPage from '../pages/NotesLoginPage/NotesLoginPage.vue'
 const BlogArticlePage = () => import('../pages/BlogArticlePage/BlogArticlePage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 const PhotoWallPage = () => import('../pages/PhotoWallPage/PhotoWallPage.vue')
@@ -78,13 +77,7 @@ const router = createRouter({
     },
     {
       path: '/notes-login',
-      name: 'notes-login',
-      component: NotesLoginPage,
-      meta: {
-        followSiteTheme: false,
-        privateNetworkOnly: true,
-        authScope: 'notes'
-      }
+      redirect: '/login'
     },
     {
       path: '/tools',

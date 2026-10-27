@@ -57,7 +57,7 @@ function getRuntimeRoutePath() {
   return window.location.pathname
 }
 
-function navigateToNotesLogin() {
+function navigateToLogin() {
   if (typeof window === 'undefined') {
     return
   }
@@ -67,7 +67,7 @@ function navigateToNotesLogin() {
     return
   }
 
-  const nextLocation = '/notes-login'
+  const nextLocation = '/login'
   const nextUrl = new URL(nextLocation, window.location.origin).toString()
 
   if (window.location.href !== nextUrl) {
@@ -344,7 +344,7 @@ http.interceptors.response.use(
             clearStoredAuth()
 
             if (typeof window !== 'undefined') {
-              navigateToNotesLogin()
+              navigateToLogin()
             }
           }
         }
@@ -355,7 +355,7 @@ http.interceptors.response.use(
         clearStoredAuth()
 
         if (typeof window !== 'undefined') {
-          navigateToNotesLogin()
+          navigateToLogin()
         }
       }
 

@@ -120,7 +120,7 @@ function handleLogout() {
   localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY)
   localStorage.removeItem(USERNAME_KEY)
   localStorage.removeItem(NOTE_USERNAME_KEY)
-  router.push('/notes-login')
+  router.push('/login')
 }
 
 function handleOptionClick(event, option) {

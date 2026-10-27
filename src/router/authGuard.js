@@ -21,16 +21,8 @@ function getAuthKeyByScope(scope) {
   return AUTH_KEY
 }
 
-function getLoginRouteByScope(scope) {
-  if (scope === 'tools') {
-    return 'login'
-  }
-
-  if (isUnifiedPrivateAuthScope(scope)) {
-    return 'notes-login'
-  }
-
-  return 'login'
+function getLoginRouteByScope() {
+  return IS_ANDROID_APP ? 'notes-login' : 'login'
 }
 
 function isUnifiedPrivateAuthScope(scope) {
