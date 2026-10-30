@@ -10,6 +10,7 @@ const ResumeEditorPage = () => import('../pages/ResumeEditorPage/ResumeEditorPag
 const AgentIntroPage = () => import('../pages/AgentIntroPage/AgentIntroPage.vue')
 const ToolSelectorPage = () => import('../pages/ToolSelectorPage/ToolSelectorPage.vue')
 const ThoughtsPage = () => import('../pages/ThoughtsPage/ThoughtsPage.vue')
+const XianyuPage = () => import('../pages/XianyuPage/XianyuPage.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -105,6 +106,17 @@ const router = createRouter({
       path: '/thoughts',
       name: 'thoughts',
       component: ThoughtsPage,
+      meta: {
+        followSiteTheme: false,
+        privateNetworkOnly: true,
+        requiresAuth: true,
+        authScope: 'tools'
+      }
+    },
+    {
+      path: '/xianyu',
+      name: 'xianyu',
+      component: XianyuPage,
       meta: {
         followSiteTheme: false,
         privateNetworkOnly: true,

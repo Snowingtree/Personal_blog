@@ -95,7 +95,7 @@ const toolOptions = [
     rank: 'Q',
     suit: '\u2666',
     title: '\u54B8\u9C7C',
-    pending: true
+    to: '/xianyu'
   },
   {
     key: 'mock-exam',

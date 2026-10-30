@@ -219,6 +219,7 @@ export function createProtectedApiMiddleware(env = process.env) {
         && !requestPath.startsWith('/api/ai/configs')
         && !requestPath.startsWith('/api/agent')
         && !requestPath.startsWith('/api/thoughts')
+        && !requestPath.startsWith('/api/xianyu')
       )
       || isSignedThoughtsImageRequest
     ) {
