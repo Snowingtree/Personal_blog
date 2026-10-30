@@ -53,28 +53,54 @@
         <p v-if="loading" class="xianyu-empty">加载中…</p>
         <p v-else-if="!items.length" class="xianyu-empty">暂无数据，先在左侧添加一条吧。</p>
 
-        <ul v-else class="xianyu-list">
-          <li
-            v-for="(item, index) in items"
-            :key="item.id"
-            class="xianyu-item"
-            :class="{ 'xianyu-item--alt': index % 2 === 1 }"
-          >
-            <div class="xianyu-item__info">
-              <strong>{{ item.name }}</strong>
-              <a :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.url }}</a>
-            </div>
-            <button
-              type="button"
-              class="xianyu-item__remove"
-              :aria-label="`删除 ${item.name}`"
-              title="删除"
-              @click="removeItem(item.id)"
-            >
-              ×
-            </button>
-          </li>
-        </ul>
+        <div v-else class="xianyu-table-wrap">
+          <table class="xianyu-table">
+            <colgroup>
+              <col class="xianyu-col-name" />
+              <col />
+              <col class="xianyu-col-action" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">名称</th>
+                <th scope="col">url</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(item, index) in items"
+                :key="item.id"
+                :class="{ 'xianyu-row--alt': index % 2 === 1 }"
+              >
+                <td class="xianyu-cell xianyu-cell--name" :title="item.name">{{ item.name }}</td>
+                <td class="xianyu-cell xianyu-cell--url">
+                  <a
+                    :href="item.url"
+                    :title="item.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >{{ item.url }}</a>
+                </td>
+                <td class="xianyu-cell xianyu-cell--action">
+                  <button
+                    type="button"
+                    class="xianyu-item__remove"
+                    :aria-label="`删除 ${item.name}`"
+                    title="删除"
+                    @click="removeItem(item.id)"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="!loading && items.length" class="xianyu-table-foot">
+          共 {{ items.length }} 条 · 已全部显示
+        </div>
       </section>
     </div>
   </main>
@@ -228,8 +254,11 @@ onMounted(loadItems)
 }
 
 .xianyu-form {
+  align-self: start;
+  align-content: start;
+  grid-auto-rows: min-content;
   display: grid;
-  gap: 18px;
+  gap: 16px;
   padding: 22px;
 }
 
@@ -331,64 +360,115 @@ onMounted(loadItems)
   text-align: center;
 }
 
-.xianyu-list {
+.xianyu-table-wrap {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid #ededed;
+  overflow: auto;
+  border: 1px solid #e7e7e7;
   border-radius: 12px;
-  overflow-y: auto;
 }
 
-.xianyu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  background: #ffffff;
+.xianyu-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 0.88rem;
 }
 
-.xianyu-item--alt {
-  background: #f4f4f4;
+.xianyu-col-name {
+  width: 30%;
 }
 
-.xianyu-item + .xianyu-item {
-  border-top: 1px solid #ededed;
+.xianyu-col-action {
+  width: 84px;
 }
 
-.xianyu-item__info {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.xianyu-item__info strong {
-  font-size: 0.92rem;
+.xianyu-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 13px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #5c5c5c;
+  background: #f7f7f7;
+  font-size: 0.76rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
 }
 
-.xianyu-item__info a {
+.xianyu-table thead th:last-child {
+  text-align: center;
+}
+
+.xianyu-table tbody tr {
+  background: #ffffff;
+  transition: background-color 120ms ease;
+}
+
+.xianyu-table tbody tr.xianyu-row--alt {
+  background: #f6f6f6;
+}
+
+.xianyu-table tbody tr:hover {
+  background: #ededed;
+}
+
+.xianyu-cell {
+  padding: 13px 16px;
+  border-bottom: 1px solid #d7d7d7;
+  vertical-align: middle;
+}
+
+.xianyu-cell--name {
   overflow: hidden;
-  color: #6b6b6b;
-  font-size: 0.82rem;
-  text-decoration: none;
+  color: #171717;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.xianyu-item__info a:hover {
+.xianyu-cell--url {
+  overflow: hidden;
+  color: #8a8a8a;
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xianyu-cell--url a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.xianyu-cell--url a:hover {
   color: #171717;
   text-decoration: underline;
 }
 
-.xianyu-item__remove {
+.xianyu-cell--action {
+  text-align: center;
+}
+
+.xianyu-table-foot {
   flex: 0 0 auto;
+  margin-top: 12px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  color: #9a9a9a;
+  background: #f7f7f7;
+  font-size: 0.76rem;
+  text-align: center;
+  user-select: none;
+}
+
+.xianyu-item__remove {
   width: 30px;
   height: 30px;
-  display: grid;
+  display: inline-grid;
   place-items: center;
   border: 1px solid transparent;
   border-radius: 8px;

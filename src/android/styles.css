@@ -182,6 +182,14 @@ body.is-android-app button:focus-visible {
   transition: color 150ms ease, background-color 150ms ease, transform 150ms ease;
 }
 
+.android-bottom-nav.is-single {
+  justify-items: center;
+}
+
+.android-bottom-nav.is-single .android-bottom-nav__item {
+  width: min(320px, 100%);
+}
+
 .android-bottom-nav__item svg {
   flex: 0 0 auto;
 }

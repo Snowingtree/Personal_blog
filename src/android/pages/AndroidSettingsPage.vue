@@ -16,6 +16,16 @@
           <li>日常记录</li>
         </ul>
       </div>
+
+      <button
+        type="button"
+        class="android-profile-mode-switch"
+        aria-label="切换到生活主页"
+        @click="goLife"
+      >
+        <ToggleRight :size="17" />
+        <span>生活</span>
+      </button>
     </section>
 
     <AndroidCalendarCard />
@@ -273,6 +283,7 @@ import {
   Info,
   RefreshCw,
   SlidersHorizontal,
+  ToggleRight,
   X
 } from 'lucide-vue-next'
 import profileAvatar from '../../assets/images/headerPH.png'
@@ -283,6 +294,7 @@ import {
 } from '../../constants/storage'
 import { siteHero } from '../../data/siteOverview'
 import AndroidCalendarCard from '../components/AndroidCalendarCard.vue'
+import { setAndroidAppMode } from '../appMode'
 import {
   NOTE_META_CACHE_BUCKET,
   syncAndroidNotesCache
@@ -561,6 +573,10 @@ async function updateNotes() {
   }
 }
 
+function goLife() {
+  setAndroidAppMode('life')
+}
+
 onMounted(loadSyncTimes)
 
 function saveMotionPreference() {
@@ -593,6 +609,34 @@ function saveCodeBlockPreference() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.android-profile-mode-switch {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--android-line-strong);
+  border-radius: 999px;
+  color: var(--android-accent-contrast);
+  background: var(--android-accent);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 7px 16px var(--android-accent-shadow);
+}
+
+@media (max-width: 560px) {
+  .android-settings-page .android-profile-hero {
+    padding-right: 86px;
+  }
 }
 
 .android-settings-header {
