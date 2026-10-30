@@ -1,6 +1,7 @@
 <template>
   <nav
     class="android-bottom-nav"
+    :class="{ 'is-single': navigationItems.length === 1 }"
     aria-label="安卓应用导航"
     :style="{ '--android-nav-count': navigationItems.length }"
   >
@@ -22,8 +23,9 @@
 
 <script setup>
 import { computed } from 'vue'
-import { BookOpen, House, ListTree, NotebookPen } from 'lucide-vue-next'
+import { BookOpen, Fish, House, ListTree, NotebookPen } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
+import { androidAppMode } from '../appMode'
 import { toggleAndroidNotesDirectory } from '../events'
 
 const props = defineProps({ appendixEnabled: { type: Boolean, default: false } })
@@ -31,6 +33,13 @@ const props = defineProps({ appendixEnabled: { type: Boolean, default: false } }
 const route = useRoute()
 const router = useRouter()
 const navigationItems = computed(() => {
+  if (androidAppMode.value === 'life') {
+    return [
+      { key: 'profile', label: '主页', to: '/', icon: House },
+      { key: 'xianyu', label: '咸鱼', to: '/xianyu', icon: Fish }
+    ]
+  }
+
   const items = [
     { key: 'profile', label: '主页', to: '/', icon: House },
     { key: 'notes', label: '笔记', to: '/notes', icon: NotebookPen }

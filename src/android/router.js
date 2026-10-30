@@ -2,8 +2,10 @@ import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router
 import { siteAuthGuard } from '../router/authGuard'
 import NotesLoginPage from '../pages/NotesLoginPage/NotesLoginPage.vue'
 import { readAndroidAppendixEnabled } from './appendix'
+import { setAndroidAppMode } from './appMode'
 
-const AndroidSettingsPage = () => import('./pages/AndroidSettingsPage.vue')
+const AndroidModeHomePage = () => import('./pages/AndroidModeHomePage.vue')
+const AndroidXianyuPage = () => import('./pages/AndroidXianyuPage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 
 const router = createRouter({
@@ -19,12 +21,18 @@ const router = createRouter({
     {
       path: '/',
       name: 'android-profile',
-      component: AndroidSettingsPage,
+      component: AndroidModeHomePage,
       meta: { androidNavKey: 'profile', androidSurface: 'home' }
     },
     {
       path: '/settings',
       redirect: '/'
+    },
+    {
+      path: '/xianyu',
+      name: 'android-xianyu',
+      component: AndroidXianyuPage,
+      meta: { androidNavKey: 'xianyu', androidSurface: 'home' }
     },
     { path: '/login', redirect: '/notes' },
     {
@@ -76,6 +84,12 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  if (to.name === 'android-xianyu') {
+    setAndroidAppMode('life')
+  } else if (['notes', 'notes-login', 'appendix'].includes(to.name)) {
+    setAndroidAppMode('personal')
+  }
+
   if (to.meta.requiresAppendix && !readAndroidAppendixEnabled()) {
     return { name: 'android-profile' }
   }
