@@ -32,7 +32,12 @@ const router = createRouter({
       path: '/xianyu',
       name: 'android-xianyu',
       component: AndroidXianyuPage,
-      meta: { androidNavKey: 'xianyu', androidSurface: 'home' }
+      meta: {
+        androidNavKey: 'xianyu',
+        androidSurface: 'home',
+        requiresAuth: true,
+        authScope: 'tools'
+      }
     },
     { path: '/login', redirect: '/notes' },
     {
@@ -86,7 +91,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.name === 'android-xianyu') {
     setAndroidAppMode('life')
-  } else if (['notes', 'notes-login', 'appendix'].includes(to.name)) {
+  } else if (['notes', 'appendix'].includes(to.name)) {
     setAndroidAppMode('personal')
   }
 

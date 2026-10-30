@@ -9,7 +9,11 @@
         <span class="android-xianyu-count">{{ items.length }} 条</span>
       </header>
 
-      <ul class="android-xianyu-list">
+      <p v-if="loading" class="android-xianyu-status">加载中…</p>
+      <p v-else-if="error" class="android-xianyu-status android-xianyu-status--error">{{ error }}</p>
+      <p v-else-if="!items.length" class="android-xianyu-status">暂无数据</p>
+
+      <ul v-else class="android-xianyu-list">
         <li
           v-for="item in items"
           :key="item.id"
@@ -33,29 +37,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { Check, Copy } from 'lucide-vue-next'
+import http from '../../utils/http'
 
-const items = ref([
-  { id: '1', name: '索尼 A7M4 相机', url: 'https://www.goofish.com/item?id=1' },
-  { id: '2', name: '罗技 GPW 鼠标', url: 'https://www.goofish.com/item?id=2' },
-  { id: '3', name: '戴森吹风机', url: 'https://www.goofish.com/item?id=3' },
-  { id: '4', name: '任天堂 Switch OLED', url: 'https://www.goofish.com/item?id=4' },
-  { id: '5', name: 'AirPods Pro 2', url: 'https://www.goofish.com/item?id=5' },
-  { id: '6', name: 'iPhone 15 Pro', url: 'https://www.goofish.com/item?id=6' },
-  { id: '7', name: '小米手环 9', url: 'https://www.goofish.com/item?id=7' },
-  { id: '8', name: '富士 X-T5 微单', url: 'https://www.goofish.com/item?id=8' },
-  { id: '9', name: 'iPad Pro 12.9', url: 'https://www.goofish.com/item?id=9' },
-  { id: '10', name: 'PS5 游戏机', url: 'https://www.goofish.com/item?id=10' },
-  { id: '11', name: '大疆 Mini 4 Pro', url: 'https://www.goofish.com/item?id=11' },
-  { id: '12', name: 'MacBook Air M3', url: 'https://www.goofish.com/item?id=12' },
-  { id: '13', name: '佳能 RF 50mm', url: 'https://www.goofish.com/item?id=13' },
-  { id: '14', name: '罗技 MX Master 3S', url: 'https://www.goofish.com/item?id=14' },
-  { id: '15', name: 'Kindle Paperwhite', url: 'https://www.goofish.com/item?id=15' }
-])
-
+const items = ref([])
+const loading = ref(false)
+const error = ref('')
 const copiedId = ref('')
 let copiedTimerId = 0
+
+async function loadItems() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const data = await http.get('/api/xianyu/items')
+    items.value = Array.isArray(data.items) ? data.items : []
+  } catch (err) {
+    items.value = []
+    error.value = err instanceof Error ? err.message : '加载失败，请稍后重试'
+  } finally {
+    loading.value = false
+  }
+}
 
 async function copyText(text) {
   if (navigator.clipboard?.writeText) {
@@ -85,6 +90,8 @@ async function copyItem(item) {
     copiedId.value = ''
   }
 }
+
+onMounted(loadItems)
 </script>
 
 <style scoped>
@@ -146,6 +153,22 @@ async function copyItem(item) {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.android-xianyu-status {
+  flex: 1;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  color: var(--android-text-faint);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.android-xianyu-status--error {
+  color: #d14c3e;
+  padding: 0 12px;
+  line-height: 1.5;
 }
 
 .android-xianyu-item {
