@@ -29,126 +29,159 @@
 
     <div class="xianyu-layout">
       <section class="xianyu-card xianyu-form">
-        <h2>新增</h2>
+        <Transition name="fade" mode="out-in">
+          <div v-if="activeTab === 'xianyu'" key="xianyu-form" class="xianyu-form-body">
+            <h2>新增</h2>
 
-        <label class="xianyu-field">
-          <span>url</span>
-          <input
-            v-model="url"
-            type="text"
-            placeholder="请输入 url"
-            autocomplete="off"
-          />
-        </label>
+            <label class="xianyu-field">
+              <span>url</span>
+              <input
+                v-model="url"
+                type="text"
+                placeholder="请输入 url"
+                autocomplete="off"
+              />
+            </label>
 
-        <label class="xianyu-field">
-          <span>名称</span>
-          <input
-            v-model="name"
-            type="text"
-            placeholder="请输入名称"
-            autocomplete="off"
-          />
-        </label>
+            <label class="xianyu-field">
+              <span>名称</span>
+              <input
+                v-model="name"
+                type="text"
+                placeholder="请输入名称"
+                autocomplete="off"
+              />
+            </label>
 
-        <button
-          type="button"
-          class="xianyu-add"
-          :disabled="!canSubmit || submitting"
-          @click="handleAdd"
-        >
-          {{ submitting ? '新增中…' : '新增' }}
-        </button>
+            <button
+              type="button"
+              class="xianyu-add"
+              :disabled="!canSubmit || submitting"
+              @click="handleAdd"
+            >
+              {{ submitting ? '新增中…' : '新增' }}
+            </button>
 
-        <p v-if="error" class="xianyu-error" role="alert">{{ error }}</p>
+            <p v-if="error" class="xianyu-error" role="alert">{{ error }}</p>
+          </div>
+
+          <div v-else key="quan-stats" class="xianyu-form-body">
+            <h2>售卖统计</h2>
+
+            <div class="xianyu-quan-stats">
+              <div class="xianyu-quan-stat">
+                <span>已售出</span>
+                <strong>{{ quanStats.soldCount }} 张</strong>
+              </div>
+              <div class="xianyu-quan-stat">
+                <span>待售</span>
+                <strong>{{ quanStats.unsoldCount }} 张</strong>
+              </div>
+              <div class="xianyu-quan-stat">
+                <span>总销售额</span>
+                <strong>¥{{ formatMoney(quanStats.totalRevenue) }}</strong>
+              </div>
+              <div class="xianyu-quan-stat">
+                <span>总原价</span>
+                <strong>¥{{ formatMoney(quanStats.totalCost) }}</strong>
+              </div>
+              <div class="xianyu-quan-stat xianyu-quan-stat--profit">
+                <span>利润</span>
+                <strong>¥{{ formatMoney(quanStats.profit) }}</strong>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </section>
 
       <section class="xianyu-card xianyu-list-card">
-        <template v-if="activeTab === 'xianyu'">
-          <div class="xianyu-list-heading">
-            <h2>列表</h2>
-            <span>{{ items.length }} 条</span>
+        <Transition name="fade" mode="out-in">
+          <div v-if="activeTab === 'xianyu'" key="xianyu-list" class="xianyu-list-pane">
+            <div class="xianyu-list-heading">
+              <h2>列表</h2>
+              <span>{{ items.length }} 条</span>
+            </div>
+
+            <p v-if="loading" class="xianyu-empty">加载中…</p>
+            <p v-else-if="!items.length" class="xianyu-empty">暂无数据，先在左侧添加一条吧。</p>
+
+            <div v-else class="xianyu-table-wrap">
+              <table class="xianyu-table">
+                <colgroup>
+                  <col class="xianyu-col-name" />
+                  <col />
+                  <col class="xianyu-col-action" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">名称</th>
+                    <th scope="col">url</th>
+                    <th scope="col">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(item, index) in items"
+                    :key="item.id"
+                    :class="{ 'xianyu-row--alt': index % 2 === 1 }"
+                  >
+                    <td class="xianyu-cell xianyu-cell--name" :title="item.name">{{ item.name }}</td>
+                    <td class="xianyu-cell xianyu-cell--url">
+                      <a
+                        :href="item.url"
+                        :title="item.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >{{ item.url }}</a>
+                    </td>
+                    <td class="xianyu-cell xianyu-cell--action">
+                      <button
+                        type="button"
+                        class="xianyu-item__remove"
+                        :aria-label="`删除 ${item.name}`"
+                        title="删除"
+                        @click="removeItem(item.id)"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-if="!loading && items.length" class="xianyu-table-foot">
+              共 {{ items.length }} 条 · 已全部显示
+            </div>
           </div>
 
-          <p v-if="loading" class="xianyu-empty">加载中…</p>
-          <p v-else-if="!items.length" class="xianyu-empty">暂无数据，先在左侧添加一条吧。</p>
+          <div v-else key="quan-list" class="xianyu-list-pane">
+            <div class="xianyu-list-heading">
+              <h2>券列表</h2>
+              <span>{{ quanItems.length }} 张</span>
+            </div>
 
-          <div v-else class="xianyu-table-wrap">
-            <table class="xianyu-table">
-              <colgroup>
-                <col class="xianyu-col-name" />
-                <col />
-                <col class="xianyu-col-action" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">名称</th>
-                  <th scope="col">url</th>
-                  <th scope="col">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(item, index) in items"
-                  :key="item.id"
-                  :class="{ 'xianyu-row--alt': index % 2 === 1 }"
-                >
-                  <td class="xianyu-cell xianyu-cell--name" :title="item.name">{{ item.name }}</td>
-                  <td class="xianyu-cell xianyu-cell--url">
-                    <a
-                      :href="item.url"
-                      :title="item.url"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >{{ item.url }}</a>
-                  </td>
-                  <td class="xianyu-cell xianyu-cell--action">
-                    <button
-                      type="button"
-                      class="xianyu-item__remove"
-                      :aria-label="`删除 ${item.name}`"
-                      title="删除"
-                      @click="removeItem(item.id)"
-                    >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <p v-if="quanLoading" class="xianyu-empty">加载中…</p>
+            <p v-else-if="quanError" class="xianyu-empty xianyu-empty--error">{{ quanError }}</p>
+            <p v-else-if="!quanItems.length" class="xianyu-empty">暂无券数据</p>
+
+            <ul v-else class="xianyu-quan-list">
+              <li
+                v-for="(item, index) in quanItems"
+                :key="item.id"
+                class="xianyu-quan-item"
+                :class="{ 'xianyu-quan-item--alt': index % 2 === 1 }"
+              >
+                <img class="xianyu-quan-item__img" :src="getQuanImage(item)" alt="券图片" />
+                <div class="xianyu-quan-item__info">
+                  <strong class="xianyu-quan-item__name">{{ item.name || '未命名' }}</strong>
+                  <span class="xianyu-quan-item__price">¥{{ formatMoney(item.price) }}</span>
+                  <span class="xianyu-quan-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
+                </div>
+              </li>
+            </ul>
           </div>
-
-          <div v-if="!loading && items.length" class="xianyu-table-foot">
-            共 {{ items.length }} 条 · 已全部显示
-          </div>
-        </template>
-
-        <template v-else>
-          <div class="xianyu-list-heading">
-            <h2>券列表</h2>
-            <span>{{ quanItems.length }} 张</span>
-          </div>
-
-          <p v-if="quanLoading" class="xianyu-empty">加载中…</p>
-          <p v-else-if="quanError" class="xianyu-empty xianyu-empty--error">{{ quanError }}</p>
-          <p v-else-if="!quanItems.length" class="xianyu-empty">暂无券数据</p>
-
-          <ul v-else class="xianyu-quan-list">
-            <li
-              v-for="(item, index) in quanItems"
-              :key="item.id"
-              class="xianyu-quan-item"
-              :class="{ 'xianyu-quan-item--alt': index % 2 === 1 }"
-            >
-              <img class="xianyu-quan-item__img" :src="getQuanImage(item)" alt="券图片" />
-              <div class="xianyu-quan-item__info">
-                <strong class="xianyu-quan-item__name">{{ item.name || '未命名' }}</strong>
-                <span class="xianyu-quan-item__price">¥{{ formatMoney(item.price) }}</span>
-                <span class="xianyu-quan-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
-              </div>
-            </li>
-          </ul>
-        </template>
+        </Transition>
       </section>
     </div>
   </main>
@@ -177,6 +210,17 @@ const quanLoading = ref(false)
 const quanError = ref('')
 
 const canSubmit = computed(() => url.value.trim() !== '' && name.value.trim() !== '')
+
+const quanStats = computed(() => {
+  const soldItems = quanItems.value.filter((item) => item.sold)
+  const soldCount = soldItems.length
+  const unsoldCount = quanItems.value.length - soldCount
+  const totalRevenue = soldItems.reduce((sum, item) => sum + Number(item.price || 0), 0)
+  const totalCost = soldItems.reduce((sum, item) => sum + Number(item.originalPrice || 0), 0)
+  const profit = totalRevenue - totalCost
+
+  return { soldCount, unsoldCount, totalRevenue, totalCost, profit }
+})
 
 function formatMoney(value) {
   const number = Number(value)
@@ -374,11 +418,58 @@ onMounted(() => {
 
 .xianyu-form {
   align-self: start;
-  align-content: start;
-  grid-auto-rows: min-content;
+  padding: 22px;
+}
+
+.xianyu-form-body {
   display: grid;
   gap: 16px;
-  padding: 22px;
+}
+
+.xianyu-quan-stats {
+  display: grid;
+  gap: 10px;
+}
+
+.xianyu-quan-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #ededed;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.xianyu-quan-stat span {
+  color: #6b6b6b;
+  font-size: 0.82rem;
+}
+
+.xianyu-quan-stat strong {
+  color: #171717;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.xianyu-quan-stat--profit {
+  border-color: #f0d4d1;
+  background: #fdf3f2;
+}
+
+.xianyu-quan-stat--profit strong {
+  color: #d14c3e;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .xianyu-field {
@@ -453,6 +544,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   padding: 22px;
+}
+
+.xianyu-list-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .xianyu-list-heading {
