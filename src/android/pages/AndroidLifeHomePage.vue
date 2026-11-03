@@ -62,6 +62,18 @@
           </label>
         </div>
 
+        <label class="android-quanshang-field">
+          <span>券码（12 位）{{ recognizing ? ' · 识别中…' : '' }}</span>
+          <input
+            v-model="draftCode"
+            type="text"
+            inputmode="numeric"
+            maxlength="12"
+            placeholder="选图后自动识别，也可手动填写"
+            autocomplete="off"
+          />
+        </label>
+
         <div class="android-quanshang-fields">
           <label class="android-quanshang-field">
             <span>售价（元）</span>
@@ -102,11 +114,13 @@ const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 const imageInput = ref(null)
 const draftImage = ref('')
 const draftName = ref('')
+const draftCode = ref('')
 const draftPrice = ref(null)
 const draftOriginalPrice = ref(null)
 const formError = ref('')
 const saved = ref(false)
 const saving = ref(false)
+const recognizing = ref(false)
 
 const canSubmit = computed(() =>
   !!draftImage.value
@@ -135,8 +149,40 @@ function handleImagePick(event) {
   reader.onload = () => {
     draftImage.value = typeof reader.result === 'string' ? reader.result : ''
     formError.value = ''
+    recognizeCode(draftImage.value)
   }
   reader.readAsDataURL(file)
+}
+
+function extractCode(text) {
+  const cleaned = String(text || '').replace(/\D+/g, '')
+  const match = cleaned.match(/\d{12}/)
+  return match ? match[0] : ''
+}
+
+function recognizeCode(dataUrl) {
+  const bridge = globalThis.AndroidBridge
+  if (!bridge || typeof bridge.recognizeText !== 'function') {
+    return
+  }
+
+  recognizing.value = true
+  window.__quanshangOcr = (text) => {
+    recognizing.value = false
+    window.__quanshangOcr = null
+
+    const code = extractCode(text)
+    if (code) {
+      draftCode.value = code
+    }
+  }
+
+  try {
+    bridge.recognizeText(dataUrl)
+  } catch {
+    recognizing.value = false
+    window.__quanshangOcr = null
+  }
 }
 
 async function addItem() {
@@ -164,12 +210,14 @@ async function addItem() {
     await http.post('/api/quanshang/items', {
       id: itemId,
       name: draftName.value.trim(),
+      code: draftCode.value.trim(),
       price: Number(draftPrice.value),
       originalPrice: Number(draftOriginalPrice.value)
     })
 
     draftImage.value = ''
     draftName.value = ''
+    draftCode.value = ''
     draftPrice.value = null
     draftOriginalPrice.value = null
     saved.value = true
