@@ -6,6 +6,7 @@
   "scripts": {
     "server": "node server/index.js",
     "dev": "vite",
+    "uat": "vite --mode uat",
     "dev:android": "vite --mode android --port 5175",
     "images:photo-wall": "node scripts/generate-photo-wall-images.mjs",
     "encrypt:openai-key": "node scripts/encrypt-openai-key.mjs",

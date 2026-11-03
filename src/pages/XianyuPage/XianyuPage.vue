@@ -28,9 +28,9 @@
     </header>
 
     <div class="xianyu-layout">
-      <section class="xianyu-card xianyu-form">
-        <Transition name="fade" mode="out-in">
-          <div v-if="activeTab === 'xianyu'" key="xianyu-form" class="xianyu-form-body">
+      <Transition name="fade" mode="out-in">
+        <section v-if="activeTab === 'xianyu'" key="xianyu-form" class="xianyu-card xianyu-form">
+          <div class="xianyu-form-body">
             <h2>新增</h2>
 
             <label class="xianyu-field">
@@ -64,35 +64,59 @@
 
             <p v-if="error" class="xianyu-error" role="alert">{{ error }}</p>
           </div>
+        </section>
 
-          <div v-else key="quan-stats" class="xianyu-form-body">
-            <h2>售卖统计</h2>
+        <div v-else key="quan-stats" class="xianyu-quan-side">
+          <section class="xianyu-card xianyu-form">
+            <div class="xianyu-form-body">
+              <h2>搜索</h2>
 
-            <div class="xianyu-quan-stats">
-              <div class="xianyu-quan-stat">
-                <span>已售出</span>
-                <strong>{{ quanStats.soldCount }} 张</strong>
-              </div>
-              <div class="xianyu-quan-stat">
-                <span>待售</span>
-                <strong>{{ quanStats.unsoldCount }} 张</strong>
-              </div>
-              <div class="xianyu-quan-stat">
-                <span>总销售额</span>
-                <strong>¥{{ formatMoney(quanStats.totalRevenue) }}</strong>
-              </div>
-              <div class="xianyu-quan-stat">
-                <span>总原价</span>
-                <strong>¥{{ formatMoney(quanStats.totalCost) }}</strong>
-              </div>
-              <div class="xianyu-quan-stat xianyu-quan-stat--profit">
-                <span>利润</span>
-                <strong>¥{{ formatMoney(quanStats.profit) }}</strong>
+              <div class="xianyu-quan-search">
+                <input
+                  v-model="quanSearch"
+                  type="text"
+                  placeholder="搜索名称"
+                  autocomplete="off"
+                />
+                <select v-model="quanSoldFilter">
+                  <option value="all">全部</option>
+                  <option value="sold">已完成</option>
+                  <option value="unsold">待售</option>
+                </select>
               </div>
             </div>
-          </div>
-        </Transition>
-      </section>
+          </section>
+
+          <section class="xianyu-card xianyu-form">
+            <div class="xianyu-form-body">
+              <h2>售卖统计</h2>
+
+              <div class="xianyu-quan-stats">
+                <div class="xianyu-quan-stat">
+                  <span>已完成</span>
+                  <strong>{{ quanStats.soldCount }} 张</strong>
+                </div>
+                <div class="xianyu-quan-stat">
+                  <span>待售</span>
+                  <strong>{{ quanStats.unsoldCount }} 张</strong>
+                </div>
+                <div class="xianyu-quan-stat">
+                  <span>总销售额</span>
+                  <strong>¥{{ formatMoney(quanStats.totalRevenue) }}</strong>
+                </div>
+                <div class="xianyu-quan-stat">
+                  <span>总原价</span>
+                  <strong>¥{{ formatMoney(quanStats.totalCost) }}</strong>
+                </div>
+                <div class="xianyu-quan-stat xianyu-quan-stat--profit">
+                  <span>利润</span>
+                  <strong>¥{{ formatMoney(quanStats.profit) }}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </Transition>
 
       <section class="xianyu-card xianyu-list-card">
         <Transition name="fade" mode="out-in">
@@ -158,28 +182,43 @@
           <div v-else key="quan-list" class="xianyu-list-pane">
             <div class="xianyu-list-heading">
               <h2>券列表</h2>
-              <span>{{ quanItems.length }} 张</span>
+              <span>{{ filteredQuanItems.length }} 张</span>
             </div>
 
             <p v-if="quanLoading" class="xianyu-empty">加载中…</p>
             <p v-else-if="quanError" class="xianyu-empty xianyu-empty--error">{{ quanError }}</p>
-            <p v-else-if="!quanItems.length" class="xianyu-empty">暂无券数据</p>
+            <p v-else-if="!filteredQuanItems.length" class="xianyu-empty">暂无数据</p>
 
-            <ul v-else class="xianyu-quan-list">
-              <li
-                v-for="(item, index) in quanItems"
-                :key="item.id"
-                class="xianyu-quan-item"
-                :class="{ 'xianyu-quan-item--alt': index % 2 === 1 }"
-              >
-                <img class="xianyu-quan-item__img" :src="getQuanImage(item)" alt="券图片" />
-                <div class="xianyu-quan-item__info">
-                  <strong class="xianyu-quan-item__name">{{ item.name || '未命名' }}</strong>
-                  <span class="xianyu-quan-item__price">¥{{ formatMoney(item.price) }}</span>
-                  <span class="xianyu-quan-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
-                </div>
-              </li>
-            </ul>
+            <div v-else class="xianyu-quan-table-wrap">
+              <table class="xianyu-quan-table">
+                <colgroup>
+                  <col class="xianyu-quan-col-name" />
+                  <col />
+                  <col />
+                  <col />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">名称</th>
+                    <th scope="col">原价</th>
+                    <th scope="col">售价</th>
+                    <th scope="col">利润</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(item, index) in filteredQuanItems"
+                    :key="item.id"
+                    :class="{ 'xianyu-quan-row--alt': index % 2 === 1 }"
+                  >
+                    <td class="xianyu-quan-cell xianyu-quan-cell--name">{{ item.name || '未命名' }}</td>
+                    <td class="xianyu-quan-cell">¥{{ formatMoney(item.originalPrice) }}</td>
+                    <td class="xianyu-quan-cell">¥{{ formatMoney(item.price) }}</td>
+                    <td class="xianyu-quan-cell xianyu-quan-cell--profit">¥{{ formatMoney(profitOf(item)) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </Transition>
       </section>
@@ -201,13 +240,25 @@ const submitting = ref(false)
 const error = ref('')
 const activeTab = ref('xianyu')
 
-const MOCK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e5e7e3"/><text x="100" y="116" font-size="52" text-anchor="middle" fill="#8a8f8b" font-family="sans-serif">券</text></svg>'
-)
+const isUat = import.meta.env.MODE === 'uat'
+
+const MOCK_XIANYU_ITEMS = [
+  { id: 'x1', name: '索尼 A7M4 相机', url: 'https://www.goofish.com/item?id=1' },
+  { id: 'x2', name: '罗技 GPW 鼠标', url: 'https://www.goofish.com/item?id=2' },
+  { id: 'x3', name: '任天堂 Switch OLED', url: 'https://www.goofish.com/item?id=3' }
+]
+
+const MOCK_QUAN_ITEMS = [
+  { id: 'q1', name: '麦当劳代金券', price: 88, originalPrice: 60, sold: true, createdAt: '2026-11-01T10:00:00.000Z' },
+  { id: 'q2', name: '肯德基 50 元券', price: 45, originalPrice: 30, sold: true, createdAt: '2026-11-02T10:00:00.000Z' },
+  { id: 'q3', name: '星巴克 100 元券', price: 199, originalPrice: 150, sold: false, createdAt: '2026-11-03T10:00:00.000Z' }
+]
 
 const quanItems = ref([])
 const quanLoading = ref(false)
 const quanError = ref('')
+const quanSearch = ref('')
+const quanSoldFilter = ref('all')
 
 const canSubmit = computed(() => url.value.trim() !== '' && name.value.trim() !== '')
 
@@ -222,23 +273,39 @@ const quanStats = computed(() => {
   return { soldCount, unsoldCount, totalRevenue, totalCost, profit }
 })
 
+const filteredQuanItems = computed(() => {
+  const keyword = quanSearch.value.trim()
+
+  return quanItems.value.filter((item) => {
+    const matchName = !keyword || (item.name || '').toLowerCase().includes(keyword.toLowerCase())
+    const matchSold =
+      quanSoldFilter.value === 'all'
+      || (quanSoldFilter.value === 'sold' && item.sold)
+      || (quanSoldFilter.value === 'unsold' && !item.sold)
+
+    return matchName && matchSold
+  })
+})
+
 function formatMoney(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return '0'
   return number.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
 
-function getQuanImage(item) {
-  try {
-    const stored = localStorage.getItem(`quanshang-image-${item.id}`)
-    if (stored) return stored
-  } catch {}
-  return MOCK_IMAGE
+function profitOf(item) {
+  return Number(item.price || 0) - Number(item.originalPrice || 0)
 }
 
 async function loadQuanItems() {
   quanLoading.value = true
   quanError.value = ''
+
+  if (isUat) {
+    quanItems.value = [...MOCK_QUAN_ITEMS]
+    quanLoading.value = false
+    return
+  }
 
   try {
     const data = await http.get('/api/quanshang/items')
@@ -254,6 +321,12 @@ async function loadQuanItems() {
 async function loadItems() {
   loading.value = true
   error.value = ''
+
+  if (isUat) {
+    items.value = [...MOCK_XIANYU_ITEMS]
+    loading.value = false
+    return
+  }
 
   try {
     const data = await http.get('/api/xianyu/items')
@@ -271,6 +344,18 @@ async function handleAdd() {
 
   submitting.value = true
   error.value = ''
+
+  if (isUat) {
+    items.value.unshift({
+      id: `mock-${Date.now()}`,
+      name: name.value.trim(),
+      url: url.value.trim()
+    })
+    url.value = ''
+    name.value = ''
+    submitting.value = false
+    return
+  }
 
   try {
     const data = await http.post('/api/xianyu/items', {
@@ -293,6 +378,11 @@ async function handleAdd() {
 
 async function removeItem(id) {
   error.value = ''
+
+  if (isUat) {
+    items.value = items.value.filter((item) => item.id !== id)
+    return
+  }
 
   try {
     await http.delete(`/api/xianyu/items/${id}`)
@@ -421,9 +511,45 @@ onMounted(() => {
   padding: 22px;
 }
 
+.xianyu-quan-side {
+  align-self: start;
+  display: grid;
+  gap: 16px;
+}
+
 .xianyu-form-body {
   display: grid;
   gap: 16px;
+}
+
+.xianyu-quan-search {
+  display: grid;
+  gap: 10px;
+}
+
+.xianyu-quan-search input,
+.xianyu-quan-search select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #dedede;
+  border-radius: 10px;
+  color: #171717;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.xianyu-quan-search input::placeholder {
+  color: #a3a3a3;
+}
+
+.xianyu-quan-search input:focus,
+.xianyu-quan-search select:focus {
+  border-color: #9b9b9b;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.06);
 }
 
 .xianyu-quan-stats {
@@ -710,67 +836,82 @@ onMounted(() => {
   background: #ffffff;
 }
 
-.xianyu-quan-list {
+.xianyu-quan-table-wrap {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  overflow-y: auto;
+  overflow: auto;
   border: 1px solid #e7e7e7;
   border-radius: 12px;
 }
 
-.xianyu-quan-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+.xianyu-quan-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 0.88rem;
+}
+
+.xianyu-quan-col-name {
+  width: 34%;
+}
+
+.xianyu-quan-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  color: #5c5c5c;
+  background: #f7f7f7;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.xianyu-quan-table thead th:not(:first-child) {
+  text-align: right;
+}
+
+.xianyu-quan-table tbody tr {
   background: #ffffff;
+  transition: background-color 120ms ease;
 }
 
-.xianyu-quan-item + .xianyu-quan-item {
-  border-top: 1px solid #d7d7d7;
-}
-
-.xianyu-quan-item--alt {
+.xianyu-quan-table tbody tr.xianyu-quan-row--alt {
   background: #f6f6f6;
 }
 
-.xianyu-quan-item__img {
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: 10px;
-  background: #eceeeb;
+.xianyu-quan-table tbody tr:hover {
+  background: #ededed;
 }
 
-.xianyu-quan-item__info {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
+.xianyu-quan-cell {
+  padding: 12px 16px;
+  border-bottom: 1px solid #d7d7d7;
+  vertical-align: middle;
 }
 
-.xianyu-quan-item__name {
+.xianyu-quan-cell--name {
   overflow: hidden;
   color: #171717;
-  font-size: 0.88rem;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.xianyu-quan-item__price {
-  color: #d14c3e;
-  font-size: 0.94rem;
-  font-weight: 800;
+.xianyu-quan-cell:not(:first-child) {
+  text-align: right;
+  color: #4f4f4f;
+  font-variant-numeric: tabular-nums;
 }
 
-.xianyu-quan-item__original {
-  color: #9a9a9a;
-  font-size: 0.74rem;
-  text-decoration: line-through;
+.xianyu-quan-cell--profit {
+  color: #d14c3e;
+  font-weight: 700;
 }
 
 @media (max-width: 760px) {

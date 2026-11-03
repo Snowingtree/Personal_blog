@@ -23,12 +23,12 @@
           <div class="android-quanshang-swipe__actions">
             <button
               type="button"
-              class="android-quanshang-swipe__sold"
+              class="android-quanshang-swipe__complete"
               :disabled="item.sold"
-              @click="markSold(item)"
+              @click="markCompleted(item)"
             >
               <Check :size="16" />
-              <span>{{ item.sold ? '已售出' : '售出' }}</span>
+              <span>{{ item.sold ? '已完成' : '完成' }}</span>
             </button>
             <button
               type="button"
@@ -37,6 +37,14 @@
             >
               <Download :size="16" />
               <span>保存</span>
+            </button>
+            <button
+              type="button"
+              class="android-quanshang-swipe__delete"
+              @click="removeItem(item)"
+            >
+              <Trash2 :size="16" />
+              <span>删除</span>
             </button>
           </div>
 
@@ -57,7 +65,7 @@
               <span class="android-quanshang-item__price">¥{{ formatMoney(item.price) }}</span>
               <span class="android-quanshang-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
             </div>
-            <span v-if="item.sold" class="android-quanshang-item__sold-badge">已售出</span>
+            <span v-if="item.sold" class="android-quanshang-item__sold-badge">已完成</span>
           </div>
         </li>
       </ul>
@@ -67,11 +75,11 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { Check, Download } from 'lucide-vue-next'
+import { Check, Download, Trash2 } from 'lucide-vue-next'
 import http from '../../utils/http'
 
 const IMAGE_PREFIX = 'quanshang-image-'
-const ACTION_WIDTH = 160
+const ACTION_WIDTH = 240
 
 const FALLBACK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e5e7e3"/><text x="100" y="116" font-size="52" text-anchor="middle" fill="#8a8f8b" font-family="sans-serif">券</text></svg>'
@@ -118,7 +126,7 @@ async function loadItems() {
   }
 }
 
-async function markSold(item) {
+async function markCompleted(item) {
   if (item.sold) return
 
   try {
@@ -127,6 +135,16 @@ async function markSold(item) {
     swipeOpenId.value = ''
   } catch (err) {
     error.value = err instanceof Error ? err.message : '操作失败，请稍后重试'
+  }
+}
+
+async function removeItem(item) {
+  try {
+    await http.delete(`/api/quanshang/items/${item.id}`)
+    items.value = items.value.filter((it) => it.id !== item.id)
+    swipeOpenId.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '删除失败，请稍后重试'
   }
 }
 
@@ -361,8 +379,9 @@ onBeforeUnmount(() => {
   display: flex;
 }
 
-.android-quanshang-swipe__sold,
-.android-quanshang-swipe__save {
+.android-quanshang-swipe__complete,
+.android-quanshang-swipe__save,
+.android-quanshang-swipe__delete {
   width: 80px;
   display: flex;
   flex-direction: column;
@@ -377,17 +396,21 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.android-quanshang-swipe__sold {
-  background: #d14c3e;
+.android-quanshang-swipe__complete {
+  background: #8a8f8b;
 }
 
-.android-quanshang-swipe__sold:disabled {
+.android-quanshang-swipe__complete:disabled {
   cursor: default;
   opacity: 0.6;
 }
 
 .android-quanshang-swipe__save {
   background: #2f6fd6;
+}
+
+.android-quanshang-swipe__delete {
+  background: #d14c3e;
 }
 
 .android-quanshang-swipe__content {

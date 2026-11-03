@@ -30,6 +30,10 @@ function isUnifiedPrivateAuthScope(scope) {
 }
 
 export function siteAuthGuard(to) {
+  if (import.meta.env.MODE === 'uat') {
+    return true
+  }
+
   const authToken = localStorage.getItem(AUTH_TOKEN_KEY)
   const refreshToken = localStorage.getItem(AUTH_REFRESH_TOKEN_KEY)
   const hasAccessToken = typeof authToken === 'string' && authToken.trim().length > 0
