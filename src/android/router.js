@@ -6,6 +6,7 @@ import { setAndroidAppMode } from './appMode'
 
 const AndroidModeHomePage = () => import('./pages/AndroidModeHomePage.vue')
 const AndroidXianyuPage = () => import('./pages/AndroidXianyuPage.vue')
+const AndroidQuanshangPage = () => import('./pages/AndroidQuanshangPage.vue')
 const NotesPage = () => import('../pages/NotesPage/NotesPage.vue')
 
 const router = createRouter({
@@ -38,6 +39,12 @@ const router = createRouter({
         requiresAuth: true,
         authScope: 'tools'
       }
+    },
+    {
+      path: '/quanshang',
+      name: 'android-quanshang',
+      component: AndroidQuanshangPage,
+      meta: { androidNavKey: 'quanshang', androidSurface: 'home' }
     },
     { path: '/login', redirect: '/notes' },
     {
@@ -89,7 +96,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.name === 'android-xianyu') {
+  if (['android-xianyu', 'android-quanshang'].includes(to.name)) {
     setAndroidAppMode('life')
   } else if (['notes', 'appendix'].includes(to.name)) {
     setAndroidAppMode('personal')

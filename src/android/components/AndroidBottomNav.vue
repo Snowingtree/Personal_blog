@@ -23,7 +23,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { BookOpen, Fish, House, ListTree, NotebookPen } from 'lucide-vue-next'
+import { BookOpen, Fish, House, ListTree, NotebookPen, Ticket } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { androidAppMode } from '../appMode'
 import { toggleAndroidNotesDirectory } from '../events'
@@ -36,7 +36,8 @@ const navigationItems = computed(() => {
   if (androidAppMode.value === 'life') {
     return [
       { key: 'profile', label: '主页', to: '/', icon: House },
-      { key: 'xianyu', label: '咸鱼', to: '/xianyu', icon: Fish }
+      { key: 'xianyu', label: '咸鱼', to: '/xianyu', icon: Fish },
+      { key: 'quanshang', label: '券商', to: '/quanshang', icon: Ticket }
     ]
   }
 
