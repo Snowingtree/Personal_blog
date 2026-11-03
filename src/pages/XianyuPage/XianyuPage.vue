@@ -6,6 +6,25 @@
         返回
       </button>
       <h1>咸鱼</h1>
+
+      <nav class="xianyu-tabs" aria-label="列表切换">
+        <button
+          type="button"
+          class="xianyu-tab"
+          :class="{ 'is-active': activeTab === 'xianyu' }"
+          @click="activeTab = 'xianyu'"
+        >
+          咸鱼列表
+        </button>
+        <button
+          type="button"
+          class="xianyu-tab"
+          :class="{ 'is-active': activeTab === 'quan' }"
+          @click="activeTab = 'quan'"
+        >
+          券列表
+        </button>
+      </nav>
     </header>
 
     <div class="xianyu-layout">
@@ -45,62 +64,91 @@
       </section>
 
       <section class="xianyu-card xianyu-list-card">
-        <div class="xianyu-list-heading">
-          <h2>列表</h2>
-          <span>{{ items.length }} 条</span>
-        </div>
+        <template v-if="activeTab === 'xianyu'">
+          <div class="xianyu-list-heading">
+            <h2>列表</h2>
+            <span>{{ items.length }} 条</span>
+          </div>
 
-        <p v-if="loading" class="xianyu-empty">加载中…</p>
-        <p v-else-if="!items.length" class="xianyu-empty">暂无数据，先在左侧添加一条吧。</p>
+          <p v-if="loading" class="xianyu-empty">加载中…</p>
+          <p v-else-if="!items.length" class="xianyu-empty">暂无数据，先在左侧添加一条吧。</p>
 
-        <div v-else class="xianyu-table-wrap">
-          <table class="xianyu-table">
-            <colgroup>
-              <col class="xianyu-col-name" />
-              <col />
-              <col class="xianyu-col-action" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col">名称</th>
-                <th scope="col">url</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(item, index) in items"
-                :key="item.id"
-                :class="{ 'xianyu-row--alt': index % 2 === 1 }"
-              >
-                <td class="xianyu-cell xianyu-cell--name" :title="item.name">{{ item.name }}</td>
-                <td class="xianyu-cell xianyu-cell--url">
-                  <a
-                    :href="item.url"
-                    :title="item.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >{{ item.url }}</a>
-                </td>
-                <td class="xianyu-cell xianyu-cell--action">
-                  <button
-                    type="button"
-                    class="xianyu-item__remove"
-                    :aria-label="`删除 ${item.name}`"
-                    title="删除"
-                    @click="removeItem(item.id)"
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <div v-else class="xianyu-table-wrap">
+            <table class="xianyu-table">
+              <colgroup>
+                <col class="xianyu-col-name" />
+                <col />
+                <col class="xianyu-col-action" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">名称</th>
+                  <th scope="col">url</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(item, index) in items"
+                  :key="item.id"
+                  :class="{ 'xianyu-row--alt': index % 2 === 1 }"
+                >
+                  <td class="xianyu-cell xianyu-cell--name" :title="item.name">{{ item.name }}</td>
+                  <td class="xianyu-cell xianyu-cell--url">
+                    <a
+                      :href="item.url"
+                      :title="item.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{{ item.url }}</a>
+                  </td>
+                  <td class="xianyu-cell xianyu-cell--action">
+                    <button
+                      type="button"
+                      class="xianyu-item__remove"
+                      :aria-label="`删除 ${item.name}`"
+                      title="删除"
+                      @click="removeItem(item.id)"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        <div v-if="!loading && items.length" class="xianyu-table-foot">
-          共 {{ items.length }} 条 · 已全部显示
-        </div>
+          <div v-if="!loading && items.length" class="xianyu-table-foot">
+            共 {{ items.length }} 条 · 已全部显示
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="xianyu-list-heading">
+            <h2>券列表</h2>
+            <span>{{ quanItems.length }} 张</span>
+          </div>
+
+          <p v-if="quanLoading" class="xianyu-empty">加载中…</p>
+          <p v-else-if="quanError" class="xianyu-empty xianyu-empty--error">{{ quanError }}</p>
+          <p v-else-if="!quanItems.length" class="xianyu-empty">暂无券数据</p>
+
+          <ul v-else class="xianyu-quan-list">
+            <li
+              v-for="(item, index) in quanItems"
+              :key="item.id"
+              class="xianyu-quan-item"
+              :class="{ 'xianyu-quan-item--alt': index % 2 === 1 }"
+            >
+              <img class="xianyu-quan-item__img" :src="getQuanImage(item)" alt="券图片" />
+              <div class="xianyu-quan-item__info">
+                <strong class="xianyu-quan-item__name">{{ item.name || '未命名' }}</strong>
+                <span class="xianyu-quan-item__price">¥{{ formatMoney(item.price) }}</span>
+                <span class="xianyu-quan-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
+              </div>
+            </li>
+          </ul>
+        </template>
       </section>
     </div>
   </main>
@@ -118,8 +166,46 @@ const items = ref([])
 const loading = ref(false)
 const submitting = ref(false)
 const error = ref('')
+const activeTab = ref('xianyu')
+
+const MOCK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e5e7e3"/><text x="100" y="116" font-size="52" text-anchor="middle" fill="#8a8f8b" font-family="sans-serif">券</text></svg>'
+)
+
+const quanItems = ref([])
+const quanLoading = ref(false)
+const quanError = ref('')
 
 const canSubmit = computed(() => url.value.trim() !== '' && name.value.trim() !== '')
+
+function formatMoney(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '0'
+  return number.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+}
+
+function getQuanImage(item) {
+  try {
+    const stored = localStorage.getItem(`quanshang-image-${item.id}`)
+    if (stored) return stored
+  } catch {}
+  return MOCK_IMAGE
+}
+
+async function loadQuanItems() {
+  quanLoading.value = true
+  quanError.value = ''
+
+  try {
+    const data = await http.get('/api/quanshang/items')
+    quanItems.value = Array.isArray(data.items) ? data.items : []
+  } catch (err) {
+    quanItems.value = []
+    quanError.value = err instanceof Error ? err.message : '加载失败，请稍后重试'
+  } finally {
+    quanLoading.value = false
+  }
+}
 
 async function loadItems() {
   loading.value = true
@@ -176,7 +262,10 @@ function goBack() {
   router.push('/tools')
 }
 
-onMounted(loadItems)
+onMounted(() => {
+  loadItems()
+  loadQuanItems()
+})
 </script>
 
 <style scoped>
@@ -229,6 +318,36 @@ onMounted(loadItems)
 .xianyu-back span {
   font-size: 1.3rem;
   line-height: 1;
+}
+
+.xianyu-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+  padding: 4px;
+  border: 1px solid #e7e7e7;
+  border-radius: 999px;
+  background: #f5f5f5;
+}
+
+.xianyu-tab {
+  min-height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #6b6b6b;
+  background: transparent;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.xianyu-tab.is-active {
+  color: #ffffff;
+  background: #171717;
 }
 
 .xianyu-layout {
@@ -360,6 +479,12 @@ onMounted(loadItems)
   text-align: center;
 }
 
+.xianyu-empty--error {
+  color: #d14c3e;
+  padding: 0 12px;
+  line-height: 1.5;
+}
+
 .xianyu-table-wrap {
   flex: 1;
   min-height: 0;
@@ -485,6 +610,69 @@ onMounted(loadItems)
   color: #d14c3e;
   border-color: #e7e7e7;
   background: #ffffff;
+}
+
+.xianyu-quan-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  border: 1px solid #e7e7e7;
+  border-radius: 12px;
+}
+
+.xianyu-quan-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: #ffffff;
+}
+
+.xianyu-quan-item + .xianyu-quan-item {
+  border-top: 1px solid #d7d7d7;
+}
+
+.xianyu-quan-item--alt {
+  background: #f6f6f6;
+}
+
+.xianyu-quan-item__img {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #eceeeb;
+}
+
+.xianyu-quan-item__info {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.xianyu-quan-item__name {
+  overflow: hidden;
+  color: #171717;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xianyu-quan-item__price {
+  color: #d14c3e;
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.xianyu-quan-item__original {
+  color: #9a9a9a;
+  font-size: 0.74rem;
+  text-decoration: line-through;
 }
 
 @media (max-width: 760px) {

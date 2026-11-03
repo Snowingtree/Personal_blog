@@ -55,10 +55,11 @@
             <ImageUp v-if="!draftImage" :size="20" />
             <img v-else :src="draftImage" alt="券图片预览" />
           </button>
-          <div class="android-quanshang-upload__meta">
-            <strong>上传券图片</strong>
-            <span>{{ draftImage ? '已选择图片，可点击更换' : '点击左侧按钮选择图片' }}</span>
-          </div>
+
+          <label class="android-quanshang-field android-quanshang-upload__name">
+            <span>名称</span>
+            <input v-model="draftName" type="text" placeholder="例如 麦当劳代金券" autocomplete="off" />
+          </label>
         </div>
 
         <div class="android-quanshang-fields">
@@ -75,10 +76,10 @@
         <button
           type="button"
           class="android-quanshang-add"
-          :disabled="!canSubmit"
+          :disabled="!canSubmit || saving"
           @click="addItem"
         >
-          保存
+          {{ saving ? '保存中…' : '保存' }}
         </button>
 
         <p v-if="formError" class="android-quanshang-error" role="alert">{{ formError }}</p>
@@ -93,42 +94,26 @@ import { computed, ref } from 'vue'
 import { ImageUp, Ticket, ToggleRight } from 'lucide-vue-next'
 import profileAvatar from '../../assets/images/headerPH.png'
 import { setAndroidAppMode } from '../appMode'
+import http from '../../utils/http'
 
-const STORAGE_KEY = 'android-quanshang-items'
+const IMAGE_PREFIX = 'quanshang-image-'
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
 const imageInput = ref(null)
 const draftImage = ref('')
+const draftName = ref('')
 const draftPrice = ref(null)
 const draftOriginalPrice = ref(null)
 const formError = ref('')
 const saved = ref(false)
+const saving = ref(false)
 
 const canSubmit = computed(() =>
   !!draftImage.value
+  && draftName.value.trim() !== ''
   && Number(draftPrice.value) > 0
   && Number(draftOriginalPrice.value) > 0
 )
-
-function readItems() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function writeItems(items) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-    return true
-  } catch {
-    formError.value = '保存失败：图片过大或本地存储已满。'
-    return false
-  }
-}
 
 function handleImagePick(event) {
   const file = event.target.files?.[0]
@@ -154,33 +139,49 @@ function handleImagePick(event) {
   reader.readAsDataURL(file)
 }
 
-function addItem() {
-  if (!canSubmit.value) {
-    formError.value = '请上传券图片，并填写售价和原价。'
+async function addItem() {
+  if (!canSubmit.value || saving.value) {
+    if (!canSubmit.value) {
+      formError.value = '请上传券图片，并填写名称、售价和原价。'
+    }
     return
   }
 
-  const record = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    image: draftImage.value,
-    price: Number(draftPrice.value),
-    originalPrice: Number(draftOriginalPrice.value),
-    sold: false,
-    createdAt: new Date().toISOString()
+  saving.value = true
+  formError.value = ''
+
+  const itemId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  try {
+    localStorage.setItem(IMAGE_PREFIX + itemId, draftImage.value)
+  } catch {
+    formError.value = '图片保存失败：本地存储已满。'
+    saving.value = false
+    return
   }
 
-  const nextItems = [record, ...readItems()]
+  try {
+    await http.post('/api/quanshang/items', {
+      id: itemId,
+      name: draftName.value.trim(),
+      price: Number(draftPrice.value),
+      originalPrice: Number(draftOriginalPrice.value)
+    })
 
-  if (!writeItems(nextItems)) return
-
-  draftImage.value = ''
-  draftPrice.value = null
-  draftOriginalPrice.value = null
-  formError.value = ''
-  saved.value = true
-  window.setTimeout(() => {
-    saved.value = false
-  }, 2000)
+    draftImage.value = ''
+    draftName.value = ''
+    draftPrice.value = null
+    draftOriginalPrice.value = null
+    saved.value = true
+    window.setTimeout(() => {
+      saved.value = false
+    }, 2000)
+  } catch (err) {
+    localStorage.removeItem(IMAGE_PREFIX + itemId)
+    formError.value = err instanceof Error ? err.message : '保存失败，请稍后重试'
+  } finally {
+    saving.value = false
+  }
 }
 
 function goHome() {
@@ -251,6 +252,11 @@ function goHome() {
   gap: 12px;
 }
 
+.android-quanshang-upload__name {
+  flex: 1;
+  min-width: 0;
+}
+
 .android-quanshang-file {
   position: absolute;
   width: 1px;
@@ -281,22 +287,6 @@ function goHome() {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.android-quanshang-upload__meta {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.android-quanshang-upload__meta strong {
-  color: var(--android-text-strong);
-  font-size: 0.84rem;
-}
-
-.android-quanshang-upload__meta span {
-  color: var(--android-text-faint);
-  font-size: 0.7rem;
 }
 
 .android-quanshang-fields {

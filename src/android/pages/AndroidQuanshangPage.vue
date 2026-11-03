@@ -9,7 +9,9 @@
         <span class="android-quanshang-count">{{ items.length }} 张</span>
       </header>
 
-      <p v-if="!items.length" class="android-quanshang-empty">还没有券，去主页「新增券」添加一张吧。</p>
+      <p v-if="loading" class="android-quanshang-empty">加载中…</p>
+      <p v-else-if="error" class="android-quanshang-empty android-quanshang-empty--error">{{ error }}</p>
+      <p v-else-if="!items.length" class="android-quanshang-empty">还没有券，去主页「新增券」添加一张吧。</p>
 
       <ul v-else class="android-quanshang-list">
         <li
@@ -49,9 +51,10 @@
             @touchcancel="onTouchEnd"
             @mousedown="onMouseDown($event, item)"
           >
-            <img class="android-quanshang-item__img" :src="item.image" alt="券图片" />
+            <img class="android-quanshang-item__img" :src="getQuanImage(item)" alt="券图片" />
             <div class="android-quanshang-item__info">
-              <strong class="android-quanshang-item__price">¥{{ formatMoney(item.price) }}</strong>
+              <strong class="android-quanshang-item__name">{{ item.name || '未命名' }}</strong>
+              <span class="android-quanshang-item__price">¥{{ formatMoney(item.price) }}</span>
               <span class="android-quanshang-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
             </div>
             <span v-if="item.sold" class="android-quanshang-item__sold-badge">已售出</span>
@@ -65,21 +68,18 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { Check, Download } from 'lucide-vue-next'
+import http from '../../utils/http'
 
-const STORAGE_KEY = 'android-quanshang-items'
+const IMAGE_PREFIX = 'quanshang-image-'
 const ACTION_WIDTH = 160
 
-const MOCK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+const FALLBACK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e5e7e3"/><text x="100" y="116" font-size="52" text-anchor="middle" fill="#8a8f8b" font-family="sans-serif">券</text></svg>'
 )
 
-const MOCK_ITEMS = [
-  { id: 'mock-1', image: MOCK_IMAGE, price: 88, originalPrice: 128, sold: false, createdAt: '2026-11-01T10:00:00.000Z' },
-  { id: 'mock-2', image: MOCK_IMAGE, price: 45, originalPrice: 69, sold: false, createdAt: '2026-11-02T10:00:00.000Z' },
-  { id: 'mock-3', image: MOCK_IMAGE, price: 199, originalPrice: 299, sold: false, createdAt: '2026-11-03T10:00:00.000Z' }
-]
-
-const items = ref(MOCK_ITEMS)
+const items = ref([])
+const loading = ref(false)
+const error = ref('')
 const swipeOpenId = ref('')
 const swipeDragId = ref('')
 const swipeDragX = ref(0)
@@ -95,45 +95,53 @@ function formatMoney(value) {
   return number.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
 
-function loadItems() {
+function getQuanImage(item) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.length) {
-      items.value = parsed
-    }
-  } catch {
-    // 保留 mock 数据
+    const stored = localStorage.getItem(IMAGE_PREFIX + item.id)
+    if (stored) return stored
+  } catch {}
+  return FALLBACK_IMAGE
+}
+
+async function loadItems() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const data = await http.get('/api/quanshang/items')
+    items.value = Array.isArray(data.items) ? data.items : []
+  } catch (err) {
+    items.value = []
+    error.value = err instanceof Error ? err.message : '加载失败，请稍后重试'
+  } finally {
+    loading.value = false
   }
 }
 
-function persistItems() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items.value))
-  } catch {
-    // 本地存储已满
-  }
-}
-
-function markSold(item) {
+async function markSold(item) {
   if (item.sold) return
-  item.sold = true
-  swipeOpenId.value = ''
-  persistItems()
+
+  try {
+    await http.patch(`/api/quanshang/items/${item.id}/sold`)
+    item.sold = true
+    swipeOpenId.value = ''
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '操作失败，请稍后重试'
+  }
 }
 
 function saveToGallery(item) {
+  const image = getQuanImage(item)
   const bridge = globalThis.AndroidBridge
 
   if (bridge && typeof bridge.saveImageToGallery === 'function') {
-    bridge.saveImageToGallery(item.image)
+    bridge.saveImageToGallery(image)
     swipeOpenId.value = ''
     return
   }
 
   const link = document.createElement('a')
-  link.href = item.image
+  link.href = image
   link.download = `quanshang-${item.id}.png`
   document.body.appendChild(link)
   link.click()
@@ -318,6 +326,12 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
+.android-quanshang-empty--error {
+  color: #d14c3e;
+  padding: 0 12px;
+  line-height: 1.5;
+}
+
 .android-quanshang-list {
   flex: 1;
   min-height: 0;
@@ -411,6 +425,15 @@ onBeforeUnmount(() => {
   flex: 1;
   display: grid;
   gap: 2px;
+}
+
+.android-quanshang-item__name {
+  overflow: hidden;
+  color: var(--android-text-strong);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .android-quanshang-item__price {

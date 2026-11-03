@@ -1,13 +1,17 @@
 package com.wm.personalblog;
 
 import android.app.Activity;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
 import android.graphics.Insets;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
@@ -20,8 +24,11 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -292,6 +299,97 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public float getSystemInsetBottom() {
             return webViewInsetBottom;
+        }
+
+        @JavascriptInterface
+        public boolean saveImageToGallery(String dataUrl) {
+            if (dataUrl == null || dataUrl.length() < 32) {
+                return false;
+            }
+
+            int comma = dataUrl.indexOf(',');
+            if (comma <= 0 || comma == dataUrl.length() - 1) {
+                return false;
+            }
+
+            String header = dataUrl.substring(0, comma).toLowerCase(Locale.US);
+            String extension;
+            String mimeType;
+            if (header.startsWith("data:image/png")) {
+                extension = ".png";
+                mimeType = "image/png";
+            } else if (header.startsWith("data:image/jpeg") || header.startsWith("data:image/jpg")) {
+                extension = ".jpg";
+                mimeType = "image/jpeg";
+            } else if (header.startsWith("data:image/webp")) {
+                extension = ".webp";
+                mimeType = "image/webp";
+            } else {
+                return false;
+            }
+
+            byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(dataUrl.substring(comma + 1), android.util.Base64.DEFAULT);
+            } catch (IllegalArgumentException error) {
+                return false;
+            }
+
+            if (bytes.length == 0) {
+                return false;
+            }
+
+            String fileName = "quanshang-" + System.currentTimeMillis() + extension;
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
+                    values.put(
+                            MediaStore.Images.Media.RELATIVE_PATH,
+                            Environment.DIRECTORY_PICTURES + "/Quanshang"
+                    );
+                    Uri collection = MediaStore.Images.Media.getContentUri(
+                            MediaStore.VOLUME_EXTERNAL_PRIMARY
+                    );
+                    Uri item = getContentResolver().insert(collection, values);
+                    if (item == null) {
+                        return false;
+                    }
+
+                    try (OutputStream output = getContentResolver().openOutputStream(item)) {
+                        if (output == null) {
+                            return false;
+                        }
+                        output.write(bytes);
+                    }
+                    return true;
+                }
+
+                File pictures = Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_PICTURES
+                );
+                File directory = new File(pictures, "Quanshang");
+                if (!directory.exists() && !directory.mkdirs()) {
+                    return false;
+                }
+
+                File file = new File(directory, fileName);
+                try (FileOutputStream output = new FileOutputStream(file)) {
+                    output.write(bytes);
+                }
+
+                MediaScannerConnection.scanFile(
+                        MainActivity.this,
+                        new String[]{file.getAbsolutePath()},
+                        new String[]{mimeType},
+                        null
+                );
+                return true;
+            } catch (IOException error) {
+                return false;
+            }
         }
     }
 
