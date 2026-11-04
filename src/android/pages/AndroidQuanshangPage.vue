@@ -15,87 +15,108 @@
 
       <ul v-else class="android-quanshang-list">
         <li
-          v-for="item in items"
+          v-for="item in sortedItems"
           :key="item.id"
-          class="android-quanshang-swipe"
-          :class="{ 'is-open': swipeOpenId === item.id, 'is-sold': item.sold }"
+          class="android-quanshang-item"
+          :class="{ 'is-sold': item.sold }"
+          @click="openSheet(item)"
         >
-          <div class="android-quanshang-swipe__actions">
-            <button
-              type="button"
-              class="android-quanshang-swipe__complete"
-              :disabled="item.sold"
-              @click="markCompleted(item)"
-            >
-              <Check :size="16" />
-              <span>{{ item.sold ? '已完成' : '完成' }}</span>
-            </button>
-            <button
-              type="button"
-              class="android-quanshang-swipe__save"
-              @click="saveToGallery(item)"
-            >
-              <Download :size="16" />
-              <span>保存</span>
-            </button>
-            <button
-              type="button"
-              class="android-quanshang-swipe__delete"
-              @click="removeItem(item)"
-            >
-              <Trash2 :size="16" />
-              <span>删除</span>
-            </button>
+          <img class="android-quanshang-item__img" :src="getQuanImage(item)" alt="券图片" />
+          <div class="android-quanshang-item__info">
+            <strong class="android-quanshang-item__name">{{ item.name || '未命名' }}</strong>
+            <span class="android-quanshang-item__date">{{ formatDate(item.createdAt) }}</span>
           </div>
-
-          <div
-            class="android-quanshang-swipe__content"
-            :class="{ 'is-dragging': swipeDragId === item.id }"
-            :style="swipeStyle(item)"
-            @click="onContentClick(item)"
-            @touchstart="onTouchStart($event, item)"
-            @touchmove="onTouchMove($event)"
-            @touchend="onTouchEnd"
-            @touchcancel="onTouchEnd"
-            @mousedown="onMouseDown($event, item)"
-          >
-            <img class="android-quanshang-item__img" :src="getQuanImage(item)" alt="券图片" />
-            <div class="android-quanshang-item__info">
-              <strong class="android-quanshang-item__name">{{ item.name || '未命名' }}</strong>
-              <span class="android-quanshang-item__price">¥{{ formatMoney(item.price) }}</span>
-              <span class="android-quanshang-item__original">原价 ¥{{ formatMoney(item.originalPrice) }}</span>
-            </div>
-            <span v-if="item.sold" class="android-quanshang-item__sold-badge">已完成</span>
-          </div>
+          <span v-if="item.sold" class="android-quanshang-item__sold-badge">已完成</span>
         </li>
       </ul>
     </section>
+
+    <Teleport to="body">
+      <Transition name="android-modal">
+        <div
+          v-if="sheetVisible"
+          class="android-quanshang-modal"
+          @click.self="closeSheet"
+        >
+          <section
+            class="android-quanshang-modal__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="券操作"
+          >
+            <img
+              class="android-quanshang-modal__img"
+              :src="getQuanImage(activeItem)"
+              alt="券图片"
+            />
+
+            <div class="android-quanshang-modal__info">
+              <strong>{{ activeItem?.name || '未命名' }}</strong>
+              <span>
+                售价 ¥{{ formatMoney(activeItem?.price) }} · 原价 ¥{{ formatMoney(activeItem?.originalPrice) }}
+              </span>
+            </div>
+
+            <div class="android-quanshang-modal__actions">
+              <button
+                type="button"
+                class="android-quanshang-modal__action android-quanshang-modal__action--complete"
+                :disabled="activeItem?.sold"
+                @click="markCompleted(activeItem)"
+              >
+                <Check :size="18" />
+                <span>{{ activeItem?.sold ? '已完成' : '完成' }}</span>
+              </button>
+              <button
+                type="button"
+                class="android-quanshang-modal__action android-quanshang-modal__action--save"
+                @click="saveToGallery(activeItem)"
+              >
+                <Download :size="18" />
+                <span>保存</span>
+              </button>
+              <button
+                type="button"
+                class="android-quanshang-modal__action android-quanshang-modal__action--delete"
+                @click="removeItem(activeItem)"
+              >
+                <Trash2 :size="18" />
+                <span>删除</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
   </section>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Check, Download, Trash2 } from 'lucide-vue-next'
 import http from '../../utils/http'
 
 const IMAGE_PREFIX = 'quanshang-image-'
-const ACTION_WIDTH = 240
 
 const FALLBACK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e5e7e3"/><text x="100" y="116" font-size="52" text-anchor="middle" fill="#8a8f8b" font-family="sans-serif">券</text></svg>'
 )
 
+const MOCK_ITEMS = [
+  { id: 'q1', name: '麦当劳代金券', price: 88, originalPrice: 60, sold: false, createdAt: '2026-11-01T10:00:00.000Z' },
+  { id: 'q2', name: '肯德基 50 元券', price: 45, originalPrice: 30, sold: true, createdAt: '2026-11-02T10:00:00.000Z' },
+  { id: 'q3', name: '星巴克 100 元券', price: 199, originalPrice: 150, sold: false, createdAt: '2026-11-03T10:00:00.000Z' }
+]
+
 const items = ref([])
 const loading = ref(false)
 const error = ref('')
-const swipeOpenId = ref('')
-const swipeDragId = ref('')
-const swipeDragX = ref(0)
-let swipeStartX = 0
-let swipeStartY = 0
-let swipeStartOffset = 0
-let swipeAxis = ''
-let didDrag = false
+const sheetVisible = ref(false)
+const activeItem = ref(null)
+
+const sortedItems = computed(() =>
+  [...items.value].sort((a, b) => Number(Boolean(a.sold)) - Number(Boolean(b.sold)))
+)
 
 function formatMoney(value) {
   const number = Number(value)
@@ -103,7 +124,15 @@ function formatMoney(value) {
   return number.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
 
+function formatDate(value) {
+  const str = String(value || '')
+  const datePart = str.slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : ''
+}
+
 function getQuanImage(item) {
+  if (!item) return FALLBACK_IMAGE
+
   try {
     const stored = localStorage.getItem(IMAGE_PREFIX + item.id)
     if (stored) return stored
@@ -114,6 +143,12 @@ function getQuanImage(item) {
 async function loadItems() {
   loading.value = true
   error.value = ''
+
+  if (!globalThis.AndroidBridge) {
+    items.value = [...MOCK_ITEMS]
+    loading.value = false
+    return
+  }
 
   try {
     const data = await http.get('/api/quanshang/items')
@@ -127,34 +162,38 @@ async function loadItems() {
 }
 
 async function markCompleted(item) {
-  if (item.sold) return
+  if (!item || item.sold) return
 
   try {
     await http.patch(`/api/quanshang/items/${item.id}/sold`)
     item.sold = true
-    swipeOpenId.value = ''
+    closeSheet()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '操作失败，请稍后重试'
   }
 }
 
 async function removeItem(item) {
+  if (!item) return
+
   try {
     await http.delete(`/api/quanshang/items/${item.id}`)
     items.value = items.value.filter((it) => it.id !== item.id)
-    swipeOpenId.value = ''
+    closeSheet()
   } catch (err) {
     error.value = err instanceof Error ? err.message : '删除失败，请稍后重试'
   }
 }
 
 function saveToGallery(item) {
+  if (!item) return
+
   const image = getQuanImage(item)
   const bridge = globalThis.AndroidBridge
 
   if (bridge && typeof bridge.saveImageToGallery === 'function') {
     bridge.saveImageToGallery(image)
-    swipeOpenId.value = ''
+    closeSheet()
     return
   }
 
@@ -164,121 +203,20 @@ function saveToGallery(item) {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  swipeOpenId.value = ''
+  closeSheet()
 }
 
-function swipeOffset(item) {
-  if (swipeDragId.value === item.id) return swipeDragX.value
-  return swipeOpenId.value === item.id ? -ACTION_WIDTH : 0
+function openSheet(item) {
+  activeItem.value = item
+  sheetVisible.value = true
 }
 
-function swipeStyle(item) {
-  const offset = swipeOffset(item)
-  return offset === 0 ? {} : { transform: `translateX(${offset}px)` }
-}
-
-function beginSwipe(clientX, clientY, item) {
-  swipeStartX = clientX
-  swipeStartY = clientY
-  swipeStartOffset = swipeOffset(item)
-  swipeAxis = ''
-  didDrag = false
-  swipeDragId.value = item.id
-  swipeDragX.value = swipeStartOffset
-}
-
-function moveSwipe(clientX, clientY) {
-  if (!swipeDragId.value) return
-
-  const deltaX = clientX - swipeStartX
-  const deltaY = clientY - swipeStartY
-
-  if (!swipeAxis) {
-    if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return
-    swipeAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical'
-  }
-
-  if (swipeAxis !== 'horizontal') return
-
-  didDrag = true
-  swipeDragX.value = Math.max(-ACTION_WIDTH, Math.min(0, swipeStartOffset + deltaX))
-}
-
-function endSwipe() {
-  if (!swipeDragId.value) return
-
-  const id = swipeDragId.value
-  const offset = swipeDragX.value
-
-  swipeOpenId.value = offset < -ACTION_WIDTH / 2 ? id : ''
-  swipeDragId.value = ''
-  swipeDragX.value = 0
-}
-
-function onContentClick(item) {
-  if (didDrag) {
-    didDrag = false
-    return
-  }
-
-  if (swipeOpenId.value === item.id) {
-    swipeOpenId.value = ''
-  }
-}
-
-function onTouchStart(event, item) {
-  if (event.touches.length !== 1) return
-  const touch = event.touches[0]
-  beginSwipe(touch.clientX, touch.clientY, item)
-}
-
-function onTouchMove(event) {
-  if (!swipeDragId.value) return
-  const touch = event.touches[0]
-  if (!touch) return
-
-  const deltaX = touch.clientX - swipeStartX
-  const deltaY = touch.clientY - swipeStartY
-
-  if (!swipeAxis) {
-    if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return
-    swipeAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical'
-  }
-
-  if (swipeAxis === 'horizontal' && event.cancelable) {
-    event.preventDefault()
-  }
-
-  moveSwipe(touch.clientX, touch.clientY)
-}
-
-function onTouchEnd() {
-  endSwipe()
-}
-
-function onMouseDown(event, item) {
-  if (event.button !== 0) return
-  beginSwipe(event.clientX, event.clientY, item)
-  window.addEventListener('mousemove', onWindowMouseMove)
-  window.addEventListener('mouseup', onWindowMouseUp)
-}
-
-function onWindowMouseMove(event) {
-  moveSwipe(event.clientX, event.clientY)
-}
-
-function onWindowMouseUp() {
-  window.removeEventListener('mousemove', onWindowMouseMove)
-  window.removeEventListener('mouseup', onWindowMouseUp)
-  endSwipe()
+function closeSheet() {
+  sheetVisible.value = false
+  activeItem.value = null
 }
 
 onMounted(loadItems)
-
-onBeforeUnmount(() => {
-  window.removeEventListener('mousemove', onWindowMouseMove)
-  window.removeEventListener('mouseup', onWindowMouseUp)
-})
 </script>
 
 <style scoped>
@@ -361,76 +299,21 @@ onBeforeUnmount(() => {
   -webkit-overflow-scrolling: touch;
 }
 
-.android-quanshang-swipe {
-  position: relative;
-  overflow: hidden;
-  border-top: 1px solid #d7d7d7;
-}
-
-.android-quanshang-swipe:last-child {
-  border-bottom: 1px solid #d7d7d7;
-}
-
-.android-quanshang-swipe__actions {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-}
-
-.android-quanshang-swipe__complete,
-.android-quanshang-swipe__save,
-.android-quanshang-swipe__delete {
-  width: 80px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  border: 0;
-  color: #ffffff;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.android-quanshang-swipe__complete {
-  background: #8a8f8b;
-}
-
-.android-quanshang-swipe__complete:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.android-quanshang-swipe__save {
-  background: #2f6fd6;
-}
-
-.android-quanshang-swipe__delete {
-  background: #d14c3e;
-}
-
-.android-quanshang-swipe__content {
-  position: relative;
-  z-index: 1;
+.android-quanshang-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  width: 100%;
   min-height: 64px;
   padding: 10px 2px;
-  background: var(--android-surface);
-  transition: transform 180ms ease;
+  border-top: 1px solid #d7d7d7;
+  cursor: pointer;
 }
 
-.android-quanshang-swipe__content.is-dragging {
-  transition: none;
+.android-quanshang-item:last-child {
+  border-bottom: 1px solid #d7d7d7;
 }
 
-.android-quanshang-swipe.is-sold .android-quanshang-swipe__content {
+.android-quanshang-item.is-sold {
   opacity: 0.7;
 }
 
@@ -459,16 +342,9 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.android-quanshang-item__price {
-  color: #d14c3e;
-  font-size: 0.94rem;
-  font-weight: 800;
-}
-
-.android-quanshang-item__original {
+.android-quanshang-item__date {
   color: var(--android-text-faint);
   font-size: 0.7rem;
-  text-decoration: line-through;
 }
 
 .android-quanshang-item__sold-badge {
@@ -479,5 +355,110 @@ onBeforeUnmount(() => {
   background: #d14c3e;
   font-size: 0.62rem;
   font-weight: 700;
+}
+
+.android-quanshang-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 22000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(3px);
+}
+
+.android-quanshang-modal__panel {
+  width: min(340px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--android-surface);
+  box-shadow: 0 18px 50px rgba(17, 24, 39, 0.2);
+}
+
+.android-quanshang-modal__img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--android-surface-muted);
+}
+
+.android-quanshang-modal__info {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.android-quanshang-modal__info strong {
+  color: var(--android-text-strong);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.android-quanshang-modal__info span {
+  color: var(--android-text-faint);
+  font-size: 0.76rem;
+}
+
+.android-quanshang-modal__actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.android-quanshang-modal__action {
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 12px;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.android-quanshang-modal__action--complete {
+  background: #8a8f8b;
+}
+
+.android-quanshang-modal__action--complete:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.android-quanshang-modal__action--save {
+  background: #2f6fd6;
+}
+
+.android-quanshang-modal__action--delete {
+  background: #d14c3e;
+}
+
+.android-modal-enter-active,
+.android-modal-leave-active {
+  transition: opacity 160ms ease;
+}
+
+.android-modal-enter-active .android-quanshang-modal__panel,
+.android-modal-leave-active .android-quanshang-modal__panel {
+  transition: transform 160ms ease;
+}
+
+.android-modal-enter-from,
+.android-modal-leave-to {
+  opacity: 0;
+}
+
+.android-modal-enter-from .android-quanshang-modal__panel,
+.android-modal-leave-to .android-quanshang-modal__panel {
+  transform: scale(0.94);
 }
 </style>
