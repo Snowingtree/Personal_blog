@@ -50,6 +50,10 @@
               alt="券图片"
             />
 
+            <div class="android-quanshang-modal__code">
+              {{ activeItem?.code ? formatCode(activeItem.code) : '暂无券码' }}
+            </div>
+
             <div class="android-quanshang-modal__info">
               <strong>{{ activeItem?.name || '未命名' }}</strong>
               <span>
@@ -102,12 +106,6 @@ const FALLBACK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#e5e7e3"/><text x="100" y="116" font-size="52" text-anchor="middle" fill="#8a8f8b" font-family="sans-serif">券</text></svg>'
 )
 
-const MOCK_ITEMS = [
-  { id: 'q1', name: '麦当劳代金券', price: 88, originalPrice: 60, sold: false, createdAt: '2026-11-01T10:00:00.000Z' },
-  { id: 'q2', name: '肯德基 50 元券', price: 45, originalPrice: 30, sold: true, createdAt: '2026-11-02T10:00:00.000Z' },
-  { id: 'q3', name: '星巴克 100 元券', price: 199, originalPrice: 150, sold: false, createdAt: '2026-11-03T10:00:00.000Z' }
-]
-
 const items = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -130,6 +128,11 @@ function formatDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : ''
 }
 
+function formatCode(value) {
+  const str = String(value || '').replace(/\s+/g, '')
+  return str.replace(/(\d{4})(?=\d)/g, '$1 ')
+}
+
 function getQuanImage(item) {
   if (!item) return FALLBACK_IMAGE
 
@@ -143,12 +146,6 @@ function getQuanImage(item) {
 async function loadItems() {
   loading.value = true
   error.value = ''
-
-  if (!globalThis.AndroidBridge) {
-    items.value = [...MOCK_ITEMS]
-    loading.value = false
-    return
-  }
 
   try {
     const data = await http.get('/api/quanshang/items')
@@ -384,6 +381,19 @@ onMounted(loadItems)
   object-fit: cover;
   border-radius: 12px;
   background: var(--android-surface-muted);
+}
+
+.android-quanshang-modal__code {
+  justify-self: center;
+  padding: 6px 14px;
+  border: 1px solid var(--android-line-strong);
+  border-radius: 8px;
+  color: var(--android-text-strong);
+  background: var(--android-surface-muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
 }
 
 .android-quanshang-modal__info {
