@@ -6,7 +6,15 @@
           <small>XIANYU</small>
           <h2>咸鱼列表</h2>
         </div>
-        <span class="android-xianyu-count">{{ items.length }} 条</span>
+        <button
+          type="button"
+          class="android-xianyu-refresh"
+          :disabled="loading"
+          @click="loadItems"
+        >
+          <RefreshCw :size="14" />
+          <span>{{ loading ? '更新中…' : '更新' }}</span>
+        </button>
       </header>
 
       <p v-if="loading" class="android-xianyu-status">加载中…</p>
@@ -38,14 +46,26 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { Check, Copy } from 'lucide-vue-next'
+import { Check, Copy, RefreshCw } from 'lucide-vue-next'
 import http from '../../utils/http'
+
+const CACHE_KEY = 'android-xianyu-items'
 
 const items = ref([])
 const loading = ref(false)
 const error = ref('')
 const copiedId = ref('')
 let copiedTimerId = 0
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 async function loadItems() {
   loading.value = true
@@ -54,8 +74,10 @@ async function loadItems() {
   try {
     const data = await http.get('/api/xianyu/items')
     items.value = Array.isArray(data.items) ? data.items : []
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(items.value))
+    } catch {}
   } catch (err) {
-    items.value = []
     error.value = err instanceof Error ? err.message : '加载失败，请稍后重试'
   } finally {
     loading.value = false
@@ -91,7 +113,9 @@ async function copyItem(item) {
   }
 }
 
-onMounted(loadItems)
+onMounted(() => {
+  items.value = readCache()
+})
 </script>
 
 <style scoped>
@@ -135,13 +159,26 @@ onMounted(loadItems)
   font-size: 1rem;
 }
 
-.android-xianyu-count {
-  padding: 5px 10px;
+.android-xianyu-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--android-line-strong);
   border-radius: 999px;
-  color: var(--android-accent);
-  background: var(--android-accent-soft);
-  font-size: 0.64rem;
+  color: var(--android-text-soft);
+  background: var(--android-surface-muted);
+  font: inherit;
+  font-size: 0.7rem;
   font-weight: 700;
+  cursor: pointer;
+  transition: opacity 160ms ease;
+}
+
+.android-xianyu-refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .android-xianyu-list {
