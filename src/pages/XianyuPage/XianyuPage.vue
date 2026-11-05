@@ -196,6 +196,7 @@
                   <col />
                   <col />
                   <col />
+                  <col />
                 </colgroup>
                 <thead>
                   <tr>
@@ -203,18 +204,25 @@
                     <th scope="col">原价</th>
                     <th scope="col">售价</th>
                     <th scope="col">利润</th>
+                    <th scope="col">状态</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="(item, index) in filteredQuanItems"
                     :key="item.id"
-                    :class="{ 'xianyu-quan-row--alt': index % 2 === 1 }"
+                    :class="{
+                      'xianyu-quan-row--alt': index % 2 === 1,
+                      'xianyu-quan-row--sold': item.sold
+                    }"
                   >
                     <td class="xianyu-quan-cell xianyu-quan-cell--name">{{ item.name || '未命名' }}</td>
                     <td class="xianyu-quan-cell">¥{{ formatMoney(item.originalPrice) }}</td>
                     <td class="xianyu-quan-cell">¥{{ formatMoney(item.price) }}</td>
                     <td class="xianyu-quan-cell xianyu-quan-cell--profit">¥{{ formatMoney(profitOf(item)) }}</td>
+                    <td class="xianyu-quan-cell xianyu-quan-cell--status" :class="{ 'is-sold': item.sold }">
+                      {{ item.sold ? '已售出' : '待售' }}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -262,13 +270,16 @@ const quanSoldFilter = ref('all')
 
 const canSubmit = computed(() => url.value.trim() !== '' && name.value.trim() !== '')
 
+const FEE_RATE = 0.006
+
 const quanStats = computed(() => {
   const soldItems = quanItems.value.filter((item) => item.sold)
   const soldCount = soldItems.length
   const unsoldCount = quanItems.value.length - soldCount
   const totalRevenue = soldItems.reduce((sum, item) => sum + Number(item.price || 0), 0)
   const totalCost = soldItems.reduce((sum, item) => sum + Number(item.originalPrice || 0), 0)
-  const profit = totalRevenue - totalCost
+  const totalFee = totalRevenue * FEE_RATE
+  const profit = totalRevenue - totalCost - totalFee
 
   return { soldCount, unsoldCount, totalRevenue, totalCost, profit }
 })
@@ -276,15 +287,17 @@ const quanStats = computed(() => {
 const filteredQuanItems = computed(() => {
   const keyword = quanSearch.value.trim()
 
-  return quanItems.value.filter((item) => {
-    const matchName = !keyword || (item.name || '').toLowerCase().includes(keyword.toLowerCase())
-    const matchSold =
-      quanSoldFilter.value === 'all'
-      || (quanSoldFilter.value === 'sold' && item.sold)
-      || (quanSoldFilter.value === 'unsold' && !item.sold)
+  return quanItems.value
+    .filter((item) => {
+      const matchName = !keyword || (item.name || '').toLowerCase().includes(keyword.toLowerCase())
+      const matchSold =
+        quanSoldFilter.value === 'all'
+        || (quanSoldFilter.value === 'sold' && item.sold)
+        || (quanSoldFilter.value === 'unsold' && !item.sold)
 
-    return matchName && matchSold
-  })
+      return matchName && matchSold
+    })
+    .sort((a, b) => Number(Boolean(a.sold)) - Number(Boolean(b.sold)))
 })
 
 function formatMoney(value) {
@@ -294,7 +307,9 @@ function formatMoney(value) {
 }
 
 function profitOf(item) {
-  return Number(item.price || 0) - Number(item.originalPrice || 0)
+  const price = Number(item.price || 0)
+  const originalPrice = Number(item.originalPrice || 0)
+  return price - originalPrice - price * FEE_RATE
 }
 
 async function loadQuanItems() {
@@ -885,6 +900,10 @@ onMounted(() => {
   background: #f6f6f6;
 }
 
+.xianyu-quan-table tbody tr.xianyu-quan-row--sold {
+  background: #fdf3f2;
+}
+
 .xianyu-quan-table tbody tr:hover {
   background: #ededed;
 }
@@ -910,6 +929,16 @@ onMounted(() => {
 }
 
 .xianyu-quan-cell--profit {
+  color: #d14c3e;
+  font-weight: 700;
+}
+
+.xianyu-quan-table .xianyu-quan-cell--status {
+  color: #9a9a9a;
+  font-weight: 600;
+}
+
+.xianyu-quan-table .xianyu-quan-cell--status.is-sold {
   color: #d14c3e;
   font-weight: 700;
 }
