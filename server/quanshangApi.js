@@ -152,7 +152,6 @@ function normalizeIncomingItem(body, fallbackId = '') {
   const price = normalizeMoney(body.price)
   const originalPrice = normalizeMoney(body.originalPrice)
   const name = normalizeEnvValue(body.name).slice(0, 191)
-  const code = normalizeEnvValue(body.code).replace(/\s+/g, '').slice(0, 32)
 
   if (price <= 0 || originalPrice <= 0) {
     const error = new Error('price and originalPrice are required and must be greater than 0.')
@@ -163,7 +162,6 @@ function normalizeIncomingItem(body, fallbackId = '') {
   return {
     id: normalizeItemId(fallbackId || body.id),
     name,
-    code,
     price,
     originalPrice,
     sold: false,
@@ -183,7 +181,6 @@ function createMysqlStorage(env) {
         user_key VARCHAR(191) NOT NULL,
         item_id VARCHAR(64) NOT NULL,
         name VARCHAR(191) NOT NULL DEFAULT '',
-        code VARCHAR(32) NOT NULL DEFAULT '',
         price DECIMAL(10, 2) NOT NULL DEFAULT 0,
         original_price DECIMAL(10, 2) NOT NULL DEFAULT 0,
         sold TINYINT(1) NOT NULL DEFAULT 0,
@@ -195,8 +192,7 @@ function createMysqlStorage(env) {
 
     // 兼容旧表：若缺少列则补充
     const ensureColumns = [
-      { name: 'name', ddl: "name VARCHAR(191) NOT NULL DEFAULT '' AFTER item_id" },
-      { name: 'code', ddl: "code VARCHAR(32) NOT NULL DEFAULT '' AFTER name" }
+      { name: 'name', ddl: "name VARCHAR(191) NOT NULL DEFAULT '' AFTER item_id" }
     ]
 
     for (const column of ensureColumns) {
@@ -252,7 +248,6 @@ function createMysqlStorage(env) {
     return {
       id: String(row.item_id ?? ''),
       name: String(row.name ?? ''),
-      code: String(row.code ?? ''),
       price: Number(row.price ?? 0),
       originalPrice: Number(row.original_price ?? 0),
       sold: Boolean(row.sold),
@@ -266,7 +261,7 @@ function createMysqlStorage(env) {
     async listItems(userKey) {
       return withConnection(async (connection) => {
         const [rows] = await connection.query(
-          `SELECT item_id, name, code, price, original_price, sold, created_at
+          `SELECT item_id, name, price, original_price, sold, created_at
            FROM ${tableName}
            WHERE user_key = ?
            ORDER BY created_at DESC, id DESC`,
@@ -279,9 +274,9 @@ function createMysqlStorage(env) {
     async createItem(userKey, item) {
       return withConnection(async (connection) => {
         await connection.query(
-          `INSERT INTO ${tableName} (user_key, item_id, name, code, price, original_price, sold, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
-          [userKey, item.id, item.name, item.code, item.price, item.originalPrice, toMysqlDateTime(item.createdAt)]
+          `INSERT INTO ${tableName} (user_key, item_id, name, price, original_price, sold, created_at)
+           VALUES (?, ?, ?, ?, ?, 0, ?)`,
+          [userKey, item.id, item.name, item.price, item.originalPrice, toMysqlDateTime(item.createdAt)]
         )
 
         return item

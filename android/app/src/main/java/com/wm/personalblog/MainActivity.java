@@ -5,8 +5,6 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Insets;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
@@ -14,7 +12,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.util.Base64;
 import android.view.View;
 import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
@@ -35,14 +32,6 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import com.google.android.gms.tasks.Tasks;
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.text.Text;
-import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.TextRecognition;
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
@@ -400,40 +389,6 @@ public class MainActivity extends Activity {
                 return true;
             } catch (IOException error) {
                 return false;
-            }
-        }
-
-        @JavascriptInterface
-        public String recognizeText(String dataUrl) {
-            if (dataUrl == null || dataUrl.length() < 32) {
-                return "";
-            }
-
-            int comma = dataUrl.indexOf(',');
-            if (comma <= 0 || comma == dataUrl.length() - 1) {
-                return "";
-            }
-
-            try {
-                byte[] bytes = Base64.decode(dataUrl.substring(comma + 1), Base64.DEFAULT);
-                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                if (bitmap == null) {
-                    return "";
-                }
-
-                InputImage image = InputImage.fromBitmap(bitmap, 0);
-                TextRecognizer recognizer = TextRecognition.getClient(
-                        new ChineseTextRecognizerOptions.Builder().build()
-                );
-
-                try {
-                    Text result = Tasks.await(recognizer.process(image), 15, TimeUnit.SECONDS);
-                    return result == null ? "" : result.getText();
-                } finally {
-                    recognizer.close();
-                }
-            } catch (Exception error) {
-                return "";
             }
         }
     }

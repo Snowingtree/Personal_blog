@@ -50,10 +50,6 @@
               alt="券图片"
             />
 
-            <div class="android-quanshang-modal__code">
-              {{ activeItem?.code ? formatCode(activeItem.code) : '暂无券码' }}
-            </div>
-
             <div class="android-quanshang-modal__info">
               <strong>{{ activeItem?.name || '未命名' }}</strong>
               <span>
@@ -128,11 +124,6 @@ function formatDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : ''
 }
 
-function formatCode(value) {
-  const str = String(value || '').replace(/\s+/g, '')
-  return str.replace(/(\d{4})(?=\d)/g, '$1 ')
-}
-
 function getQuanImage(item) {
   if (!item) return FALLBACK_IMAGE
 
@@ -204,6 +195,7 @@ function saveToGallery(item) {
 }
 
 function openSheet(item) {
+  if (!item || item.sold) return
   activeItem.value = item
   sheetVisible.value = true
 }
@@ -312,6 +304,7 @@ onMounted(loadItems)
 
 .android-quanshang-item.is-sold {
   opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .android-quanshang-item__img {
@@ -377,23 +370,10 @@ onMounted(loadItems)
 
 .android-quanshang-modal__img {
   width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  height: 180px;
+  object-fit: contain;
   border-radius: 12px;
   background: var(--android-surface-muted);
-}
-
-.android-quanshang-modal__code {
-  justify-self: center;
-  padding: 6px 14px;
-  border: 1px solid var(--android-line-strong);
-  border-radius: 8px;
-  color: var(--android-text-strong);
-  background: var(--android-surface-muted);
-  font-size: 0.88rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  font-variant-numeric: tabular-nums;
 }
 
 .android-quanshang-modal__info {
