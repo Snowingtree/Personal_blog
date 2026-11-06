@@ -282,13 +282,13 @@ function createMysqlStorage(env) {
         return item
       })
     },
-    async markSold(userKey, itemId) {
+    async setSold(userKey, itemId, sold) {
       return withConnection(async (connection) => {
         const [result] = await connection.query(
           `UPDATE ${tableName}
-           SET sold = 1
+           SET sold = ?
            WHERE user_key = ? AND item_id = ?`,
-          [userKey, itemId]
+          [sold ? 1 : 0, userKey, itemId]
         )
 
         return Number(result?.affectedRows || 0) > 0
@@ -347,14 +347,16 @@ export function createQuanshangApiMiddleware(env = process.env) {
       }
 
       if (req.method === 'PATCH' && itemId && isSoldAction) {
-        const updated = await storage.markSold(userKey, itemId)
+        const body = await readJsonBody(req)
+        const targetSold = typeof body.sold === 'boolean' ? body.sold : true
+        const updated = await storage.setSold(userKey, itemId, targetSold)
 
         if (!updated) {
           writeJson(res, 404, { message: 'Item not found.' })
           return
         }
 
-        writeJson(res, 200, { ok: true, source: storage.mode })
+        writeJson(res, 200, { ok: true, sold: targetSold, source: storage.mode })
         return
       }
 

@@ -59,30 +59,40 @@
 
             <div class="android-quanshang-modal__actions">
               <button
+                v-if="activeItem?.sold"
                 type="button"
-                class="android-quanshang-modal__action android-quanshang-modal__action--complete"
-                :disabled="activeItem?.sold"
-                @click="markCompleted(activeItem)"
+                class="android-quanshang-modal__action android-quanshang-modal__action--restore"
+                @click="restoreItem(activeItem)"
               >
-                <Check :size="18" />
-                <span>{{ activeItem?.sold ? '已完成' : '完成' }}</span>
+                <span>恢复</span>
               </button>
-              <button
-                type="button"
-                class="android-quanshang-modal__action android-quanshang-modal__action--save"
-                @click="saveToGallery(activeItem)"
-              >
-                <Download :size="18" />
-                <span>保存</span>
-              </button>
-              <button
-                type="button"
-                class="android-quanshang-modal__action android-quanshang-modal__action--delete"
-                @click="removeItem(activeItem)"
-              >
-                <Trash2 :size="18" />
-                <span>删除</span>
-              </button>
+
+              <template v-else>
+                <button
+                  type="button"
+                  class="android-quanshang-modal__action android-quanshang-modal__action--complete"
+                  @click="markCompleted(activeItem)"
+                >
+                  <Check :size="18" />
+                  <span>完成</span>
+                </button>
+                <button
+                  type="button"
+                  class="android-quanshang-modal__action android-quanshang-modal__action--save"
+                  @click="saveToGallery(activeItem)"
+                >
+                  <Download :size="18" />
+                  <span>保存</span>
+                </button>
+                <button
+                  type="button"
+                  class="android-quanshang-modal__action android-quanshang-modal__action--delete"
+                  @click="removeItem(activeItem)"
+                >
+                  <Trash2 :size="18" />
+                  <span>删除</span>
+                </button>
+              </template>
             </div>
           </section>
         </div>
@@ -168,6 +178,24 @@ async function markCompleted(item) {
   }
 }
 
+async function restoreItem(item) {
+  if (!item || !item.sold) return
+
+  try {
+    await http.patch(`/api/quanshang/items/${item.id}/sold`, { sold: false })
+    item.sold = false
+    closeSheet()
+    createMessage({ message: '已恢复', type: 'success', duration: 1400, offset: 24 })
+  } catch (err) {
+    createMessage({
+      message: err instanceof Error ? err.message : '操作失败，请稍后重试',
+      type: 'error',
+      duration: 1800,
+      offset: 24
+    })
+  }
+}
+
 async function removeItem(item) {
   if (!item) return
 
@@ -212,7 +240,7 @@ function saveToGallery(item) {
 }
 
 function openSheet(item) {
-  if (!item || item.sold) return
+  if (!item) return
   activeItem.value = item
   sheetVisible.value = true
 }
@@ -447,6 +475,11 @@ onMounted(loadItems)
 
 .android-quanshang-modal__action--delete {
   background: #d14c3e;
+}
+
+.android-quanshang-modal__action--restore {
+  grid-column: 1 / -1;
+  background: #1d9e75;
 }
 
 .android-modal-enter-active,
