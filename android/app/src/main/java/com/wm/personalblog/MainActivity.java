@@ -5,6 +5,8 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Insets;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
@@ -24,6 +26,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -312,22 +315,6 @@ public class MainActivity extends Activity {
                 return false;
             }
 
-            String header = dataUrl.substring(0, comma).toLowerCase(Locale.US);
-            String extension;
-            String mimeType;
-            if (header.startsWith("data:image/png")) {
-                extension = ".png";
-                mimeType = "image/png";
-            } else if (header.startsWith("data:image/jpeg") || header.startsWith("data:image/jpg")) {
-                extension = ".jpg";
-                mimeType = "image/jpeg";
-            } else if (header.startsWith("data:image/webp")) {
-                extension = ".webp";
-                mimeType = "image/webp";
-            } else {
-                return false;
-            }
-
             byte[] bytes;
             try {
                 bytes = android.util.Base64.decode(dataUrl.substring(comma + 1), android.util.Base64.DEFAULT);
@@ -339,17 +326,41 @@ public class MainActivity extends Activity {
                 return false;
             }
 
-            String fileName = "quanshang-" + System.currentTimeMillis() + extension;
+            // 解码并重编码成 PNG，去掉 EXIF 拍摄时间，避免相册按旧日期排序
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            if (bitmap == null) {
+                return false;
+            }
+
+            byte[] pngBytes;
+            try {
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, buffer);
+                pngBytes = buffer.toByteArray();
+            } catch (Exception error) {
+                return false;
+            } finally {
+                bitmap.recycle();
+            }
+
+            if (pngBytes.length == 0) {
+                return false;
+            }
+
+            String fileName = "quanshang-" + System.currentTimeMillis() + ".png";
 
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    long now = System.currentTimeMillis();
                     ContentValues values = new ContentValues();
                     values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-                    values.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
                     values.put(
                             MediaStore.Images.Media.RELATIVE_PATH,
                             Environment.DIRECTORY_PICTURES + "/Quanshang"
                     );
+                    values.put(MediaStore.Images.Media.DATE_TAKEN, now);
+                    values.put(MediaStore.Images.Media.DATE_ADDED, now / 1000);
                     Uri collection = MediaStore.Images.Media.getContentUri(
                             MediaStore.VOLUME_EXTERNAL_PRIMARY
                     );
@@ -362,7 +373,7 @@ public class MainActivity extends Activity {
                         if (output == null) {
                             return false;
                         }
-                        output.write(bytes);
+                        output.write(pngBytes);
                     }
                     return true;
                 }
@@ -377,13 +388,13 @@ public class MainActivity extends Activity {
 
                 File file = new File(directory, fileName);
                 try (FileOutputStream output = new FileOutputStream(file)) {
-                    output.write(bytes);
+                    output.write(pngBytes);
                 }
 
                 MediaScannerConnection.scanFile(
                         MainActivity.this,
                         new String[]{file.getAbsolutePath()},
-                        new String[]{mimeType},
+                        new String[]{"image/png"},
                         null
                 );
                 return true;
