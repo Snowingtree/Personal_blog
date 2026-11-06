@@ -28,6 +28,7 @@ import android.webkit.WebViewClient;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +36,7 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
@@ -279,6 +281,10 @@ public class MainActivity extends Activity {
             return createErrorResponse(403, "Forbidden");
         }
 
+        if (assetPath.startsWith("quanshang-images/")) {
+            return interceptQuanshangImage(assetPath.substring("quanshang-images/".length()));
+        }
+
         try {
             InputStream stream = getAssets().open(assetPath, AssetManager.ACCESS_STREAMING);
             Map<String, String> headers = new HashMap<>();
@@ -292,6 +298,45 @@ public class MainActivity extends Activity {
                     "OK",
                     headers,
                     stream
+            );
+        } catch (IOException error) {
+            return createErrorResponse(404, "Not Found");
+        }
+    }
+
+    private File quanshangImageDirectory() {
+        File directory = new File(getFilesDir(), "quanshang-images");
+        if (!directory.exists() && !directory.mkdirs()) {
+            return null;
+        }
+        return directory;
+    }
+
+    private File quanshangImageFile(String fileName) {
+        if (fileName == null || !fileName.matches("[A-Za-z0-9.-]+")) {
+            return null;
+        }
+        File directory = quanshangImageDirectory();
+        return directory == null ? null : new File(directory, fileName);
+    }
+
+    private WebResourceResponse interceptQuanshangImage(String fileName) {
+        File imageFile = quanshangImageFile(fileName);
+        if (imageFile == null || !imageFile.isFile()) {
+            return createErrorResponse(404, "Not Found");
+        }
+
+        try {
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "private, max-age=31536000, immutable");
+            headers.put("Access-Control-Allow-Origin", "*");
+            return new WebResourceResponse(
+                    mimeTypeFor(imageFile.getName()),
+                    null,
+                    200,
+                    "OK",
+                    headers,
+                    new FileInputStream(imageFile)
             );
         } catch (IOException error) {
             return createErrorResponse(404, "Not Found");
@@ -401,6 +446,56 @@ public class MainActivity extends Activity {
             } catch (IOException error) {
                 return false;
             }
+        }
+
+        @JavascriptInterface
+        public String saveImageFile(String dataUrl) {
+            if (dataUrl == null || dataUrl.length() < 32) {
+                return "";
+            }
+
+            int comma = dataUrl.indexOf(',');
+            if (comma <= 0 || comma == dataUrl.length() - 1) {
+                return "";
+            }
+
+            String header = dataUrl.substring(0, comma).toLowerCase(Locale.US);
+            String extension;
+            if (header.startsWith("data:image/png")) {
+                extension = ".png";
+            } else if (header.startsWith("data:image/jpeg") || header.startsWith("data:image/jpg")) {
+                extension = ".jpg";
+            } else if (header.startsWith("data:image/webp")) {
+                extension = ".webp";
+            } else {
+                return "";
+            }
+
+            byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(dataUrl.substring(comma + 1), android.util.Base64.DEFAULT);
+            } catch (IllegalArgumentException error) {
+                return "";
+            }
+
+            if (bytes.length == 0) {
+                return "";
+            }
+
+            File directory = quanshangImageDirectory();
+            if (directory == null) {
+                return "";
+            }
+
+            String fileName = UUID.randomUUID().toString().replace("-", "") + extension;
+            File target = new File(directory, fileName);
+            try (FileOutputStream output = new FileOutputStream(target)) {
+                output.write(bytes);
+            } catch (IOException error) {
+                return "";
+            }
+
+            return fileName;
         }
     }
 

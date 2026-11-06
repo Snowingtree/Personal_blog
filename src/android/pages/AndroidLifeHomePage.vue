@@ -152,8 +152,18 @@ async function addItem() {
 
   const itemId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
+  let imageRef = draftImage.value
+  const bridge = globalThis.AndroidBridge
+
+  if (bridge && typeof bridge.saveImageFile === 'function') {
+    const fileName = bridge.saveImageFile(draftImage.value)
+    if (fileName) {
+      imageRef = fileName
+    }
+  }
+
   try {
-    localStorage.setItem(IMAGE_PREFIX + itemId, draftImage.value)
+    localStorage.setItem(IMAGE_PREFIX + itemId, imageRef)
   } catch {
     formError.value = '图片保存失败：本地存储已满。'
     saving.value = false

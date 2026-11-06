@@ -6,7 +6,7 @@
           <small>QUANSHANG</small>
           <h2>券商列表</h2>
         </div>
-        <span class="android-quanshang-count">{{ items.length }} 张</span>
+        <span class="android-quanshang-count">{{ unsoldCount }} / {{ items.length }}</span>
       </header>
 
       <p v-if="loading" class="android-quanshang-empty">加载中…</p>
@@ -123,6 +123,8 @@ const sortedItems = computed(() =>
   [...items.value].sort((a, b) => Number(Boolean(a.sold)) - Number(Boolean(b.sold)))
 )
 
+const unsoldCount = computed(() => items.value.filter((item) => !item.sold).length)
+
 function formatMoney(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return '0'
@@ -135,12 +137,16 @@ function formatDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : ''
 }
 
+const QUANSHANG_IMAGE_BASE_URL = 'http://appassets.local/quanshang-images/'
+
 function getQuanImage(item) {
   if (!item) return FALLBACK_IMAGE
 
   try {
     const stored = localStorage.getItem(IMAGE_PREFIX + item.id)
-    if (stored) return stored
+    if (!stored) return FALLBACK_IMAGE
+    if (stored.startsWith('data:')) return stored
+    return QUANSHANG_IMAGE_BASE_URL + stored
   } catch {}
   return FALLBACK_IMAGE
 }
@@ -214,11 +220,28 @@ async function removeItem(item) {
   }
 }
 
-function saveToGallery(item) {
+async function saveToGallery(item) {
   if (!item) return
 
-  const image = getQuanImage(item)
+  let image = getQuanImage(item)
   const bridge = globalThis.AndroidBridge
+
+  // 文件系统图片（非 base64）→ 先 fetch 转 base64，再交给原生层
+  if (!image.startsWith('data:') && bridge) {
+    try {
+      const response = await fetch(image)
+      const blob = await response.blob()
+      image = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+        reader.onerror = () => reject(new Error('read failed'))
+        reader.readAsDataURL(blob)
+      })
+    } catch {
+      createMessage({ message: '保存失败，请重试', type: 'error', duration: 1800, offset: 24 })
+      return
+    }
+  }
 
   if (bridge && typeof bridge.saveImageToGallery === 'function') {
     const ok = bridge.saveImageToGallery(image)
