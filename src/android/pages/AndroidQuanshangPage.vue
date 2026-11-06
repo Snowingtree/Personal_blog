@@ -94,6 +94,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { Check, Download, Trash2 } from 'lucide-vue-next'
+import { createMessage } from 'snowingress-my-components'
 import http from '../../utils/http'
 
 const IMAGE_PREFIX = 'quanshang-image-'
@@ -156,8 +157,14 @@ async function markCompleted(item) {
     await http.patch(`/api/quanshang/items/${item.id}/sold`)
     item.sold = true
     closeSheet()
+    createMessage({ message: '已完成', type: 'success', duration: 1400, offset: 24 })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '操作失败，请稍后重试'
+    createMessage({
+      message: err instanceof Error ? err.message : '操作失败，请稍后重试',
+      type: 'error',
+      duration: 1800,
+      offset: 24
+    })
   }
 }
 
@@ -168,8 +175,14 @@ async function removeItem(item) {
     await http.delete(`/api/quanshang/items/${item.id}`)
     items.value = items.value.filter((it) => it.id !== item.id)
     closeSheet()
+    createMessage({ message: '已删除', type: 'success', duration: 1400, offset: 24 })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '删除失败，请稍后重试'
+    createMessage({
+      message: err instanceof Error ? err.message : '删除失败，请稍后重试',
+      type: 'error',
+      duration: 1800,
+      offset: 24
+    })
   }
 }
 
@@ -180,8 +193,12 @@ function saveToGallery(item) {
   const bridge = globalThis.AndroidBridge
 
   if (bridge && typeof bridge.saveImageToGallery === 'function') {
-    bridge.saveImageToGallery(image)
-    closeSheet()
+    const ok = bridge.saveImageToGallery(image)
+    if (ok) {
+      createMessage({ message: '已保存到相册', type: 'success', duration: 1400, offset: 24 })
+    } else {
+      createMessage({ message: '保存失败，请重试', type: 'error', duration: 1800, offset: 24 })
+    }
     return
   }
 
@@ -191,7 +208,7 @@ function saveToGallery(item) {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  closeSheet()
+  createMessage({ message: '已保存到相册', type: 'success', duration: 1400, offset: 24 })
 }
 
 function openSheet(item) {

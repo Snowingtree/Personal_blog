@@ -3204,8 +3204,7 @@ html.site-theme-transitioning .blog-article-body.note-preview-shell .md-editor-p
 }
 
 .blog-hero__panel-stack > :last-child {
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .blog-hero__panel::after {
