@@ -184,6 +184,7 @@ function createMysqlStorage(env) {
         price DECIMAL(10, 2) NOT NULL DEFAULT 0,
         original_price DECIMAL(10, 2) NOT NULL DEFAULT 0,
         sold TINYINT(1) NOT NULL DEFAULT 0,
+        sold_at DATETIME(3) NULL,
         created_at DATETIME(3) NOT NULL,
         UNIQUE KEY uniq_user_item (user_key, item_id),
         KEY idx_user_created (user_key, created_at)
@@ -192,7 +193,8 @@ function createMysqlStorage(env) {
 
     // 兼容旧表：若缺少列则补充
     const ensureColumns = [
-      { name: 'name', ddl: "name VARCHAR(191) NOT NULL DEFAULT '' AFTER item_id" }
+      { name: 'name', ddl: "name VARCHAR(191) NOT NULL DEFAULT '' AFTER item_id" },
+      { name: 'sold_at', ddl: 'sold_at DATETIME(3) NULL AFTER sold' }
     ]
 
     for (const column of ensureColumns) {
@@ -251,6 +253,7 @@ function createMysqlStorage(env) {
       price: Number(row.price ?? 0),
       originalPrice: Number(row.original_price ?? 0),
       sold: Boolean(row.sold),
+      soldAt: row.sold_at ? fromMysqlDateTime(row.sold_at) : '',
       createdAt: fromMysqlDateTime(row.created_at)
     }
   }
@@ -261,7 +264,7 @@ function createMysqlStorage(env) {
     async listItems(userKey) {
       return withConnection(async (connection) => {
         const [rows] = await connection.query(
-          `SELECT item_id, name, price, original_price, sold, created_at
+          `SELECT item_id, name, price, original_price, sold, sold_at, created_at
            FROM ${tableName}
            WHERE user_key = ?
            ORDER BY created_at DESC, id DESC`,
@@ -284,11 +287,12 @@ function createMysqlStorage(env) {
     },
     async setSold(userKey, itemId, sold) {
       return withConnection(async (connection) => {
+        const soldAt = sold ? toMysqlDateTime(new Date()) : null
         const [result] = await connection.query(
           `UPDATE ${tableName}
-           SET sold = ?
+           SET sold = ?, sold_at = ?
            WHERE user_key = ? AND item_id = ?`,
-          [sold ? 1 : 0, userKey, itemId]
+          [sold ? 1 : 0, soldAt, userKey, itemId]
         )
 
         return Number(result?.affectedRows || 0) > 0

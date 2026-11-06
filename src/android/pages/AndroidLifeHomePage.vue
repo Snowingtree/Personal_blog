@@ -28,6 +28,27 @@
       </button>
     </section>
 
+    <section class="android-profit-card">
+      <div class="android-profit-heading">
+        <TrendingUp :size="18" />
+        <div class="android-profit-heading__title">
+          <small>PROFIT</small>
+          <h2>利润</h2>
+        </div>
+      </div>
+
+      <div class="android-profit-stats">
+        <div class="android-profit-row">
+          <span>今日利润</span>
+          <strong>¥{{ formatMoney(todayProfit) }}</strong>
+        </div>
+        <div class="android-profit-row android-profit-row--total">
+          <span>总利润</span>
+          <strong>¥{{ formatMoney(totalProfit) }}</strong>
+        </div>
+      </div>
+    </section>
+
     <section class="android-quanshang-card">
       <div class="android-quanshang-heading">
         <Ticket :size="18" />
@@ -90,8 +111,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { ImageUp, Ticket, ToggleRight } from 'lucide-vue-next'
+import { computed, onMounted, ref } from 'vue'
+import { ImageUp, Ticket, ToggleRight, TrendingUp } from 'lucide-vue-next'
 import profileAvatar from '../../assets/images/headerPH.png'
 import { setAndroidAppMode } from '../appMode'
 import http from '../../utils/http'
@@ -114,6 +135,45 @@ const canSubmit = computed(() =>
   && Number(draftPrice.value) > 0
   && Number(draftOriginalPrice.value) > 0
 )
+
+const FEE_RATE = 0.006
+const quanItems = ref([])
+
+function profitOf(item) {
+  const price = Number(item.price || 0)
+  const originalPrice = Number(item.originalPrice || 0)
+  return price - originalPrice - price * FEE_RATE
+}
+
+function formatMoney(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '0'
+  return number.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+}
+
+const todayProfit = computed(() => {
+  const today = new Date().toISOString().slice(0, 10)
+  return quanItems.value
+    .filter((item) => item.sold && item.soldAt && String(item.soldAt).slice(0, 10) === today)
+    .reduce((sum, item) => sum + profitOf(item), 0)
+})
+
+const totalProfit = computed(() =>
+  quanItems.value
+    .filter((item) => item.sold)
+    .reduce((sum, item) => sum + profitOf(item), 0)
+)
+
+async function loadQuanItems() {
+  try {
+    const data = await http.get('/api/quanshang/items')
+    quanItems.value = Array.isArray(data.items) ? data.items : []
+  } catch {
+    quanItems.value = []
+  }
+}
+
+onMounted(loadQuanItems)
 
 function handleImagePick(event) {
   const file = event.target.files?.[0]
@@ -220,6 +280,64 @@ function goHome() {
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 7px 16px var(--android-accent-shadow);
+}
+
+.android-profit-card {
+  padding: 17px;
+  border: 1px solid var(--android-line);
+  border-radius: 19px;
+  background: var(--android-surface);
+  box-shadow: var(--android-shadow);
+}
+
+.android-profit-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 13px;
+  color: var(--android-accent);
+}
+
+.android-profit-heading__title small {
+  color: var(--android-text-faint);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.android-profit-heading__title h2 {
+  margin: 2px 0 0;
+  color: var(--android-text-strong);
+  font-size: 1rem;
+}
+
+.android-profit-stats {
+  display: grid;
+  gap: 10px;
+}
+
+.android-profit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.android-profit-row span {
+  color: var(--android-text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.android-profit-row strong {
+  color: var(--android-text-strong);
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.android-profit-row--total strong {
+  color: #d14c3e;
 }
 
 .android-quanshang-card {
