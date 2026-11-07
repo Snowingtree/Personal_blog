@@ -497,6 +497,12 @@ public class MainActivity extends Activity {
 
             return fileName;
         }
+
+        @JavascriptInterface
+        public boolean deleteImageFile(String fileName) {
+            File imageFile = quanshangImageFile(fileName);
+            return imageFile != null && imageFile.isFile() && imageFile.delete();
+        }
     }
 
     private WebResourceResponse createErrorResponse(int statusCode, String reason) {

@@ -107,12 +107,35 @@
         <p v-if="saved" class="android-quanshang-saved">已保存，去「券商」页查看</p>
       </div>
     </section>
+
+    <section class="android-quanshang-settings-card">
+      <div class="android-quanshang-settings-heading">
+        <Settings :size="18" />
+        <div class="android-quanshang-settings-heading__title">
+          <small>SETTINGS</small>
+          <h2>设置</h2>
+        </div>
+      </div>
+
+      <div class="android-quanshang-settings-row">
+        <span class="android-quanshang-settings-row__text">清空已完成券的图片，释放空间</span>
+        <button
+          type="button"
+          class="android-quanshang-settings-clear"
+          :disabled="clearing"
+          @click="clearCompletedImages"
+        >
+          {{ clearing ? '清空中…' : '清空' }}
+        </button>
+      </div>
+    </section>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ImageUp, Ticket, ToggleRight, TrendingUp } from 'lucide-vue-next'
+import { ImageUp, Settings, Ticket, ToggleRight, TrendingUp } from 'lucide-vue-next'
+import { createMessage } from 'snowingress-my-components'
 import profileAvatar from '../../assets/images/headerPH.png'
 import { setAndroidAppMode } from '../appMode'
 import http from '../../utils/http'
@@ -128,6 +151,7 @@ const draftOriginalPrice = ref(null)
 const formError = ref('')
 const saved = ref(false)
 const saving = ref(false)
+const clearing = ref(false)
 
 const canSubmit = computed(() =>
   !!draftImage.value
@@ -254,6 +278,49 @@ async function addItem() {
   }
 }
 
+async function clearCompletedImages() {
+  if (clearing.value) return
+
+  clearing.value = true
+
+  try {
+    const data = await http.get('/api/quanshang/items')
+    const allItems = Array.isArray(data.items) ? data.items : []
+    const completedItems = allItems.filter((item) => item.sold)
+
+    if (!completedItems.length) {
+      createMessage({ message: '没有已完成的券', type: 'info', duration: 1400, offset: 24 })
+      return
+    }
+
+    const bridge = globalThis.AndroidBridge
+    let clearedCount = 0
+
+    completedItems.forEach((item) => {
+      const key = IMAGE_PREFIX + item.id
+      const stored = localStorage.getItem(key)
+      if (!stored) return
+
+      if (!stored.startsWith('data:') && bridge && typeof bridge.deleteImageFile === 'function') {
+        bridge.deleteImageFile(stored)
+      }
+      localStorage.removeItem(key)
+      clearedCount += 1
+    })
+
+    createMessage({ message: `已清空 ${clearedCount} 张图片`, type: 'success', duration: 1400, offset: 24 })
+  } catch (err) {
+    createMessage({
+      message: err instanceof Error ? err.message : '清空失败，请稍后重试',
+      type: 'error',
+      duration: 1800,
+      offset: 24
+    })
+  } finally {
+    clearing.value = false
+  }
+}
+
 function goHome() {
   setAndroidAppMode('personal')
 }
@@ -280,6 +347,67 @@ function goHome() {
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 7px 16px var(--android-accent-shadow);
+}
+
+.android-quanshang-settings-card {
+  padding: 17px;
+  border: 1px solid var(--android-line);
+  border-radius: 19px;
+  background: var(--android-surface);
+  box-shadow: var(--android-shadow);
+}
+
+.android-quanshang-settings-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 13px;
+  color: var(--android-accent);
+}
+
+.android-quanshang-settings-heading__title small {
+  color: var(--android-text-faint);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.android-quanshang-settings-heading__title h2 {
+  margin: 2px 0 0;
+  color: var(--android-text-strong);
+  font-size: 1rem;
+}
+
+.android-quanshang-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.android-quanshang-settings-row__text {
+  min-width: 0;
+  color: var(--android-text-soft);
+  font-size: 0.82rem;
+}
+
+.android-quanshang-settings-clear {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  color: #ffffff;
+  background: #d14c3e;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.android-quanshang-settings-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .android-profit-card {
